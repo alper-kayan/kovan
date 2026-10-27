@@ -1,0 +1,71 @@
+# Reviewing from the phone against a local server where alice's desktop is online with
+# fixture-repo set up: her agent changes a file on the desktop, the phone reads the live diff
+# and leaves a comment on one of its lines; then spend and limits.
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: flows/sign-in-local.yaml
+- tapOn: 'fixture-repo.*'
+- tapOn: 'New session'
+- tapOn: 'Session title'
+- inputText: 'Phone review check'
+- tapOn: '.*First prompt for your agent.*'
+- inputText: 'Add a median(values) function to src/stats.js that returns the middle value of the sorted numbers, with one JSDoc line like mean. Make exactly one edit_file call and do not run any commands.'
+- tapOn: 'Start'
+- extendedWaitUntil:
+    visible: 'Your agent started on your desktop\.'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: 'Approve'
+    timeout: 120000
+- tapOn: 'Approve'
+# The model may ask once more (to fix its own edit): every ask is approved until it is done.
+- repeat:
+    times: 20
+    while:
+      notVisible: 'Idle.*'
+    commands:
+      - tapOn:
+          text: 'Approve'
+          optional: true
+- assertVisible: 'Idle.*'
+# The desktop sends its view of the changes; with one file, its diff is open.
+- tapOn: 'Changes'
+- extendedWaitUntil:
+    visible: 'src/stats.js, modified, .*'
+    timeout: 30000
+- assertVisible: "From alice's desktop, .*"
+- tapOn: 'Comment on line [0-9]+: .*median.*'
+- inputText: 'Please handle an empty list here.'
+- tapOn: 'Comment'
+- extendedWaitUntil:
+    visible: 'Please handle an empty list here\.'
+    timeout: 15000
+- assertVisible: 'Resolve'
+# Spend and limits, from the account screen. Starting the app again lands on Workspaces (a
+# notification banner can cover the back button while the agent finishes).
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: 'Workspaces'
+    timeout: 30000
+- tapOn: 'Account'
+- tapOn: 'Spend and limits.*'
+- extendedWaitUntil:
+    visible: 'LAST 30 DAYS'
+    timeout: 15000
+- assertVisible: 'Agent limits this month'
+- scrollUntilVisible:
+    element: 'Set a monthly limit|Change the limit'
+- tapOn: 'Set a monthly limit|Change the limit'
+- inputText: '25'
+- tapOn: 'Save'
+# The toast shows over the sheet (each modal hosts its own).
+- extendedWaitUntil:
+    visible: 'Monthly limit: \$25\.00\.'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: '.* / \$25\.00'
+    timeout: 15000
+- assertVisible: 'Change the limit'

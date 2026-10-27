@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1c1c"/>
+      <stop offset="1" stop-color="#0b0b0b"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.25" cy="0.1" r="0.8">
+      <stop offset="0" stop-color="#7a5a32" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#7a5a32" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>
+  <rect x="100.5" y="100.5" width="823" height="823" rx="184.5" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+  <g fill="none" stroke="#e8e8e8" stroke-width="40" stroke-linejoin="round" transform="translate(512 512) scale(0.78) translate(-512 -512)">
+    <path d="M747.56,533.00L847.15,590.50L847.15,705.50L747.56,763.00L647.97,705.50L647.97,590.50Z"/>
+    <path d="M512.00,669.00L611.59,726.50L611.59,841.50L512.00,899.00L412.41,841.50L412.41,726.50Z"/>
+    <path d="M276.44,533.00L376.03,590.50L376.03,705.50L276.44,763.00L176.85,705.50L176.85,590.50Z"/>
+    <path d="M276.44,261.00L376.03,318.50L376.03,433.50L276.44,491.00L176.85,433.50L176.85,318.50Z"/>
+    <path d="M512.00,125.00L611.59,182.50L611.59,297.50L512.00,355.00L412.41,297.50L412.41,182.50Z"/>
+    <path d="M747.56,261.00L847.15,318.50L847.15,433.50L747.56,491.00L647.97,433.50L647.97,318.50Z"/>
+  </g>
+  <path d="M512.00,429.48L583.47,470.74L583.47,553.26L512.00,594.52L440.53,553.26L440.53,470.74Z" fill="#e8e8e8"/>
+</svg>

@@ -1,0 +1,12 @@
+# Over-the-air updates, part 1: a Release build whose update address is the local server
+# (deploy/README.md, "Over-the-air updates" → "Trying it"), nothing published yet. Signs in and
+# shows that the build runs its own code.
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: ../flows/sign-in-local.yaml
+- tapOn: 'Account'
+- assertVisible: 'Update'
+- assertVisible: 'Built in'
+- assertVisible: 'Kovan 0\.1\.0 \(\d+\)'

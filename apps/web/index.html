@@ -1,0 +1,749 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--@head-->
+    <title>Kovan: a hive for your team and its coding agents</title>
+    <meta
+      name="description"
+      content="Kovan is a multiplayer desktop IDE where people and AI agents share one live session. A lead agent plans the work as a task graph, teammates build it in parallel, and nothing is done until your own checks pass."
+    />
+    <script type="module" src="/src/pages/home.ts"></script>
+  </head>
+  <body class="home">
+    <div class="progress" aria-hidden="true"><span data-progress></span></div>
+    <!--@nav-->
+    <main id="main">
+      <!-- ============ hero ============ -->
+      <section class="hero" aria-labelledby="hero-title">
+        <canvas class="hero-hive" data-hive aria-hidden="true"></canvas>
+        <div class="hero-orbs" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="wrap hero-inner">
+          <a class="pill-new" href="#flow" data-reveal>
+            <span class="pill-dot"></span>
+            <b>New</b> Agent System 2.0: task graphs and verified completion
+            <span aria-hidden="true">&rarr;</span>
+          </a>
+          <h1 id="hero-title" class="hero-title" data-reveal>
+            A <span class="ink-honey">hive</span> for your team<br />
+            and its coding agents.
+          </h1>
+          <p class="hero-sub" data-reveal>
+            Kovan is a multiplayer desktop IDE. People and AI agents share one live session: a lead
+            plans the work as a task graph, teammates build it in parallel, and nothing counts as
+            done until <em>your own checks</em> pass.
+          </p>
+          <div class="hero-cta" data-reveal>
+            <a class="btn btn-primary btn-xl" href="/download/" data-download-cta>
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+                <path
+                  d="M10 3v10m0 0l-4-4m4 4l4-4M4 16.5h12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span data-download-label>Download</span>
+            </a>
+            <a class="btn btn-secondary btn-xl" href="#flow">See how it works</a>
+          </div>
+          <p class="hero-meta" data-reveal>
+            macOS (Apple silicon) · Windows x64 and ARM64 · Linux x64 · free to start
+          </p>
+
+          <!-- a live-looking session window -->
+          <div class="hero-window" data-reveal data-tilt aria-hidden="true">
+            <div class="win-bar">
+              <i></i><i></i><i></i>
+              <span class="win-title">rate-limit-api · <b>Swarm</b> · 3 agents</span>
+              <span class="win-live"><span class="pulse"></span> live</span>
+            </div>
+            <div class="win-body">
+              <div class="win-lanes" data-hero-lanes>
+                <div class="lane" style="--c: var(--sky)">
+                  <p class="lane-head"><i class="av"></i><b>Lead</b><span>Wren</span></p>
+                  <div class="lane-feed"></div>
+                </div>
+                <div class="lane" style="--c: var(--mint)">
+                  <p class="lane-head"><i class="av"></i><b>Builder</b><span>Bob</span></p>
+                  <div class="lane-feed"></div>
+                </div>
+                <div class="lane" style="--c: var(--violet)">
+                  <p class="lane-head"><i class="av"></i><b>Tests</b><span>Moss</span></p>
+                  <div class="lane-feed"></div>
+                </div>
+              </div>
+              <div class="win-side">
+                <p class="side-label">Task graph</p>
+                <div class="mini-graph" data-mini-graph>
+                  <span class="mg n1">Plan</span>
+                  <span class="mg n2">Limiter</span>
+                  <span class="mg n3">Routes</span>
+                  <span class="mg n4">Tests</span>
+                  <span class="mg n5">Review</span>
+                </div>
+                <p class="side-label">Budget</p>
+                <div class="budget"><span data-hero-budget></span></div>
+                <p class="side-num mono"><b data-hero-spend>$0.00</b> of $2.00</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ticker ============ -->
+      <section class="ticker" aria-label="What Kovan does">
+        <div class="ticker-row">
+          <ul>
+            <li>Live lanes</li>
+            <li>Swarm</li>
+            <li>Task graphs</li>
+            <li>Verified completion</li>
+            <li>Independent review</li>
+            <li>JevRouter</li>
+            <li>180+ models</li>
+            <li>Agent Arena</li>
+            <li>Change impact</li>
+            <li>Session replay</li>
+          </ul>
+          <ul aria-hidden="true">
+            <li>Live lanes</li>
+            <li>Swarm</li>
+            <li>Task graphs</li>
+            <li>Verified completion</li>
+            <li>Independent review</li>
+            <li>JevRouter</li>
+            <li>180+ models</li>
+            <li>Agent Arena</li>
+            <li>Change impact</li>
+            <li>Session replay</li>
+          </ul>
+        </div>
+        <div class="ticker-row reverse" aria-hidden="true">
+          <ul>
+            <li>Claude Code</li>
+            <li>Codex</li>
+            <li>OpenRouter</li>
+            <li>Git worktrees</li>
+            <li>MCP</li>
+            <li>GitHub issues</li>
+            <li>Monaco editor</li>
+            <li>Your own keys</li>
+            <li>Budgets</li>
+            <li>AI teammates</li>
+          </ul>
+          <ul>
+            <li>Claude Code</li>
+            <li>Codex</li>
+            <li>OpenRouter</li>
+            <li>Git worktrees</li>
+            <li>MCP</li>
+            <li>GitHub issues</li>
+            <li>Monaco editor</li>
+            <li>Your own keys</li>
+            <li>Budgets</li>
+            <li>AI teammates</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ the flow: goal to verified code ============ -->
+      <section class="flow" id="flow" aria-labelledby="flow-title">
+        <div class="wrap">
+          <header class="sec-head" data-reveal>
+            <p class="label">01 · How the system works</p>
+            <h2 id="flow-title">
+              From one sentence<br />to <span class="ink-mint">verified</span> code.
+            </h2>
+            <p>
+              Give Kovan a goal. A lead agent turns it into a graph of tasks, a team builds them at
+              the same time, and every task has to pass your project&rsquo;s own checks before it
+              counts.
+            </p>
+          </header>
+
+          <div class="story" data-story>
+            <ol class="story-steps">
+              <li class="story-step" data-step="1">
+                <span class="step-num">1</span>
+                <h3>Goal</h3>
+                <p>
+                  Type what you want into the Swarm composer. Kovan reads the goal, suggests a team
+                  for it (a lead plus the workers it needs) and shows the budget before anything
+                  runs.
+                </p>
+              </li>
+              <li class="story-step" data-step="2">
+                <span class="step-num">2</span>
+                <h3>Plan</h3>
+                <p>
+                  The lead writes a task graph. Every task has acceptance criteria, the tasks it
+                  depends on and the files it will touch. Tasks that would edit the same files are
+                  put in order, and risky ones wait for a person to approve them.
+                </p>
+              </li>
+              <li class="story-step" data-step="3">
+                <span class="step-num">3</span>
+                <h3>Build</h3>
+                <p>
+                  Teammates pick up tasks the moment their dependencies are done, in parallel, each
+                  in its own Git worktree. Every task has a lifecycle you can watch, a budget it
+                  can&rsquo;t pass and a timeout.
+                </p>
+              </li>
+              <li class="story-step" data-step="4">
+                <span class="step-num">4</span>
+                <h3>Check</h3>
+                <p>
+                  Kovan finds the project&rsquo;s checks (typecheck, tests, lint) and runs them on
+                  each finished task. A task that fails goes back to its agent with the failure, for
+                  one rework.
+                </p>
+              </li>
+              <li class="story-step" data-step="5">
+                <span class="step-num">5</span>
+                <h3>Review</h3>
+                <p>
+                  A separate reviewer reads the diff against the acceptance criteria and gives a
+                  verdict. Changed files that no test touches are called out instead of passed over.
+                </p>
+              </li>
+              <li class="story-step" data-step="6">
+                <span class="step-num">6</span>
+                <h3>Report</h3>
+                <p>
+                  A completion report says exactly which checks ran and passed, what is still
+                  unverified and what it cost. The whole run is in the session journal, ready to
+                  replay.
+                </p>
+              </li>
+            </ol>
+
+            <div class="story-stage-wrap">
+              <div class="stage" data-stage data-at="1" aria-hidden="true">
+                <div class="stage-grid"></div>
+
+                <!-- 1 goal -->
+                <div class="goal-card">
+                  <p class="goal-label">Swarm goal</p>
+                  <p class="goal-text"><span data-goal-type></span><span class="caret"></span></p>
+                  <div class="team-chips">
+                    <span style="--c: var(--sky)">Lead</span>
+                    <span style="--c: var(--mint)">Builder</span>
+                    <span style="--c: var(--violet)">Tests</span>
+                    <span class="chip-budget">budget $2.00</span>
+                  </div>
+                </div>
+
+                <!-- 2+ graph -->
+                <svg class="graph-edges" data-edges="t1-t2 t1-t3 t2-t4 t3-t4 t1-t5"></svg>
+                <div class="node t1" style="--c: var(--sky)">
+                  <b>Design limiter</b><small>accept: plan in limits.md</small>
+                  <span class="node-state"></span>
+                </div>
+                <div class="node t2" style="--c: var(--mint)">
+                  <b>Token bucket</b><small>files: src/limits.ts</small>
+                  <span class="node-state"></span><span class="bar"><i></i></span>
+                </div>
+                <div class="node t3" style="--c: var(--violet)">
+                  <b>Burst test</b><small>accept: 429 after 10 req</small>
+                  <span class="node-state"></span><span class="bar"><i></i></span>
+                </div>
+                <div class="node t4" style="--c: var(--honey)">
+                  <b>Wire routes</b><small>needs approval</small> <span class="node-state"></span
+                  ><span class="lock">&#9888; approve?</span>
+                </div>
+                <div class="node t5" style="--c: var(--rose)">
+                  <b>Docs</b><small>files: README.md</small> <span class="node-state"></span
+                  ><span class="bar"><i></i></span>
+                </div>
+
+                <!-- 4 checks -->
+                <div class="checks">
+                  <p><span class="ck c1"></span>typecheck</p>
+                  <p><span class="ck c2"></span>tests (14)</p>
+                  <p><span class="ck c3"></span>lint</p>
+                </div>
+
+                <!-- 5 review -->
+                <div class="review-card">
+                  <p><span class="eye">&#9673;</span> <b>Reviewer</b> approved</p>
+                  <p class="dim">Matches all 3 acceptance criteria</p>
+                  <p class="warn">&#9888; src/headers.ts has no test</p>
+                </div>
+
+                <!-- 6 report -->
+                <div class="report-card">
+                  <p class="report-head">&#10003; Swarm finished · 5/5 tasks</p>
+                  <p class="mono">Kovan ran and passed: typecheck, tests, lint</p>
+                  <p class="mono dim">unverified: 1 file · spent $0.42 of $2.00 · 6m 12s</p>
+                  <p class="report-replay">&#9655; Replay this session</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ multiplayer session ============ -->
+      <section class="sec" id="session" aria-labelledby="session-title">
+        <div class="wrap split">
+          <div class="split-text">
+            <p class="label" data-reveal>02 · Multiplayer</p>
+            <h2 id="session-title" data-reveal>
+              One session.<br /><span class="ink-sky">Everyone&rsquo;s</span> agents in it.
+            </h2>
+            <p class="lead" data-reveal>
+              Each person prompts their own agent in their own lane, on their own machine. Everyone
+              sees every lane as it streams, and the session keeps one branch and one plan.
+            </p>
+            <ul class="ticks" data-reveal>
+              <li>
+                <b>Approvals anyone can answer.</b> Any editor can approve a command; the first
+                answer wins, and it covers that exact action once.
+              </li>
+              <li>
+                <b>Overlap warnings.</b> If your prompt touches files another agent is editing,
+                Kovan says so before it runs: join, split or carry on.
+              </li>
+              <li>
+                <b>Steer and hand off.</b> Redirect an agent mid-turn, comment on a diff, or hand a
+                task to a teammate with its plan.
+              </li>
+              <li>
+                <b>Roles on the server.</b> Viewer, commenter, editor and owner, checked on every
+                request.
+              </li>
+            </ul>
+          </div>
+          <div class="lanes-demo" data-lanes-demo data-reveal aria-hidden="true">
+            <div class="ld-lane" style="--c: var(--sky)">
+              <p class="ld-head"><i class="av">A</i><b>Ada</b><span>Kovan agent</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-lane" style="--c: var(--rose)">
+              <p class="ld-head"><i class="av">B</i><b>Ben</b><span>Claude Code</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-lane" style="--c: var(--mint)">
+              <p class="ld-head"><i class="av">&#11042;</i><b>Bob</b><span>AI teammate</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-approval">
+              <p><b>Run this?</b> <span class="mono">pnpm test src/limits.test.ts</span></p>
+              <p class="ld-actions">
+                <span class="ok">&#10003; Approve</span><span>&#10005; Deny</span>
+              </p>
+              <p class="ld-who">Ben approved · rev 14</p>
+            </div>
+            <div class="ld-overlap">
+              &#9888; Bob is editing <b>src/limits.ts</b> · <u>Join</u> · <u>Split</u> ·
+              <u>Carry on</u>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ AI teammates & memory ============ -->
+      <section class="sec sec-alt" id="teammates" aria-labelledby="mates-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">03 · AI teammates</p>
+            <h2 id="mates-title">Teammates that <span class="ink-violet">remember</span>.</h2>
+            <p>
+              Add AI members to a workspace the way you add people. They keep their name, role and
+              model, take tasks from the board and build up a shared memory of how your project
+              works.
+            </p>
+          </header>
+          <div class="mates">
+            <article class="mate" data-reveal data-spot style="--c: var(--sky); --i: 0">
+              <div class="mate-hex">W</div>
+              <h3>Wren</h3>
+              <p class="mate-role">Lead · plans and assigns</p>
+              <p class="mate-quote">
+                &ldquo;Splitting this into 4 tasks. Tests go after the limiter.&rdquo;
+              </p>
+            </article>
+            <article class="mate" data-reveal data-spot style="--c: var(--mint); --i: 1">
+              <div class="mate-hex">B</div>
+              <h3>Bob</h3>
+              <p class="mate-role">Builder · writes the code</p>
+              <p class="mate-quote">&ldquo;Token bucket done. Typecheck and tests pass.&rdquo;</p>
+            </article>
+            <article class="mate" data-reveal data-spot style="--c: var(--violet); --i: 2">
+              <div class="mate-hex">M</div>
+              <h3>Moss</h3>
+              <p class="mate-role">Tests · reviews and covers</p>
+              <p class="mate-quote">
+                &ldquo;Added the 429 burst case. One file still has no test.&rdquo;
+              </p>
+            </article>
+          </div>
+
+          <div class="brain" data-reveal>
+            <div class="brain-text">
+              <h3>A brain with reasons, not just notes.</h3>
+              <p>
+                Decisions are stored with their rationale, consequences and the files they affect.
+                When a new memory contradicts an old one, both are marked <b>disputed</b> and agents
+                are told, so nobody quietly works from a stale rule.
+              </p>
+            </div>
+            <div class="brain-cards" data-brain aria-hidden="true">
+              <div class="mem m1">
+                <p class="mem-kind">Decision</p>
+                <p><b>Rate limits live in middleware</b></p>
+                <p class="dim">why: one place, keyed by API token</p>
+                <p class="dim">affects: src/limits.ts, src/app.ts</p>
+              </div>
+              <div class="mem m2">
+                <p class="mem-kind">Memory</p>
+                <p><b>Limits are set per route</b></p>
+                <p class="dim">affects: src/routes.ts</p>
+              </div>
+              <span class="stamp">Disputed</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ JevRouter & models ============ -->
+      <section class="sec" id="models" aria-labelledby="router-title">
+        <div class="wrap">
+          <header class="sec-head" data-reveal>
+            <p class="label">04 · Models</p>
+            <h2 id="router-title">
+              Every model.<br /><span class="ink-honey">Routed</span> per task.
+            </h2>
+            <p>
+              A native harness built into the app, more than 180 models through OpenRouter, and
+              JevRouter to choose between them. Use your own key, or managed usage at provider cost
+              plus 5%.
+            </p>
+          </header>
+
+          <div class="router" data-router data-reveal aria-hidden="true">
+            <div class="r-in">
+              <p class="r-col-label">Prompts</p>
+              <div class="r-prompts" data-router-prompts></div>
+            </div>
+            <div class="r-core">
+              <div class="r-hex"><span>Jev</span></div>
+              <p class="r-class" data-router-class>reading the conversation&hellip;</p>
+              <svg class="r-wires" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path d="M0 50 L50 50" />
+                <path class="w w0" d="M50 50 C 75 50, 75 14, 100 14" />
+                <path class="w w1" d="M50 50 C 75 50, 75 38, 100 38" />
+                <path class="w w2" d="M50 50 C 75 50, 75 62, 100 62" />
+                <path class="w w3" d="M50 50 C 75 50, 75 86, 100 86" />
+              </svg>
+            </div>
+            <div class="r-out">
+              <p class="r-col-label">Models</p>
+              <div class="r-model" data-model="0"><b>Frontier</b><span>hard design work</span></div>
+              <div class="r-model" data-model="1"><b>Coder</b><span>edits and fixes</span></div>
+              <div class="r-model" data-model="2">
+                <b>Fast</b><span>search and small tasks</span>
+              </div>
+              <div class="r-model" data-model="3">
+                <b>Long context</b><span>whole-repo reading</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat" data-reveal style="--i: 0">
+              <p class="stat-v"><span data-count="180">0</span>+</p>
+              <p class="stat-l">models through OpenRouter</p>
+            </div>
+            <div class="stat" data-reveal style="--i: 1">
+              <p class="stat-v">&times;<span data-count="1.05" data-decimals="2">0</span></p>
+              <p class="stat-l">provider cost on managed usage</p>
+            </div>
+            <div class="stat" data-reveal style="--i: 2">
+              <p class="stat-v"><span data-count="4">0</span></p>
+              <p class="stat-l">permission modes: Plan, Request, Allow, Full</p>
+            </div>
+            <div class="stat" data-reveal style="--i: 3">
+              <p class="stat-v"><span data-count="1">0</span></p>
+              <p class="stat-l">key for all of them, or none with managed usage</p>
+            </div>
+          </div>
+
+          <div class="duo">
+            <article class="card" data-reveal data-spot>
+              <p class="label">Steer the router</p>
+              <h3>Say it in the prompt.</h3>
+              <p>
+                JevRouter reads the whole conversation, keeps your cache warm by switching only when
+                the task changes, and follows directives like
+                <code>[jev: only use Opus]</code>.
+              </p>
+              <div class="directive-chips" aria-hidden="true">
+                <span>[jev: only use &hellip;]</span><span>[jev: economy]</span
+                ><span>[jev: no frontier]</span><span>[jev: codex]</span><span>[jev: auto]</span>
+              </div>
+              <div
+                class="typed-line mono"
+                data-typer="[jev: only use Opus] refactor the auth module|[jev: economy] rename these 12 files|[jev: no frontier] write the migration|[jev: codex] fix the flaky test"
+              ></div>
+            </article>
+            <article class="card" data-reveal data-spot>
+              <p class="label">Your order</p>
+              <h3>When one runs out, the next one starts.</h3>
+              <p>
+                Rank agents and models: Claude Code, Codex, Kovan&rsquo;s own agent, or any model of
+                a custom provider. When an account hits its limit, work moves to the next in line.
+              </p>
+              <ol class="order" data-order aria-hidden="true">
+                <li>
+                  <b>Claude Code</b><span class="meter"><i></i></span>
+                </li>
+                <li>
+                  <b>Codex</b><span class="meter"><i></i></span>
+                </li>
+                <li>
+                  <b>Kovan · JevRouter</b><span class="meter"><i></i></span>
+                </li>
+                <li>
+                  <b>@deepinfra/qwen-coder</b><span class="meter"><i></i></span>
+                </li>
+              </ol>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ control: limits, arena, impact, replay ============ -->
+      <section class="sec sec-alt" id="control" aria-labelledby="control-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">05 · Control</p>
+            <h2 id="control-title">
+              See what agents <span class="ink-rose">cost</span>, change and do.
+            </h2>
+            <p>Tools that make a team of agents something you can measure, not just watch.</p>
+          </header>
+
+          <div class="bento">
+            <article class="card b-spend" data-reveal data-spot style="--i: 0">
+              <p class="label">Budgets</p>
+              <h3>Limits that hold.</h3>
+              <p>
+                A budget per task and per swarm, a monthly limit for the workspace, and a spend
+                ledger by agent. Estimates come from your own history; calls without a known price
+                are counted, not hidden.
+              </p>
+              <div class="spend" data-spend aria-hidden="true">
+                <span style="--h: 46%"></span><span style="--h: 72%"></span
+                ><span style="--h: 38%"></span><span style="--h: 80%"></span
+                ><span style="--h: 54%"></span><span style="--h: 63%"></span
+                ><span style="--h: 30%"></span>
+                <i class="limit">monthly limit</i>
+              </div>
+            </article>
+
+            <article class="card b-arena" data-reveal data-spot style="--i: 1">
+              <p class="label">Agent Arena</p>
+              <h3>Same task, side by side.</h3>
+              <p>
+                Run one task with several models in throwaway copies of your repository, checked by
+                your own tests. Compare how often each passes, what it costs and how long it takes.
+              </p>
+              <div class="race" data-race aria-hidden="true">
+                <p><span>JevRouter</span><i style="--w: 92%; --c: var(--honey)"></i><b>3/3</b></p>
+                <p><span>Frontier</span><i style="--w: 100%; --c: var(--violet)"></i><b>3/3</b></p>
+                <p><span>Fast</span><i style="--w: 48%; --c: var(--sky)"></i><b>1/3</b></p>
+              </div>
+            </article>
+
+            <article class="card b-impact" data-reveal data-spot style="--i: 2">
+              <p class="label">Change impact</p>
+              <h3>What does this change touch?</h3>
+              <p>
+                Before you push, Kovan follows the imports from your changed files and shows the
+                modules, tests and API routes they reach, and how sure each link is.
+              </p>
+              <svg class="impact" data-impact viewBox="0 0 300 170" aria-hidden="true">
+                <g class="links">
+                  <path d="M150 85 L60 35" />
+                  <path d="M150 85 L240 35" />
+                  <path d="M150 85 L60 135" />
+                  <path d="M150 85 L240 135" />
+                  <path d="M240 35 L285 85" class="dashed" />
+                </g>
+                <circle class="hub" cx="150" cy="85" r="26" />
+                <text x="150" y="89" text-anchor="middle" class="hub-t">stats.ts</text>
+                <g class="leaf l1">
+                  <circle cx="60" cy="35" r="9" />
+                  <text x="60" y="18" text-anchor="middle">summary.ts</text>
+                </g>
+                <g class="leaf l2 test">
+                  <circle cx="240" cy="35" r="9" />
+                  <text x="240" y="18" text-anchor="middle">stats.test</text>
+                </g>
+                <g class="leaf l3 api">
+                  <circle cx="60" cy="135" r="9" />
+                  <text x="60" y="162" text-anchor="middle">GET /summary</text>
+                </g>
+                <g class="leaf l4 test">
+                  <circle cx="240" cy="135" r="9" />
+                  <text x="240" y="162" text-anchor="middle">summary.test</text>
+                </g>
+                <g class="leaf l5 test faint"><circle cx="285" cy="85" r="6" /></g>
+              </svg>
+            </article>
+
+            <article class="card b-replay" data-reveal data-spot style="--i: 3">
+              <p class="label">Journal &amp; replay</p>
+              <h3>Rewind any session.</h3>
+              <p>
+                Every prompt, plan change, approval and task state goes into a journal. Scrub
+                through it later to see who decided what, and when.
+              </p>
+              <div class="replay" data-replay aria-hidden="true">
+                <div class="replay-events">
+                  <span style="--x: 6%" data-log="11:42 Ada started a swarm: rate limiting"
+                    >goal</span
+                  >
+                  <span style="--x: 22%" data-log="11:43 Wren planned 5 tasks in 2 waves"
+                    >plan</span
+                  >
+                  <span style="--x: 41%" data-log="11:46 Ben approved “Wire routes”">approve</span>
+                  <span style="--x: 60%" data-log="11:51 typecheck, tests and lint passed"
+                    >check</span
+                  >
+                  <span style="--x: 78%" data-log="11:53 Moss approved the diff, 1 file untested"
+                    >review</span
+                  >
+                  <span style="--x: 94%" data-log="11:54 Swarm finished · $0.42 of $2.00"
+                    >done</span
+                  >
+                </div>
+                <div class="replay-track"><i class="replay-head"></i></div>
+                <p class="replay-log" data-replay-log></p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ modes ============ -->
+      <section class="sec" id="modes" aria-labelledby="modes-title">
+        <div class="wrap split reverse">
+          <div class="split-text">
+            <p class="label" data-reveal>06 · Modes</p>
+            <h2 id="modes-title" data-reveal>
+              Alone, as a team,<br />or <span class="ink-mint">both</span>.
+            </h2>
+            <p class="lead" data-reveal>
+              Every workspace has a mode. Change it any time; Kovan adapts what it offers.
+            </p>
+          </div>
+          <div class="modes" data-modes data-reveal>
+            <div class="modes-tabs" role="tablist" aria-label="Workspace modes">
+              <button type="button" role="tab" aria-selected="true" data-mode="0">Solo</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="1">Team</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="2">Adaptive</button>
+              <span class="modes-glider"></span>
+            </div>
+            <div class="modes-panels">
+              <div class="mode-panel is-on" role="tabpanel">
+                <h3>Solo</h3>
+                <p>
+                  Just you and your agents. No invites and no hand-offs, and suggested swarms stay
+                  small (two workers at most) so they don&rsquo;t outrun your attention.
+                </p>
+              </div>
+              <div class="mode-panel" role="tabpanel">
+                <h3>Team</h3>
+                <p>
+                  Shared sessions, live lanes, invites, hand-offs and approvals by any editor. AI
+                  teammates join the board alongside people.
+                </p>
+              </div>
+              <div class="mode-panel" role="tabpanel">
+                <h3>Adaptive</h3>
+                <p>
+                  Starts solo and opens up the team features the moment someone else joins the
+                  workspace.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ local-first ============ -->
+      <section class="sec sec-alt" id="how" aria-labelledby="local-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">07 · Local-first</p>
+            <h2 id="local-title">
+              Your code never <span class="ink-sky">leaves</span> your machines.
+            </h2>
+            <p>
+              Agents edit your checkout and run commands locally. Work syncs through your own Git
+              remote with your own credentials. Kovan&rsquo;s server only coordinates.
+            </p>
+          </header>
+          <div class="topo" data-reveal aria-hidden="true">
+            <div class="topo-node you">
+              <b>Your machine</b><span>code · agents · worktrees</span>
+            </div>
+            <div class="topo-node remote">
+              <b>Your Git remote</b><span>session branches as snapshots</span>
+            </div>
+            <div class="topo-node mate">
+              <b>Teammate&rsquo;s machine</b><span>code · agents · worktrees</span>
+            </div>
+            <div class="topo-node server">
+              <b>Kovan server</b><span>sessions · plans · encrypted transcripts</span>
+            </div>
+            <svg class="topo-wires" viewBox="0 0 600 300" preserveAspectRatio="none">
+              <path id="tw1" d="M120 90 L300 90" />
+              <path id="tw2" d="M300 90 L480 90" />
+              <path class="soft" d="M120 112 C 150 210, 240 230, 300 196" />
+              <path class="soft" d="M480 112 C 450 210, 360 230, 300 196" />
+            </svg>
+            <span class="packet p1"></span><span class="packet p2"></span>
+            <span class="packet soft s1"></span><span class="packet soft s2"></span>
+          </div>
+          <div class="facts">
+            <p data-reveal style="--i: 0">
+              <b>Conflicts keep both versions.</b> Nothing is overwritten silently.
+            </p>
+            <p data-reveal style="--i: 1">
+              <b>Transcripts are encrypted</b> at rest, with keys you can rotate.
+            </p>
+            <p data-reveal style="--i: 2">
+              <b>Claude Code and Codex</b> run in Kovan&rsquo;s chat or their own terminal, with
+              coordination tools over MCP.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CTA ============ -->
+      <section class="cta" aria-labelledby="cta-title">
+        <canvas class="cta-hive" data-hive="cta" aria-hidden="true"></canvas>
+        <div class="wrap cta-inner">
+          <h2 id="cta-title" data-reveal>
+            Bring your team<br />into the <span class="ink-honey">hive</span>.
+          </h2>
+          <p data-reveal>Install Kovan, open a repository, invite a teammate or an AI one.</p>
+          <div class="hero-cta" data-reveal>
+            <a class="btn btn-primary btn-xl" href="/download/">Download Kovan</a>
+            <a class="btn btn-secondary btn-xl" href="/docs/getting-started/">Read the docs</a>
+          </div>
+          <p class="cta-demo" data-reveal>
+            Or <a href="/demo/#board">click around a sample of the app</a> first.
+          </p>
+        </div>
+      </section>
+    </main>
+    <!--@footer-->
+  </body>
+</html>

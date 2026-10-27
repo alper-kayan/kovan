@@ -1,0 +1,57 @@
+# AI teammates and a swarm, started from the phone, against a local server where alice's
+# desktop is online with fixture-repo set up and the workspace has AI teammates (Bob among
+# them). Needs a live session called "Phone start check" (start-work.yaml leaves one).
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: flows/sign-in-local.yaml
+- tapOn: 'fixture-repo.*'
+- tapOn:
+    text: 'Phone start check, .*'
+    index: 0
+- extendedWaitUntil:
+    visible: 'Lanes.*'
+    timeout: 15000
+# Bob joins with a lane that alice's desktop runs; a message gives it a task.
+- tapOn: 'Add an AI teammate'
+- tapOn: 'Add Bob'
+- extendedWaitUntil:
+    visible: "Bob's lane.*"
+    timeout: 15000
+- tapOn: "Bob's lane.*"
+- tapOn: '.*Message Bob.*'
+- inputText: 'Do not edit anything. Reply with only the word median written backwards in capital letters.'
+- tapOn: 'Send'
+- extendedWaitUntil:
+    visible: 'Sent to Bob: it starts on your desktop\.'
+    timeout: 15000
+- extendedWaitUntil:
+    visible: '.*NAIDEM.*'
+    timeout: 180000
+# A swarm set up here, launched on the desktop.
+- tapOn: 'Swarm'
+- tapOn: '.*The swarm.s goal.*'
+- inputText: 'Add a mode(values) helper to src/stats.js that returns the most frequent value, with a test in test/stats.test.js.'
+# Return puts the keyboard away (it hides the fields below the goal).
+- pressKey: Enter
+- tapOn: 'Suggest a team'
+- scrollUntilVisible:
+    element: '.*Budget in dollars.*'
+- tapOn: '.*Budget in dollars.*'
+- inputText: '0.30'
+# The number pad has no Return: a tap outside the field puts it away.
+- tapOn: 'Budget'
+- scrollUntilVisible:
+    element: 'Launch'
+- tapOn: 'Launch'
+- extendedWaitUntil:
+    visible: 'The swarm is running on your desktop, on your key\.'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: 'RUNNING'
+    timeout: 15000
+- assertVisible: '.* / \$0\.3000'
+- extendedWaitUntil:
+    visible: 'DONE'
+    timeout: 600000

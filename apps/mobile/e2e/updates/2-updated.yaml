@@ -1,0 +1,17 @@
+# Part 2, after `scripts/updates.mjs publish`: the next launch downloads the update in the
+# background and offers it; Restart switches to it.
+appId: dev.alperkayan.kovan
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: 'A new version of Kovan is ready.'
+    timeout: 60000
+- tapOn: 'Restart'
+- extendedWaitUntil:
+    visible: 'Workspaces'
+    timeout: 30000
+- assertNotVisible: 'A new version of Kovan is ready.'
+- tapOn: 'Account'
+- assertVisible: '[0-9a-f]{8} · .*'
+- assertNotVisible: 'Built in'

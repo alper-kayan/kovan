@@ -1,0 +1,13 @@
+# TLS certificates are issued and renewed automatically for the domain.
+{$KOVAN_DOMAIN} {
+	encode zstd gzip
+	# WebSockets (/ws) and streamed model answers pass straight through.
+	reverse_proxy server:4807 {
+		flush_interval -1
+	}
+	header -Server
+	log {
+		output stdout
+		format json
+	}
+}

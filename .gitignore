@@ -1,0 +1,23 @@
+node_modules/
+dist/
+out/
+release/
+coverage/
+.turbo/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+.DS_Store
+*.log
+deploy/backups/
+deploy/dkim/
+# Push keys (APNs .p8, Firebase service account): never committed.
+secrets/
+deploy/push/
+# Working notes kept on the maintainer's machine, not published.
+CLAUDE.md
+PLAN.md
+docs/research/
+docs/founderos-*.md
+docs/agentd-kurulum.md

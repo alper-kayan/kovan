@@ -1,0 +1,71 @@
+# What an App Store reviewer does with the review account (apps/mobile/store/app-store.md),
+# taking the store's screenshots on the way. The browser part of signing in (the review
+# account's password page) is finished from outside. The account's desktop is off: the swarm
+# runs on the workspace's demo machine.
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: ../flows/sign-in-local.yaml
+- extendedWaitUntil:
+    visible: 'Kovan Demo.*'
+    timeout: 15000
+- tapOn: 'Kovan Demo.*'
+- tapOn: 'New session'
+- tapOn: '.*Session title.*'
+- inputText: 'Discount codes'
+- tapOn: 'Start'
+- extendedWaitUntil:
+    visible: 'Swarm'
+    timeout: 20000
+- tapOn: 'Swarm'
+- tapOn: '.*The swarm.s goal.*'
+- inputText: 'Add discount codes to the cart: applyCode(cart, code) with SAVE10 (10% off) and FREESHIP (500 cents off), never below zero, with tests in test/cart.test.js.'
+- pressKey: Enter
+- tapOn: 'Suggest a team'
+- takeScreenshot: 04-swarm-setup
+- scrollUntilVisible:
+    element: '.*Budget in dollars.*'
+- tapOn: '.*Budget in dollars.*'
+- eraseText: 10
+- inputText: '0.50'
+- tapOn: 'Budget'
+- scrollUntilVisible:
+    element: 'Launch'
+- tapOn: 'Launch'
+- extendedWaitUntil:
+    visible: 'Started on demo machine\.'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: 'RUNNING'
+    timeout: 60000
+- tapOn: 'Lanes'
+# The demo machine takes the work at its next report (up to half a minute).
+- extendedWaitUntil:
+    visible: '.*(Ran|Read|Edited|Wrote).*'
+    timeout: 180000
+- takeScreenshot: 02-lanes
+- tapOn: 'Tasks'
+- takeScreenshot: 03-tasks
+- tapOn: 'Swarm'
+# The chat follows its newest message: the report comes last.
+- extendedWaitUntil:
+    visible: '(DONE|Swarm report: .*)'
+    timeout: 900000
+- scrollUntilVisible:
+    element: 'DONE'
+    direction: UP
+- takeScreenshot: 05-swarm-done
+- tapOn: 'Changes'
+- extendedWaitUntil:
+    visible: '.*cart\.(js|test).*'
+    timeout: 60000
+- takeScreenshot: 06-changes
+- tapOn: 'Kovan Demo'
+- tapOn: 'History'
+- takeScreenshot: 07-history
+- tapOn: 'Workspaces'
+- extendedWaitUntil:
+    visible: 'Kovan Demo.*'
+    timeout: 15000
+- takeScreenshot: 01-home

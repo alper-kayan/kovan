@@ -1,0 +1,32 @@
+# Board and session screen against a local server with at least one live session in
+# fixture-repo (sign-in finished from outside, as in sign-in.yaml).
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: flows/sign-in-local.yaml
+- tapOn: 'fixture-repo.*'
+- extendedWaitUntil:
+    visible: 'Live.*'
+    timeout: 15000
+- assertVisible: 'History'
+# A session card reads "<title>, <state>".
+- tapOn: '.*, (Running|Idle|Needs approval|Awaiting takeover)'
+- extendedWaitUntil:
+    visible: 'Lanes.*'
+    timeout: 15000
+- tapOn: 'Activity'
+# The feed comes from the server: anything at all means it loaded.
+- assertVisible: '.* ago'
+- tapOn: 'Lanes.*'
+- runFlow:
+    file: flows/back.yaml
+    env:
+      TO: 'fixture-repo'
+- tapOn: 'History'
+- tapOn: 'Live.*'
+- runFlow:
+    file: flows/back.yaml
+    env:
+      TO: 'Workspaces'
+- assertVisible: 'Workspaces'

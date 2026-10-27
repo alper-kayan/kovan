@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "188004074949",
+    "project_id": "kovan-code",
+    "storage_bucket": "kovan-code.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:188004074949:android:2671e0db1105e3d2eef7ac",
+        "android_client_info": {
+          "package_name": "dev.alperkayan.kovan"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUX4IPbkS7y7CFlNKxFVhDc3K98tByn28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,13 @@
+# Back one screen: Android's back button, or iOS's header button (labelled with \${TO}).
+appId: dev.alperkayan.kovan
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: ${TO}

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--@head-->
+    <title>Models and pricing · Kovan</title>
+    <meta
+      name="description"
+      content="Every model Kovan can run through OpenRouter, with context size and price per million tokens. Managed usage is the provider's price × 1.05."
+    />
+    <script type="module" src="/src/pages/models.ts"></script>
+  </head>
+  <body>
+    <!--@nav-->
+    <main id="main" class="wrap page">
+      <header class="page-head">
+        <p class="label">Models and pricing</p>
+        <h1>Every model. One key.</h1>
+        <p>
+          Kovan reaches models through OpenRouter. Bring your own key and pay the provider&rsquo;s
+          price, or use managed usage at the provider&rsquo;s price &times; 1.05, billed daily.
+          Prices are USD per million tokens.
+        </p>
+      </header>
+      <div class="models-tools">
+        <label class="sr-only" for="model-search">Search models</label>
+        <input
+          class="input"
+          id="model-search"
+          type="search"
+          placeholder="Search by model or provider"
+          autocomplete="off"
+          data-search
+        />
+        <span class="models-count" data-count aria-live="polite"></span>
+      </div>
+      <div data-models>
+        <div class="state"><p>Loading the catalog&hellip;</p></div>
+      </div>
+      <p class="note">
+        Prices come from the provider catalog and can change. Some models charge more for very long
+        prompts or for cached tokens; what a run costs is shown in the app as it happens.
+      </p>
+    </main>
+    <!--@footer-->
+  </body>
+</html>

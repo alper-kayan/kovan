@@ -1,0 +1,24 @@
+# Deleting an account from the phone, against a local server: sign in as a throwaway person
+# (the sign-in is finished from outside with their email) who has a workspace of their own and
+# one shared with alice. What goes and what stays is shown first; then the app is signed out.
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: flows/sign-in-local.yaml
+- tapOn: 'Account'
+- scrollUntilVisible:
+    element: 'Delete account…'
+- tapOn: 'Delete account…'
+- extendedWaitUntil:
+    visible: '.*Erin notes.*'
+    timeout: 15000
+- assertVisible: '.*alice becomes its owner.*'
+- assertVisible: 'Delete my account'
+- tapOn:
+    id: 'delete-confirm'
+- inputText: 'delete'
+- tapOn: 'Delete my account'
+- extendedWaitUntil:
+    visible: '(Sign in|Other ways to sign in)'
+    timeout: 20000

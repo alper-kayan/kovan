@@ -1,0 +1,34 @@
+{
+  "name": "@kovan/agentd",
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "description": "Runs Kovan's agents on a machine nobody sits at: it registers, takes the work sent to it and reports.",
+  "bin": {
+    "kovan-agentd": "./dist/index.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/daemon.d.ts",
+      "default": "./dist/daemon.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@kovan/git-engine": "workspace:*",
+    "@kovan/harness": "workspace:*",
+    "@kovan/jevrouter": "workspace:*",
+    "@kovan/model-gateway": "workspace:*",
+    "@kovan/runner": "workspace:*",
+    "@kovan/shared": "workspace:*"
+  }
+}

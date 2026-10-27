@@ -1,0 +1,26 @@
+# Signs in against a local Kovan server. The browser part is finished from outside (see
+# CLAUDE.md: the email link is read from the dev server's /dev/outbox).
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: flows/sign-in-local.yaml
+- extendedWaitUntil:
+    visible: 'fixture-repo.*'
+    timeout: 15000
+# The session survives a restart (the token is in secure storage).
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: 'Workspaces'
+    timeout: 30000
+- tapOn: 'Account'
+- assertVisible: 'alice'
+# Below the notification settings.
+- scrollUntilVisible:
+    element: 'Sign out'
+    direction: DOWN
+- tapOn: 'Sign out'
+- extendedWaitUntil:
+    visible: '(Sign in|Other ways to sign in)'
+    timeout: 15000

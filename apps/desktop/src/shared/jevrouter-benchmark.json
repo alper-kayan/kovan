@@ -1,0 +1,30 @@
+{
+  "date": "2026-10-12T17:03:49.930Z",
+  "taskCount": 6,
+  "points": [
+    {
+      "config": "openai/gpt-5.6-luna",
+      "name": "GPT-5.6 Luna",
+      "score": 100,
+      "costPerTask": 0.0013911499999999999,
+      "solved": 6,
+      "total": 6
+    },
+    {
+      "config": "anthropic/claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "score": 100,
+      "costPerTask": 0.025961333333333333,
+      "solved": 6,
+      "total": 6
+    },
+    {
+      "config": "kovan/jevrouter",
+      "name": "JevRouter",
+      "score": 100,
+      "costPerTask": 0.012121580000000002,
+      "solved": 6,
+      "total": 6
+    }
+  ]
+}

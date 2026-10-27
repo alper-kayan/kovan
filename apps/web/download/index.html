@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--@head-->
+    <title>Download · Kovan</title>
+    <meta
+      name="description"
+      content="Download the Kovan desktop app for macOS, Windows or Linux."
+    />
+    <script type="module" src="/src/pages/download.ts"></script>
+  </head>
+  <body>
+    <!--@nav-->
+    <main id="main" class="wrap page">
+      <header class="page-head">
+        <p class="label">Download</p>
+        <h1>Get Kovan for your desktop.</h1>
+        <p>One desktop app for macOS, Windows and Linux.</p>
+      </header>
+      <div class="platforms">
+        <article class="platform" data-platform="mac">
+          <h2>macOS</h2>
+          <p>Apple silicon (M1 and later).</p>
+          <p class="mono">.dmg</p>
+          <a class="btn btn-primary" href="/download/mac">Download for macOS</a>
+        </article>
+        <article class="platform" data-platform="windows-x64">
+          <h2>Windows</h2>
+          <p>64-bit Intel and AMD PCs.</p>
+          <p class="mono">x64 installer</p>
+          <a class="btn btn-primary" href="/download/windows-x64">Download for Windows x64</a>
+        </article>
+        <article class="platform" data-platform="windows-arm64">
+          <h2>Windows on ARM</h2>
+          <p>Snapdragon and other ARM64 PCs.</p>
+          <p class="mono">ARM64 installer</p>
+          <a class="btn btn-primary" href="/download/windows-arm64">Download for Windows ARM64</a>
+        </article>
+        <article class="platform" data-platform="linux">
+          <h2>Linux</h2>
+          <p>64-bit Intel and AMD, as an AppImage.</p>
+          <p class="mono">x64 .AppImage</p>
+          <a class="btn btn-primary" href="/download/linux">Download for Linux</a>
+        </article>
+      </div>
+      <p class="note" data-platform-note hidden>
+        Kovan is a desktop app. Open this page on a Mac, a Windows PC or a Linux machine to install
+        it.
+      </p>
+      <p class="note">
+        New here? <a class="link" href="/docs/getting-started/">Getting started</a> walks through
+        the first session.
+      </p>
+    </main>
+    <!--@footer-->
+  </body>
+</html>

@@ -1,0 +1,12 @@
+# Daily, after the server's nightly backup (BACKUP_HOUR_UTC, 02:00). Persistent: a day the Pi
+# was off is made up when it is back.
+[Unit]
+Description=Copy Kovan's database backups off the server, daily
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

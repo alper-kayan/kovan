@@ -1,0 +1,4 @@
+# Only read by development builds started with KOVAN_DEV_UPDATE_FEED.
+provider: generic
+url: http://localhost:4811/updates
+updaterCacheDirName: kovan-dev-updater

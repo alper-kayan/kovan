@@ -1,0 +1,100 @@
+# Production: the Kovan server behind Caddy (automatic TLS), a managed Postgres, nightly backups.
+#   cp deploy/.env.example deploy/.env   # fill it in
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d
+name: kovan-prod
+
+services:
+  server:
+    image: ${KOVAN_IMAGE:-kovan-server:latest}
+    build:
+      context: ..
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SERVER_HOST: 0.0.0.0
+      TRUST_PROXY: 'true'
+      PUBLIC_URL: https://${KOVAN_DOMAIN}
+      # A managed database: require TLS in the URL (…?sslmode=require).
+      DATABASE_URL: ${DATABASE_URL}
+      ENCRYPTION_KEYS: ${ENCRYPTION_KEYS}
+      SMTP_URL: ${SMTP_URL}
+      MAIL_FROM: ${MAIL_FROM:-Kovan <kovan@alperkayan.dev>}
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      MANAGED_OPENROUTER_API_KEY: ${MANAGED_OPENROUTER_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      DOWNLOAD_BASE_URL: ${DOWNLOAD_BASE_URL:-}
+      SECURITY_CONTACT: ${SECURITY_CONTACT:-kovan@alperkayan.dev}
+      KOVAN_WEBHOOK_ALLOW: ${KOVAN_WEBHOOK_ALLOW:-}
+      # Push to the mobile app, straight to Apple and Firebase (see deploy/README.md, "Push").
+      APNS_KEY_FILE: ${APNS_KEY_FILE:-}
+      APNS_KEY_ID: ${APNS_KEY_ID:-}
+      APNS_TEAM_ID: ${APNS_TEAM_ID:-}
+      APNS_TOPIC: ${APNS_TOPIC:-dev.alperkayan.kovan}
+      FCM_KEY_FILE: ${FCM_KEY_FILE:-}
+      # Sign in with Apple; without these it uses the APNs key above (see deploy/README.md).
+      APPLE_SIGNIN_KEY_FILE: ${APPLE_SIGNIN_KEY_FILE:-}
+      APPLE_SIGNIN_KEY_ID: ${APPLE_SIGNIN_KEY_ID:-}
+      APPLE_TEAM_ID: ${APPLE_TEAM_ID:-}
+      # The App Store reviewers' sign-in (a password for this one email; see deploy/README.md).
+      REVIEW_ACCOUNT_EMAIL: ${REVIEW_ACCOUNT_EMAIL:-}
+      REVIEW_ACCOUNT_PASSWORD: ${REVIEW_ACCOUNT_PASSWORD:-}
+      # The outside monitor (deploy/README.md, "Outside monitor") fetches its operator's phones.
+      OPS_TOKEN: ${OPS_TOKEN:-}
+      OPS_EMAIL: ${OPS_EMAIL:-}
+      OPS_STATUS_FILE: /ops/status.json
+      # The phone app's over-the-air updates, written by apps/mobile/scripts/updates.mjs.
+      MOBILE_UPDATES_DIR: /mobile-updates
+      # The desktop installers and update files, served at /download and /updates (see
+      # deploy/README.md, "Releases").
+      RELEASES_DIR: /releases
+    read_only: true
+    tmpfs: [/tmp]
+    volumes:
+      # The push keys, read-only; an empty folder when push isn't set up.
+      - ${PUSH_DIR:-./push}:/push:ro
+      # The published updates, read-only (an empty folder until one is published).
+      - ${UPDATES_DIR:-./mobile-updates}:/mobile-updates:ro
+      # The desktop releases, read-only (an empty folder until one is published).
+      - ${RELEASES_HOST_DIR:-./releases}:/releases:ro
+      # The host's own report for the outside monitor (deploy/ops-status.py), read-only.
+      - ${OPS_DIR:-./ops}:/ops:ro
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    expose: ['4807']
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on: [server]
+    ports:
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    environment:
+      KOVAN_DOMAIN: ${KOVAN_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # Nightly logical backup, on top of the database provider's own point-in-time recovery.
+  backup:
+    build:
+      context: .
+      dockerfile: backup.Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_PASSPHRASE: ${BACKUP_PASSPHRASE}
+      BACKUP_HOUR_UTC: ${BACKUP_HOUR_UTC:-2}
+    volumes:
+      - ${BACKUP_DIR:-./backups}:/backups
+
+volumes:
+  caddy-data:
+  caddy-config:

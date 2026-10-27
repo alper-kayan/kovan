@@ -1,0 +1,52 @@
+{
+  "name": "@kovan/desktop",
+  "version": "0.1.7",
+  "license": "AGPL-3.0-only",
+  "description": "Kovan desktop app",
+  "private": true,
+  "type": "module",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
+    "test": "vitest run",
+    "package": "electron-vite build && electron-builder --config electron-builder.config.cjs",
+    "package:dir": "electron-vite build && electron-builder --config electron-builder.config.cjs --dir"
+  },
+  "dependencies": {
+    "@kovan/mcp-client": "workspace:*",
+    "node-pty": "1.1.0"
+  },
+  "devDependencies": {
+    "@fontsource-variable/dm-sans": "5.3.0",
+    "@fontsource-variable/geist-mono": "5.3.0",
+    "@fontsource-variable/lilex": "5.3.0",
+    "@kovan/git-engine": "workspace:*",
+    "@kovan/harness": "workspace:*",
+    "@kovan/jevrouter": "workspace:*",
+    "@kovan/mcp-coordination": "workspace:*",
+    "@kovan/model-gateway": "workspace:*",
+    "@kovan/runner": "workspace:*",
+    "@kovan/shared": "workspace:*",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "5.2.0",
+    "@xterm/addon-fit": "0.11.0",
+    "@xterm/xterm": "6.0.0",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "electron-updater": "6.8.9",
+    "electron-vite": "5.0.0",
+    "lucide-react": "1.53.0",
+    "monaco-editor": "0.57.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vite": "7.3.7",
+    "zod": "~4.6.5",
+    "zustand": "5.0.15"
+  },
+  "author": "Kovan",
+  "homepage": "https://kovan.alperkayan.dev"
+}

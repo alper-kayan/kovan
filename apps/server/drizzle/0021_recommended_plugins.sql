@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "recommended_plugins" jsonb DEFAULT '[]'::jsonb NOT NULL;

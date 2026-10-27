@@ -1,0 +1,11 @@
+pnpm-lock.yaml
+docs/research/source/
+dist/
+out/
+release/
+coverage/
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/.expo/
+apps/mobile/expo-env.d.ts
+apps/mobile/google-services.json

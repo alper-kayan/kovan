@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!--@head-->
+    <title>Privacy policy · Kovan</title>
+    <meta
+      name="description"
+      content="What Kovan collects, why, who processes it, how long it is kept and how to have it corrected or deleted."
+    />
+    <script type="module" src="/src/pages/page.ts"></script>
+  </head>
+  <body>
+    <!--@nav-->
+    <main id="main" class="wrap page page-narrow">
+      <header class="page-head">
+        <p class="label">Privacy policy</p>
+        <h1>What we keep, and why.</h1>
+        <p>Last updated 17 October 2026.</p>
+      </header>
+      <div class="prose">
+        <p>
+          Kovan is local-first: your code stays in your checkouts and your agents run on your
+          machines. The Kovan server keeps what a team needs to work together. This page says what
+          that is, why we keep it, who else processes it and how to have it corrected or deleted.
+        </p>
+
+        <h2 id="who">Who we are</h2>
+        <p>
+          Kovan is run by Alper Kayan in Turkey (&ldquo;we&rdquo;). We decide how the data described
+          here is used. Write to
+          <a href="mailto:kovan@alperkayan.dev">kovan@alperkayan.dev</a> about anything on this
+          page.
+        </p>
+
+        <h2 id="not-collected">What never reaches us</h2>
+        <ul>
+          <li>
+            <strong>Source code.</strong> It is not stored on the server. Teammates sync through
+            your own Git remote with your own credentials.
+          </li>
+          <li>
+            <strong>Git credentials, SSH keys and folder paths.</strong> They stay on your computer,
+            except the checkout paths of machines you register to run agents (below).
+          </li>
+          <li>
+            <strong>Your provider keys and MCP server secrets.</strong> They stay in your operating
+            system&rsquo;s keychain.
+          </li>
+          <li><strong>Card details.</strong> They go straight to Stripe&rsquo;s hosted page.</li>
+        </ul>
+
+        <h2 id="collected">What we collect</h2>
+        <ul>
+          <li>
+            <strong>Your account:</strong> name, email address, profile picture and, if you sign in
+            with GitHub, your GitHub username. GitHub access tokens are encrypted before they are
+            stored. Sign-in sessions are stored only as hashes.
+          </li>
+          <li>
+            <strong>Team data:</strong> organizations, workspaces, members, roles and invitations.
+          </li>
+          <li>
+            <strong>Coordination data:</strong> sessions, plans, file locks, comments, notes,
+            activity, AI teammates, Swarm runs and snapshot metadata (commit, branch and time, never
+            file contents).
+          </li>
+          <li>
+            <strong>Session transcripts:</strong> what an agent says and does in a shared session,
+            so teammates can follow it. Secrets are redacted by pattern and the text is encrypted
+            before it is stored.
+          </li>
+          <li>
+            <strong>Usage records:</strong> which model ran, how many tokens it used and what it
+            cost.
+          </li>
+          <li>
+            <strong>Billing, if you use managed usage:</strong> your allowance, your consent to be
+            charged, invoices and the Stripe customer they belong to.
+          </li>
+          <li>
+            <strong>Phone notifications, if you use the mobile app:</strong> a device token from
+            Apple or Google so we can send them.
+          </li>
+          <li>
+            <strong>Error reports:</strong> an error message, where in the code it happened, the app
+            version and platform. Prompts and code are not included. You can turn this off in
+            Settings &rarr; Privacy.
+          </li>
+          <li>
+            <strong>Machines you register to run agents unattended:</strong> their name, platform,
+            the agent programs they have, the repositories they hold with the folder each is in, and
+            when they last reported.
+          </li>
+          <li>
+            <strong>Integrations you set up:</strong> API keys (only a hash of each), webhook
+            addresses with their signing secrets (encrypted), and a two-week record of workspace
+            events and their deliveries.
+          </li>
+          <li>
+            <strong>Security records:</strong> an audit log of account and team changes, with the IP
+            address they came from, and short-lived rate-limit counters.
+          </li>
+        </ul>
+        <p>
+          We do not use advertising or analytics trackers, we do not set tracking cookies and we do
+          not sell data.
+        </p>
+
+        <h2 id="why">Why we use it</h2>
+        <ul>
+          <li>
+            To provide Kovan: accounts, shared sessions, the team&rsquo;s live context and
+            notifications. This is needed to perform our agreement with you.
+          </li>
+          <li>To charge for managed usage you chose, and to keep invoices as the law requires.</li>
+          <li>
+            To keep Kovan secure and working: the audit log, rate limits and error reports. This is
+            our legitimate interest, and error reports can be turned off.
+          </li>
+          <li>To email you sign-in links, invitations and notices about your account.</li>
+        </ul>
+
+        <h2 id="processors">Who else processes it</h2>
+        <ul>
+          <li>
+            <strong>The model provider you choose.</strong> When an agent runs, your prompt and the
+            code it reads go to that provider: through your own key, through the coding agent you
+            connected (such as Claude Code or Codex), or through managed usage. Their own terms
+            apply to what they receive.
+          </li>
+          <li><strong>OpenRouter</strong> carries model calls made with managed usage.</li>
+          <li><strong>Stripe</strong> handles payments for managed usage.</li>
+          <li><strong>Apple and Google</strong> deliver notifications to the mobile app.</li>
+          <li>
+            <strong>Our hosting provider</strong> runs the server in Turkey. Email is sent from our
+            own mail server.
+          </li>
+        </ul>
+        <p>
+          Some of these providers are outside Turkey and the European Union. Data sent to them is
+          limited to what each one needs to do its job.
+        </p>
+
+        <h2 id="retention">How long we keep it</h2>
+        <ul>
+          <li>
+            Session transcripts: 90 days, or the period your organization sets (1 to 3650 days).
+          </li>
+          <li>Audit log: 400 days.</li>
+          <li>Workspace events and webhook deliveries: 14 days.</li>
+          <li>Machines: until they are removed, or the key they report with is revoked.</li>
+          <li>Your account and team data: until you delete your account or the team removes it.</li>
+          <li>Invoices: as long as tax law requires, even after the account is deleted.</li>
+          <li>Encrypted database backups: 14 days.</li>
+        </ul>
+
+        <h2 id="rights">Your rights</h2>
+        <p>
+          You can ask to see the data we hold about you, have it corrected, receive a copy, have it
+          deleted or object to how it is used. You can delete your account yourself in the app, in
+          the mobile app or on <a href="/account/#delete">your account page</a>. For anything else,
+          write to <a href="mailto:kovan@alperkayan.dev">kovan@alperkayan.dev</a>; we answer within
+          30 days.
+        </p>
+        <p>
+          You can also complain to a data protection authority: in Turkey the Personal Data
+          Protection Authority (KVKK), in the European Union the authority where you live.
+        </p>
+
+        <h2 id="children">Children</h2>
+        <p>Kovan is not meant for anyone under 16, and we do not knowingly collect their data.</p>
+
+        <h2 id="changes">Changes</h2>
+        <p>
+          When this policy changes, we update this page and its date. If a change affects how your
+          data is used, we tell you by email or in the app before it applies.
+        </p>
+      </div>
+    </main>
+    <!--@footer-->
+  </body>
+</html>

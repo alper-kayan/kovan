@@ -1,0 +1,43 @@
+import type { AuditLog } from './audit.js';
+import type { ApiKeys } from './apikeys.js';
+import type { WorkspaceEvents } from './events/service.js';
+import type { Machines } from './machines.js';
+import type { Idempotency } from './idempotency.js';
+import type { OAuthProvider } from './auth/providers.js';
+import type { Config } from './config.js';
+import type { Encryptor } from './crypto.js';
+import type { Db } from './db/client.js';
+import type { DeskService } from './desk/service.js';
+import type { PushService } from './push/service.js';
+import type { Mailer } from './mail.js';
+import type { Hub } from './realtime/hub.js';
+import type { CollabService } from './collab/service.js';
+import type { FlowService } from './sessions/flow.js';
+import type { SessionService } from './sessions/service.js';
+import type { SubagentService } from './sessions/subagents.js';
+import type { SwarmService } from './swarm/service.js';
+import type { BillingService } from './billing/service.js';
+import type { AppleSignIn } from './auth/apple.js';
+
+export interface AppContext {
+  config: Config;
+  db: Db;
+  enc: Encryptor;
+  mailer: Mailer;
+  providers: Partial<Record<'github' | 'google', OAuthProvider>>;
+  hub: Hub;
+  sessions: SessionService;
+  collab: CollabService;
+  flow: FlowService;
+  subagents: SubagentService;
+  swarm: SwarmService;
+  desk: DeskService;
+  push: PushService;
+  billing: BillingService;
+  audit: AuditLog;
+  idempotency: Idempotency;
+  apiKeys: ApiKeys;
+  events: WorkspaceEvents;
+  machines: Machines;
+  apple: AppleSignIn;
+}

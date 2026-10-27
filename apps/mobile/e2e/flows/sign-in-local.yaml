@@ -1,0 +1,40 @@
+# Fresh app, local server, signed in as whoever finishes the browser part from outside.
+appId: dev.alperkayan.kovan
+---
+- launchApp:
+    clearState: true
+    clearKeychain: true
+# The first launch waits for Metro to bundle. A notification prompt left from an earlier run
+# may still be up.
+- extendedWaitUntil:
+    visible: '(Sign in|Other ways to sign in|Allow|İzin Ver)'
+    timeout: 60000
+- tapOn:
+    text: '(Allow|İzin Ver)'
+    optional: true
+- extendedWaitUntil:
+    visible: '(Sign in|Other ways to sign in)'
+    timeout: 15000
+- tapOn:
+    text: '.*Change'
+# The field opens empty and focused (the current server is only its hint).
+- inputText: ${SERVER}
+- tapOn: 'Save'
+# The saved row, not the text field: the server really changed.
+- assertVisible:
+    text: 'Server localhost:4807.*Change'
+- tapOn: '(Sign in|Other ways to sign in)'
+# Chrome's first-run screen, on a fresh Android emulator.
+- tapOn:
+    text: 'Use without an account'
+    optional: true
+# Signed in, the app asks for notifications first (the system dialog hides the screen).
+- extendedWaitUntil:
+    visible: '(Workspaces|Allow|İzin Ver)'
+    timeout: 90000
+- tapOn:
+    text: '(Allow|İzin Ver)'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Workspaces'
+    timeout: 15000

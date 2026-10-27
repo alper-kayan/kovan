@@ -1,0 +1,145 @@
+name: Release
+
+# Builds, signs and publishes the installers for a version tag (v0.1.0). Each platform is built
+# on its own OS, checked from the exact bytes that ship, and uploaded to the GitHub release that
+# DOWNLOAD_BASE_URL points at (…/releases/latest/download).
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  KOVAN_BUILD_SERVER_URL: ${{ vars.KOVAN_SERVER_URL }}
+  KOVAN_UPDATE_URL: ${{ vars.KOVAN_SERVER_URL }}/updates
+  KOVAN_UPDATE_PUBLIC_KEY: ${{ vars.KOVAN_UPDATE_PUBLIC_KEY }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            name: mac
+          - os: windows-latest
+            name: windows
+          - os: ubuntu-24.04
+            name: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: The tag matches the app version
+        shell: bash
+        run: |
+          version="$(node -p "require('./apps/desktop/package.json').version")"
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME but app version $version"; exit 1; }
+          [ -n "$KOVAN_BUILD_SERVER_URL" ] || { echo "Set the KOVAN_SERVER_URL repository variable"; exit 1; }
+
+      - run: pnpm build
+
+      - name: Package (macOS, Developer ID + notarization)
+        if: matrix.name == 'mac'
+        working-directory: apps/desktop
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          [ -n "$CSC_LINK" ] || { echo "MAC_CSC_LINK is missing: refusing to publish an unsigned build"; exit 1; }
+          echo "$APPLE_API_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/apple-api-key.p8"
+          export APPLE_API_KEY="$RUNNER_TEMP/apple-api-key.p8"
+          npx electron-builder --config electron-builder.config.cjs --mac --publish never
+          # Gatekeeper must accept both the app and the disk image, from the bytes that ship.
+          app="release/mac-arm64/Kovan.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type execute --verbose "$app"
+          xcrun stapler validate "$app"
+          # The disk image itself is unsigned (dmg.sign: false); what Gatekeeper checks is the
+          # stapled app inside it.
+          mnt="$(mktemp -d)"
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" release/Kovan-mac-arm64.dmg
+          spctl --assess --type execute --verbose "$mnt/Kovan.app"
+          xcrun stapler validate "$mnt/Kovan.app"
+          hdiutil detach "$mnt"
+          # Every native binary is arm64.
+          ! find "$app" -type f \( -name '*.node' -o -name 'spawn-helper' \) -exec lipo -archs {} \; | grep -v '^arm64$'
+          "$app/Contents/MacOS/Kovan" --self-test
+
+      - name: Package (Windows x64 + ARM64, signed)
+        if: matrix.name == 'windows'
+        working-directory: apps/desktop
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          KOVAN_AZURE_ENDPOINT: ${{ vars.KOVAN_AZURE_ENDPOINT }}
+          KOVAN_AZURE_ACCOUNT: ${{ vars.KOVAN_AZURE_ACCOUNT }}
+          KOVAN_AZURE_PROFILE: ${{ vars.KOVAN_AZURE_PROFILE }}
+        run: |
+          if (-not $env:KOVAN_AZURE_ENDPOINT) { throw "Azure Trusted Signing is not configured: refusing to publish an unsigned build" }
+          npx electron-builder --config electron-builder.config.cjs --win --publish never
+          foreach ($file in Get-ChildItem release -Filter 'Kovan-win-*.exe') {
+            $sig = Get-AuthenticodeSignature $file.FullName
+            if ($sig.Status -ne 'Valid') { throw "$($file.Name) is not validly signed: $($sig.Status)" }
+            if (-not $sig.TimeStamperCertificate) { throw "$($file.Name) is not timestamped" }
+          }
+          & "release\win-unpacked\Kovan.exe" --self-test | Tee-Object -Variable out
+          if ($LASTEXITCODE -ne 0) { throw "self-test failed" }
+
+      - name: Package (Linux AppImage, signed manifest)
+        if: matrix.name == 'linux'
+        working-directory: apps/desktop
+        env:
+          KOVAN_UPDATE_PRIVATE_KEY: ${{ secrets.KOVAN_UPDATE_PRIVATE_KEY }}
+        run: |
+          [ -n "$KOVAN_UPDATE_PRIVATE_KEY" ] && [ -n "$KOVAN_UPDATE_PUBLIC_KEY" ] || { echo "The update key is missing: a Linux build without it can never update"; exit 1; }
+          sudo apt-get update && sudo apt-get install -y xvfb libfuse2t64
+          npx electron-builder --config electron-builder.config.cjs --linux --publish never
+          node scripts/update-key.mjs sign release/latest-linux.yml
+          node scripts/update-key.mjs verify release/latest-linux.yml
+          chmod +x release/Kovan-linux-x86_64.AppImage
+          xvfb-run -a release/Kovan-linux-x86_64.AppImage --no-sandbox --self-test
+          # And the extraction fallback, for hosts without FUSE.
+          xvfb-run -a release/Kovan-linux-x86_64.AppImage --appimage-extract-and-run --no-sandbox --self-test
+
+      - name: Upload to the release
+        shell: bash
+        working-directory: apps/desktop/release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "Kovan ${GITHUB_REF_NAME#v}" --notes "See the changelog."
+          shopt -s nullglob
+          gh release upload "$GITHUB_REF_NAME" --clobber Kovan-* latest*.yml latest*.yml.sig
+
+  server-image:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/server:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/server:latest

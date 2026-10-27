@@ -1,0 +1,13 @@
+{"type":"thread.started","thread_id":"00000000-0000-4000-8000-000000000002"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_0","type":"agent_message","text":"I’ll list the workspace, then update `a.js`."}}
+{"type":"item.started","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc ls","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"command_execution","command":"/bin/zsh -lc ls","aggregated_output":"a.js\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"/bin/zsh -lc \"sed -n '1,40p' a.js\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"/bin/zsh -lc \"sed -n '1,40p' a.js\"","aggregated_output":"export const x = 1;\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_3","type":"file_change","changes":[{"path":"/repo/a.js","kind":"update"}],"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"file_change","changes":[{"path":"/repo/a.js","kind":"update"}],"status":"completed"}}
+{"type":"item.started","item":{"id":"item_1","type":"mcp_tool_call","server":"kovan","tool":"get_team_context","arguments":{},"result":null,"error":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_1","type":"mcp_tool_call","server":"kovan","tool":"get_team_context","arguments":{},"result":{"content":[{"type":"text","text":"Repository: /repo\nBranch: feature/kovan-test; 2 changed file(s) in this checkout.\nShared workspace: fixture-repo (your role: owner).\nMembers:\n- alice, owner, online, has this repository open (you are acting for this person)\n- bob, viewer, offline\nSessions, plans and file activity: not available yet in this workspace."}],"structured_content":null},"error":null,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"Listed the workspace and changed `a.js` so `x` is 2."}}
+{"type":"turn.completed","usage":{"input_tokens":42684,"cached_input_tokens":31801,"cache_write_input_tokens":10871,"output_tokens":360,"reasoning_output_tokens":16}}

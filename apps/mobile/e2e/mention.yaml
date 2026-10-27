@@ -1,0 +1,42 @@
+# Calling an AI teammate in with @ from the phone, against a local server where alice's desktop
+# is online with fixture-repo's "Org key check" session open, alice's lane in it, and the AI
+# teammate Bob on a model that asks to run one command before it answers (a fake
+# OpenAI-compatible model works: no spend). The call goes to Bob with alice's lane, Bob asks
+# before running the command, the phone approves it, and Bob's answer comes back in her lane.
+appId: dev.alperkayan.kovan
+env:
+  SERVER: http://localhost:4807
+---
+- runFlow: flows/sign-in-local.yaml
+- tapOn: 'fixture-repo.*'
+- tapOn: 'Org key check.*'
+- extendedWaitUntil:
+    visible: "alice's lane.*"
+    timeout: 15000
+- tapOn: "alice's lane.*"
+# "@B" suggests Bob; a tap puts the name in.
+- tapOn: 'Prompt for your agent.*'
+- inputText: '@B'
+- tapOn: 'Call Bob in'
+- inputText: 'and the empty list case?'
+- tapOn: 'Send'
+- extendedWaitUntil:
+    visible: 'Sent to Bob.*'
+    timeout: 15000
+# The question is in alice's lane, and Bob is on it.
+- extendedWaitUntil:
+    visible: '.*and the empty list case.*'
+    timeout: 30000
+- extendedWaitUntil:
+    visible: "Bob's lane, Needs approval"
+    timeout: 60000
+- tapOn: "Bob's lane, Needs approval"
+- extendedWaitUntil:
+    visible: 'Approve'
+    timeout: 10000
+- tapOn: 'Approve'
+- tapOn: "alice's lane.*"
+- extendedWaitUntil:
+    notVisible: 'looking into it.*'
+    timeout: 60000
+- assertVisible: 'answered'

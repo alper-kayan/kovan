@@ -1,0 +1,1 @@
+ALTER TABLE "swarms" ADD COLUMN "review" boolean DEFAULT true NOT NULL;

@@ -1,0 +1,20 @@
+# Joins Kovan's server to FounderOS's Docker network on the same host, so the two reach each
+# other by name without going out to the public address (containers here can't reach the
+# host's own public IP). Use it on top of the single-host file:
+#
+#   docker compose -p kovan-prod -f deploy/docker-compose.single-host.yml \
+#     -f deploy/docker-compose.founderos.yml --env-file /srv/kovan/.env up -d --no-deps server
+#
+# FounderOS then calls Kovan at http://kovan:4807, and Kovan posts webhooks to
+# http://founderos:4100/… once /srv/kovan/.env has KOVAN_WEBHOOK_ALLOW=founderos:4100.
+services:
+  server:
+    networks:
+      default: {}
+      founderos:
+        aliases: [kovan]
+
+networks:
+  founderos:
+    external: true
+    name: app_default

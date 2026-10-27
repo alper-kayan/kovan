@@ -1,0 +1,1 @@
+ALTER TABLE "managed_usage" ADD COLUMN "run_label" text;

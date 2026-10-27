@@ -1,0 +1,34 @@
+# The App Store reviewers' demo machine: agentd, in its own container, for one workspace.
+#   docker compose -p kovan-demo -f deploy/docker-compose.demo.yml --env-file /srv/kovan/demo/.env up -d --build
+# The env file holds KOVAN_API_KEY (the demo workspace's machine key) and OPENROUTER_API_KEY.
+# Its agents only work in the sample shop; the workspace's monthly limit caps what they spend.
+services:
+  agentd:
+    build:
+      context: ..
+      dockerfile: deploy/agentd.Dockerfile
+    image: kovan-agentd:latest
+    restart: unless-stopped
+    environment:
+      KOVAN_SERVER_URL: ${KOVAN_SERVER_URL:-https://kovan.alperkayan.dev}
+      KOVAN_API_KEY: ${KOVAN_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      KOVAN_MACHINE_NAME: ${KOVAN_MACHINE_NAME:-demo machine}
+      KOVAN_AGENT: kovan
+      KOVAN_SLOTS: ${KOVAN_SLOTS:-1}
+      # Finished sessions go to History, so they don't hold the sample shop's files.
+      KOVAN_END_WHEN_DONE: '1'
+    volumes:
+      - work:/work
+      - data:/data
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ['no-new-privileges:true']
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+
+volumes:
+  work:
+  data:

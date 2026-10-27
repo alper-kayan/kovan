@@ -1,0 +1,10 @@
+# Copies the server's backups here; started by kovan-backups.timer (deploy/README.md, "Outside
+# monitor").
+[Unit]
+Description=Copy Kovan's database backups off the server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/kovan-monitor/pull-backups.sh

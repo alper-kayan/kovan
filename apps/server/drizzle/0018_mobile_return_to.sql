@@ -1,0 +1,1 @@
+ALTER TABLE "desktop_logins" ADD COLUMN "return_to" text;

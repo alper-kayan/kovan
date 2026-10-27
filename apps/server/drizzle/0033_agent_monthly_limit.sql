@@ -1,0 +1,1 @@
+ALTER TABLE "ai_agents" ADD COLUMN "monthly_limit" double precision;

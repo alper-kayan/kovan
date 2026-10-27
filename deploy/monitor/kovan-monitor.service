@@ -1,0 +1,18 @@
+# The outside monitor, as a user service on a machine other than the server (the Pi):
+# ~/.config/systemd/user/kovan-monitor.service, with `loginctl enable-linger <user>` so it runs
+# without a login. Files in ~/kovan-monitor: monitor.mjs (`pnpm --filter @kovan/server
+# build:monitor`), monitor.env and the APNs key (both chmod 600). See deploy/README.md.
+[Unit]
+Description=Kovan outside monitor: tells the operator's phone when the server is down
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+WorkingDirectory=%h/kovan-monitor
+EnvironmentFile=%h/kovan-monitor/monitor.env
+ExecStart=/usr/bin/node %h/kovan-monitor/monitor.mjs
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=default.target

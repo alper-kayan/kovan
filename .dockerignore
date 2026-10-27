@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/out
+**/release
+**/.turbo
+**/*.tsbuildinfo
+.git
+.env
+.env.*
+docs
+apps/desktop

@@ -1,0 +1,23 @@
+{
+  "name": "@kovan/mcp-coordination",
+  "version": "0.0.0",
+  "license": "AGPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./main": "./dist/main.js",
+    "./hook": "./dist/hook.js"
+  },
+  "bin": {
+    "kovan-mcp": "./dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

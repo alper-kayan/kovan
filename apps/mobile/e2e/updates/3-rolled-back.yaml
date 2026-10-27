@@ -1,0 +1,17 @@
+# Part 3, after `scripts/updates.mjs rollback --embedded`: the build's own code again. The
+# launch that hears about it downloads the rollback, the one after starts on it.
+appId: dev.alperkayan.kovan
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible: '(Workspaces|A new version of Kovan is ready.)'
+    timeout: 30000
+- tapOn:
+    text: 'Restart'
+    optional: true
+- extendedWaitUntil:
+    visible: 'Workspaces'
+    timeout: 30000
+- tapOn: 'Account'
+- assertVisible: 'Built in'

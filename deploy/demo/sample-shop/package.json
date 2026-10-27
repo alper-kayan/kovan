@@ -1,0 +1,10 @@
+{
+  "name": "sample-shop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A small shopping cart, for trying Kovan's agents on.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
