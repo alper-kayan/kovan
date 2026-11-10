@@ -32,10 +32,12 @@ import { CONFIG_FILE, loadProvider, type Provider, type ProviderResult } from '.
 import { NOOP_NOTCH, createNotch, notchEventsFor, hookTool, type Notch } from './notch.js';
 import { cliDir } from './paths.js';
 import { Renderer } from './render.js';
+import { TuiApp, type TuiHost, type TuiIO } from './tui/app.js';
+import type { TranscriptEvent } from './tui/transcript.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.2.2';
+export const VERSION = '0.3.0';
 
 export const USAGE = `kovan ${VERSION}: terminalde Kovan'ın kodlama ajanı.
 
@@ -98,6 +100,8 @@ export interface Deps {
   home?: string;
   /** Coucou's notch; a stand-in in tests. Otherwise the real socket, when there is one. */
   notch?: Notch;
+  /** The full-screen terminal, when there is one to draw on. Without it (tests, pipes) the plain prompt is used. */
+  screen?: () => TuiIO;
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -406,8 +410,25 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     );
   };
 
+  let tui: TuiApp | null = null;
   const approve = async (r: ApprovalRequest): Promise<boolean> => {
     if (always.has(r.tool)) return true;
+    if (tui) {
+      // On the full-screen interface the question is a dialog; the notch can still answer first.
+      const ac = new AbortController();
+      const fromNotch = askNotch(r, ac.signal).then((d) =>
+        d === 'allow' || d === 'always' || d === 'deny'
+          ? ({ from: 'notch', a: d } as const)
+          : new Promise<never>(() => {}),
+      );
+      const fromScreen = tui.ui
+        .approve(r, ac.signal)
+        .then((a) => ({ from: 'screen', a: a ?? 'deny' }) as const);
+      const first = await Promise.race([fromNotch, fromScreen]);
+      ac.abort();
+      if (first.a === 'always') always.add(r.tool);
+      return first.a !== 'deny';
+    }
     if (!t.isTTY) {
       // Nobody at the terminal: the notch can still be asked (his phone and lock screen too).
       const d = await askNotch(r);
@@ -473,7 +494,8 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
           conv!.cost += e.cost;
         }
         if (keepEvent(e)) conv!.events.push(e);
-        renderer.event(e);
+        if (tui) tui.ui.event(e as TranscriptEvent);
+        else renderer.event(e);
         for (const n of notchEventsFor(e, toolNames, lastText)) notch.event(n.name, n.fields);
       },
     },
@@ -535,6 +557,71 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     const s = args.task.startsWith('/') ? await slash(args.task) : null;
     await turn(s ? s.send : args.task);
     return finish(lastReason === 'done' ? 0 : 1);
+  }
+
+  if (deps.screen && t.isTTY && !args.plain && deps.env['TERM'] !== 'dumb') {
+    const host: TuiHost = {
+      header: () => ({
+        model: provider.model,
+        provider: provider.label,
+        folder: root.replace(ex.home, '~'),
+        managed: provider.managed,
+      }),
+      mode: () => mode,
+      setMode: (m) => {
+        mode = m;
+        agent.configure({ mode });
+      },
+      setModel: (id) => {
+        provider = { ...provider, model: id };
+        agent.configure({ modelId: id });
+        conv!.model = id;
+      },
+      models: () => catalog.map((c) => ({ label: c.id, value: c.id })),
+      turn,
+      stop: () => agent.stop(),
+      slash,
+      palette: async () => {
+        const set = await discoverSkills(skillPlaces(root, ex)).catch(() => null);
+        return (set?.skills ?? []).map((k) => ({
+          label: `/${k.name}`,
+          hint: clip(k.description, 70),
+          value: `/${k.name} `,
+        }));
+      },
+      sessions: () =>
+        deps.store.list(root).map((c) => ({
+          label: clip(c.title, 60),
+          hint: new Date(c.updatedAt).toLocaleString('tr-TR'),
+          value: c.id,
+        })),
+      resume: (id) => {
+        const saved = deps.store.load(root, id);
+        if (!saved) return null;
+        conv = saved;
+        agent.messages.splice(
+          1,
+          agent.messages.length,
+          ...saved.messages.filter((m) => m.role !== 'system'),
+        );
+        return saved.events as TranscriptEvent[];
+      },
+      newChat: () => {
+        agent.messages.splice(1);
+        conv = deps.store.create(root, { model: provider.model, effort: args.effort, mode });
+      },
+      history: conv.events.flatMap((e) => (e.type === 'user' ? [e.text] : [])),
+      initialEvents: resumed ? (conv.events as TranscriptEvent[]) : [],
+      startLines: resumed ? [`sohbet devam ediyor: ${conv.title}`] : [],
+      notchEnabled: notch !== NOOP_NOTCH,
+      contextText,
+      reasoning: args.reasoning,
+    };
+    const app = new TuiApp(deps.screen(), host);
+    tui = app;
+    const code = await app.run();
+    tui = null;
+    return finish(code);
   }
 
   out(`kovan · ${provider.model} · ${provider.label} · mod: ${mode} · ${root}`);

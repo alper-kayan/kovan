@@ -4,17 +4,26 @@ import { spawn } from 'node:child_process';
 import { AuthStore } from './auth.js';
 import { main, type Terminal } from './run.js';
 import { ConversationStore } from './store.js';
+import { realIO } from './tui/io.js';
 
 function nodeTerminal(): Terminal {
   const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
-  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: tty });
+  // Made on first use: the full-screen interface reads the keys itself and must not have readline holding stdin.
+  let made: ReturnType<typeof createInterface> | null = null;
   let interrupt: () => void = () => {};
-  rl.on('SIGINT', () => interrupt());
+  const get = () => {
+    if (!made) {
+      made = createInterface({ input: process.stdin, output: process.stdout, terminal: tty });
+      made.on('SIGINT', () => interrupt());
+    }
+    return made;
+  };
   return {
     isTTY: tty,
     write: (s) => void process.stdout.write(s),
     readLine: (prompt, signal) =>
       new Promise((resolve) => {
+        const rl = get();
         const onClose = () => resolve(null);
         rl.once('close', onClose);
         const finish = (answer: string | null) => {
@@ -30,7 +39,7 @@ function nodeTerminal(): Terminal {
     onInterrupt: (handler) => {
       interrupt = handler;
     },
-    close: () => rl.close(),
+    close: () => made?.close(),
   };
 }
 
@@ -56,6 +65,7 @@ main(process.argv.slice(2), {
   auth: new AuthStore(),
   argv1: process.argv[1],
   checkUpdates: true,
+  screen: () => realIO(),
   open: openBrowser,
   err: (s) => console.error(s),
 }).then(

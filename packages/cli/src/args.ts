@@ -22,6 +22,8 @@ export interface Args {
   json: boolean;
   /** Show the model's reasoning instead of one quiet line. */
   reasoning: boolean;
+  /** The old line-by-line prompt instead of the full-screen interface. */
+  plain: boolean;
   error: string | null;
 }
 
@@ -52,6 +54,7 @@ export function parseArgs(argv: readonly string[]): Args {
     server: null,
     json: false,
     reasoning: false,
+    plain: false,
     error: null,
   };
   const words: string[] = [];
@@ -88,6 +91,9 @@ export function parseArgs(argv: readonly string[]): Args {
         break;
       case '--reasoning':
         a.reasoning = true;
+        break;
+      case '--plain':
+        a.plain = true;
         break;
       case '-m':
       case '--model': {
