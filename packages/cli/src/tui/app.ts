@@ -32,7 +32,7 @@ export interface TuiHost {
   setMode(m: PermissionMode): void;
   effort(): string;
   setEffort(e: string): void;
-  efforts(): string[];
+  efforts(): { levels: string[]; default: string };
   setModel(id: string): void;
   models(): Promise<{ items: ListItem[]; error?: string }>;
   /** Runs one turn and resolves when the agent is done with it. `shown` is what he typed (a custom command may send more text than that). */
@@ -342,6 +342,18 @@ export class TuiApp {
       this.dialog = null;
       return;
     }
+    if (d.kind === 'slider') {
+      if (k.name === 'escape' || (k.ctrl && k.name === 'c')) this.dialog = null;
+      else if (k.name === 'left') d.index = Math.max(0, d.index - 1);
+      else if (k.name === 'right') d.index = Math.min(d.levels.length - 1, d.index + 1);
+      else if (k.name === 'enter') {
+        const level = d.levels[d.index]!;
+        this.dialog = null;
+        this.host.setEffort(level);
+        this.flash(`efor: ${level}`);
+      }
+      return;
+    }
     if (d.kind === 'approval') {
       const answer = (a: ApprovalAnswer) => this.closeApproval(a);
       if (k.name === 'escape' || (k.ctrl && k.name === 'c')) return answer('deny');
@@ -485,24 +497,22 @@ export class TuiApp {
         return true;
       }
       case '/effort': {
-        const e = this.host.efforts().find((x) => x === arg);
+        const { levels, default: def } = this.host.efforts();
+        const e = levels.find((x) => x === arg);
         if (e) {
           this.host.setEffort(e);
           this.flash(`efor: ${e}`);
-        } else
-          this.openList(
-            'efor',
-            this.host.efforts().map((x) => ({
-              label: x,
-              hint: x === this.host.effort() ? 'şimdiki' : '',
-              value: x,
-            })),
-            '',
-            (v) => {
-              this.host.setEffort(v);
-              this.flash(`efor: ${v}`);
-            },
-          );
+        } else {
+          const cur = levels.indexOf(this.host.effort());
+          const defaultIndex = Math.max(0, levels.indexOf(def));
+          this.dialog = {
+            kind: 'slider',
+            title: 'Efor',
+            levels,
+            index: cur >= 0 ? cur : defaultIndex,
+            defaultIndex,
+          };
+        }
         return true;
       }
       case '/model':

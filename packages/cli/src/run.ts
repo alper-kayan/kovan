@@ -672,7 +672,12 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         effort = e as typeof effort;
         agent.configure({ effort });
       },
-      efforts: () => [...EFFORTS],
+      efforts: () =>
+        codex
+          ? { levels: ['minimal', 'low', 'medium', 'high'], default: 'medium' }
+          : claude
+            ? { levels: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }
+            : { levels: [...EFFORTS], default: 'medium' },
       setMode: (m) => {
         mode = m;
         agent.configure({ mode });

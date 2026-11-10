@@ -122,7 +122,7 @@ function host(over: Partial<TuiHost> = {}): TuiHost {
     setMode: (m) => (mode = m),
     effort: () => 'medium',
     setEffort: () => {},
-    efforts: () => ['low', 'medium', 'high'],
+    efforts: () => ({ levels: ['low', 'medium', 'high'], default: 'medium' }),
     setModel: () => {},
     models: async () => ({
       items: [
@@ -301,5 +301,26 @@ describe('TuiApp', () => {
     const rows = screen(app);
     expect(rows.length).toBeLessThanOrEqual(8);
     expect(rows.every((r) => strWidth(r) <= 30)).toBe(true);
+  });
+});
+
+describe('effort slider', () => {
+  it('opens on /effort, moves with the arrows and applies on enter', async () => {
+    const io = fakeIO();
+    const setEffort = vi.fn();
+    const app = new TuiApp(io, host({ setEffort }));
+    void app.run();
+    io.send('/effort');
+    io.send('\r');
+    await tick();
+    const text = screen(app).join('\n');
+    expect(text).toContain('Daha hızlı');
+    expect(text).toContain('Daha akıllı');
+    expect(text).toContain('▲');
+    expect(text).toContain('varsayılan efor');
+    io.send('\u001b[C'); // right
+    io.send('\r');
+    await tick();
+    expect(setEffort).toHaveBeenCalledWith('high');
   });
 });

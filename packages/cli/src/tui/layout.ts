@@ -23,7 +23,8 @@ export interface ListItem {
 export type Dialog =
   | { kind: 'approval'; title: string; detail: string; choice: number; notch: boolean }
   | { kind: 'list'; title: string; items: ListItem[]; filter: string; index: number; empty: string }
-  | { kind: 'help'; lines: string[] };
+  | { kind: 'help'; lines: string[] }
+  | { kind: 'slider'; title: string; levels: string[]; index: number; defaultIndex: number };
 
 export interface View {
   width: number;
@@ -182,6 +183,34 @@ function dialogRows(d: Dialog, v: View): string[] {
       v.width,
       S.yellow,
       S.yellow + S.bold,
+    );
+  }
+  if (d.kind === 'slider') {
+    // Daha hızlı ←→ Daha akıllı: one mark under the chosen level, labels spread evenly.
+    const inner = Math.max(20, v.width - 6);
+    const n = d.levels.length;
+    const slot = Math.floor(inner / n);
+    const cell = (s: string, style = '') => {
+      const pad = Math.max(0, slot - strWidth(s));
+      const left = Math.floor(pad / 2);
+      return ' '.repeat(left) + (style ? paint(style, s) : s) + ' '.repeat(pad - left);
+    };
+    const marker = d.levels.map((_, i) => cell(i === d.index ? '▲' : '', S.accentBold)).join('');
+    const track = paint(S.gray, '─'.repeat(slot * n));
+    const labels = d.levels.map((l, i) => cell(l, i === d.index ? S.accentBold : S.dim)).join('');
+    const head = `${paint(S.dim, 'Daha hızlı')}${' '.repeat(Math.max(1, slot * n - strWidth('Daha hızlı') - strWidth('Daha akıllı')))}${paint(S.dim, 'Daha akıllı')}`;
+    const note = d.index === d.defaultIndex ? 'Bu model için varsayılan efor.' : '';
+    return box(
+      d.title,
+      [
+        head,
+        marker,
+        track,
+        labels,
+        paint(S.dim, note),
+        paint(S.dim, '←/→ ayarla · enter onayla · esc vazgeç'),
+      ],
+      v.width,
     );
   }
   if (d.kind === 'help')
