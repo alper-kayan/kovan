@@ -167,3 +167,16 @@ describe('combined notches', () => {
     expect(combineNotches([NOOP_NOTCH, NOOP_NOTCH])).toBe(NOOP_NOTCH);
   });
 });
+
+describe('terminal identity', () => {
+  it('sends only the terminal facts that are set', async () => {
+    const { terminalOf } = await import('./hook-notch.js');
+    expect(terminalOf({})).toEqual({});
+    expect(
+      terminalOf({ TERM_PROGRAM: 'Apple_Terminal', TERM_SESSION_ID: 'W0T1P0', HOME: '/x' }),
+    ).toEqual({
+      program: 'Apple_Terminal',
+      termSession: 'W0T1P0',
+    });
+  });
+});

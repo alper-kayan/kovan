@@ -112,7 +112,7 @@ export function createNotch(o: NotchOptions): Notch {
   if (o.env['KOVAN_NO_NOTCH'] === '1') return NOOP_NOTCH;
   const config = hookConfig(o.env, o.home);
   const hook = config
-    ? createHookNotch({ config, sessionId: o.sessionId, cwd: o.cwd, title: o.title })
+    ? createHookNotch({ config, sessionId: o.sessionId, cwd: o.cwd, title: o.title, env: o.env })
     : NOOP_NOTCH;
   return combineNotches([createCoucouNotch(o), hook]);
 }

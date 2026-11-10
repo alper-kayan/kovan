@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -58,6 +59,8 @@ export interface HookNotchOptions {
   sessionId: () => string;
   cwd: string;
   title: () => string;
+  /** The terminal's own environment, so a notch can bring this window back to the front. */
+  env?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
   /** How long to ask about one question before giving up on this surface. */
   decisionMs?: number;
@@ -78,8 +81,35 @@ export function doingOf(name: string, fields: Record<string, unknown>): string {
   return short(`${t} ${String(what).split('/').slice(-2).join('/')}`, 100);
 }
 
+/** Which terminal window this is, in the names macOS gives it; only what is set. */
+export function terminalOf(env: Record<string, string | undefined>): Record<string, string> {
+  const pick = (k: string, name: string) =>
+    env[k] ? { [name]: String(env[k]).slice(0, 200) } : {};
+  return {
+    ...pick('TERM_PROGRAM', 'program'),
+    ...pick('__CFBundleIdentifier', 'bundleId'),
+    ...pick('ITERM_SESSION_ID', 'itermSession'),
+    ...pick('TERM_SESSION_ID', 'termSession'),
+    ...pick('TMUX', 'tmux'),
+  };
+}
+
+/** The terminal device this process runs on (`ttys003`), or nothing when it has none. Asked once. */
+function ttyOfProcess(): Record<string, string> {
+  try {
+    const t = execFileSync('ps', ['-o', 'tty=', '-p', String(process.pid)], {
+      encoding: 'utf8',
+      timeout: 1500,
+    }).trim();
+    return /^ttys?\d+$/.test(t) ? { tty: `/dev/${t}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 export function createHookNotch(o: HookNotchOptions): Notch {
   const f = o.fetchImpl ?? fetch;
+  const terminal = { ...terminalOf(o.env ?? {}), ...ttyOfProcess() };
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     ...(o.config.tokenHeader
@@ -117,6 +147,7 @@ export function createHookNotch(o: HookNotchOptions): Notch {
       title: o.title() === 'New chat' ? '' : o.title(),
       event,
       doing,
+      terminal,
     };
     // A lifecycle change goes out now; the stream of "working" is coalesced to at most one request per ~700 ms.
     if (event !== 'working') flushPending();
