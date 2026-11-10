@@ -90,3 +90,56 @@ describe('claude stream', () => {
     });
   });
 });
+
+import { CodexLines, bareCommand } from './codex.js';
+
+describe('codex stream', () => {
+  it('turns codex exec lines into events, and lists the app’s Codex accounts', () => {
+    const ev: AgentEvent[] = [];
+    const c = new CodexLines('t', '/p', 'default', (e) => ev.push(e));
+    c.push({ type: 'thread.started', thread_id: 'th1' });
+    c.push({ type: 'turn.started' });
+    c.push({
+      type: 'item.started',
+      item: {
+        id: 'a',
+        type: 'command_execution',
+        command: '/bin/zsh -lc "ls -la"',
+        status: 'in_progress',
+      },
+    });
+    c.push({
+      type: 'item.completed',
+      item: {
+        id: 'a',
+        type: 'command_execution',
+        command: '/bin/zsh -lc "ls -la"',
+        aggregated_output: 'x',
+        exit_code: 0,
+        status: 'completed',
+      },
+    });
+    c.push({ type: 'item.completed', item: { id: 'b', type: 'agent_message', text: 'bitti' } });
+    c.push({ type: 'turn.completed', usage: { input_tokens: 3, output_tokens: 4 } });
+    expect(c.threadId).toBe('th1');
+    expect(ev.map((e) => e.type)).toEqual([
+      'turn_start',
+      'tool_start',
+      'tool_end',
+      'text',
+      'usage',
+      'turn_end',
+    ]);
+    expect(ev[1]).toMatchObject({ name: 'run_shell', args: { command: 'ls -la' } });
+    expect(bareCommand("/bin/bash -c 'echo hi'")).toBe('echo hi');
+    const dir = mkdtempSync(join(tmpdir(), 'kv-'));
+    writeFileSync(
+      join(dir, 'agent-accounts.json'),
+      JSON.stringify([{ id: 'x1', harness: 'codex', name: 'iş' }]),
+    );
+    expect(claudeAccounts(dir, 'codex')).toEqual([
+      { id: 'x1', name: 'iş' },
+      { id: null, name: 'varsayılan' },
+    ]);
+  });
+});

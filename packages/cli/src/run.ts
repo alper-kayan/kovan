@@ -37,9 +37,11 @@ import {
   claudeEnv,
   CLAUDE_MODELS,
   ClaudeRunner,
+  findBinary,
   findClaude,
   type ClaudeAccount,
 } from './claude.js';
+import { CODEX_MODELS, CodexRunner, codexEnv } from './codex.js';
 import { Renderer } from './render.js';
 import { TuiApp, type TuiHost, type TuiIO } from './tui/app.js';
 import type { TranscriptEvent } from './tui/transcript.js';
@@ -546,6 +548,10 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const dataDir = desktopDataDir(deps.env, process.platform, ex.home);
   const claudeBin = deps.model ? null : findClaude(deps.env, ex.home);
   const claudeRunner = new ClaudeRunner();
+  const codexBin = deps.model ? null : findBinary('codex', deps.env, ex.home);
+  const codexRunner = new CodexRunner();
+  let codex: { account: ClaudeAccount; model: string } | null = null;
+  let codexThread: string | null = null;
   let claude: { account: ClaudeAccount; model: string } | null = null;
   let claudeSession: string | null = null;
   {
@@ -553,6 +559,11 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     const m = /^claude:([^:]*):(.+)$/.exec(args.model ?? '');
     const account = m ? claudeAccounts(dataDir).find((x) => (x.id ?? '') === m[1]) : undefined;
     if (m && account && claudeBin) claude = { account, model: m[2]! };
+    const cm = /^codex:([^:]*):(.+)$/.exec(args.model ?? '');
+    const cAccount = cm
+      ? claudeAccounts(dataDir, 'codex').find((x) => (x.id ?? '') === cm[1])
+      : undefined;
+    if (cm && cAccount && codexBin) codex = { account: cAccount, model: cm[2]! };
   }
   const claudeLabel = (c: { account: ClaudeAccount; model: string }) =>
     `Claude Code · ${c.account.name}${c.model === 'default' ? '' : ` · ${c.model}`}`;
@@ -561,7 +572,18 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     lastReason = null;
     conv!.events.push({ type: 'user', text, attachments: [], at: Date.now() });
     notch.event('UserPromptSubmit', { prompt: text });
-    if (claude && claudeBin) {
+    if (codex && codexBin) {
+      codexThread = await codexRunner.send(text, {
+        binary: codexBin,
+        root,
+        model: codex.model,
+        mode,
+        threadId: codexThread,
+        env: codexEnv(dataDir, codex.account.id),
+        baseEnv: deps.env,
+        onEvent,
+      });
+    } else if (claude && claudeBin) {
       claudeSession = await claudeRunner.send(text, {
         binary: claudeBin,
         root,
@@ -628,8 +650,16 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   if (deps.screen && t.isTTY && !args.plain && deps.env['TERM'] !== 'dumb') {
     const host: TuiHost = {
       header: () => ({
-        model: claude ? claudeLabel(claude) : provider.model,
-        provider: claude ? 'Claude hesabı (Kovan masaüstündeki hesap)' : provider.label,
+        model: codex
+          ? `Codex · ${codex.account.name}${codex.model === 'default' ? '' : ` · ${codex.model}`}`
+          : claude
+            ? claudeLabel(claude)
+            : provider.model,
+        provider: codex
+          ? 'ChatGPT hesabı (Kovan masaüstündeki hesap)'
+          : claude
+            ? 'Claude hesabı (Kovan masaüstündeki hesap)'
+            : provider.label,
         folder: root.replace(ex.home, '~'),
         managed: provider.managed,
       }),
@@ -639,16 +669,28 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         agent.configure({ mode });
       },
       setModel: (id) => {
+        const cx = /^codex:([^:]*):(.+)$/.exec(id);
+        if (cx) {
+          const account = claudeAccounts(dataDir, 'codex').find((a) => (a.id ?? '') === cx[1]);
+          if (account) {
+            if (!codex || codex.account.id !== account.id) codexThread = null;
+            codex = { account, model: cx[2]! };
+            claude = null;
+            return;
+          }
+        }
         const m = /^claude:([^:]*):(.+)$/.exec(id);
         if (m) {
           const account = claudeAccounts(dataDir).find((a) => (a.id ?? '') === m[1]);
           if (account) {
             if (!claude || claude.account.id !== account.id) claudeSession = null;
             claude = { account, model: m[2]! };
+            codex = null;
             return;
           }
         }
         claude = null;
+        codex = null;
         provider = { ...provider, model: id };
         agent.configure({ modelId: id });
         conv!.model = id;
@@ -672,11 +714,24 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
               })),
             )
           : [];
-        const items = [...claudeItems, ...catalog.map((c) => ({ label: c.id, value: c.id }))];
+        const codexItems = codexBin
+          ? claudeAccounts(dataDir, 'codex').flatMap((a) =>
+              CODEX_MODELS.map((m) => ({
+                label: `Codex · ${a.name}${m === 'default' ? '' : ` · ${m}`}`,
+                hint: 'hesabındaki ChatGPT, ek kurulum yok',
+                value: `codex:${a.id ?? ''}:${m}`,
+              })),
+            )
+          : [];
+        const items = [
+          ...claudeItems,
+          ...codexItems,
+          ...catalog.map((c) => ({ label: c.id, value: c.id })),
+        ];
         return items.length ? { items } : { items, error: modelError };
       },
       turn,
-      stop: () => (claude ? claudeRunner.stop() : agent.stop()),
+      stop: () => (codex ? codexRunner.stop() : claude ? claudeRunner.stop() : agent.stop()),
       slash,
       palette: async () => {
         const set = await discoverSkills(skillPlaces(root, ex)).catch(() => null);

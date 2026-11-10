@@ -18,7 +18,7 @@ export interface ClaudeAccount {
 export const CLAUDE_MODELS = ['default', 'sonnet', 'opus', 'haiku'] as const;
 
 /** What the app has registered, plus the CLI's own default sign-in. */
-export function claudeAccounts(dataDir: string): ClaudeAccount[] {
+export function claudeAccounts(dataDir: string, harness = 'claude-code'): ClaudeAccount[] {
   const out: ClaudeAccount[] = [];
   try {
     const list = JSON.parse(readFileSync(join(dataDir, 'agent-accounts.json'), 'utf8')) as {
@@ -28,7 +28,7 @@ export function claudeAccounts(dataDir: string): ClaudeAccount[] {
     }[];
     for (const a of list)
       if (
-        a.harness === 'claude-code' &&
+        a.harness === harness &&
         typeof a.id === 'string' &&
         /^[a-z0-9-]{1,64}$/i.test(a.id) &&
         typeof a.name === 'string'
@@ -46,15 +46,25 @@ export function claudeEnv(dataDir: string, id: string | null): Record<string, st
 
 /** The `claude` program, from PATH or the usual places. Null when it is not installed. */
 export function findClaude(env: Record<string, string | undefined>, home: string): string | null {
+  return findBinary('claude', env, home);
+}
+
+/** A program from PATH or the usual places; null when it is not installed. */
+export function findBinary(
+  name: string,
+  env: Record<string, string | undefined>,
+  home: string,
+): string | null {
   const dirs = [
     ...(env['PATH'] ?? '').split(delimiter),
     join(home, '.local', 'bin'),
     join(home, '.claude', 'local'),
+    join(home, '.bun', 'bin'),
     '/opt/homebrew/bin',
     '/usr/local/bin',
   ].filter(Boolean);
   for (const d of dirs) {
-    const f = join(d, 'claude');
+    const f = join(d, name);
     if (existsSync(f)) return f;
   }
   return null;
