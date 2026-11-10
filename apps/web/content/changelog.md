@@ -1,5 +1,11 @@
 <!-- One "## <version> · <date>" heading per release, newest first. -->
 
+## 0.1.8 · 2026-11-10
+
+### Agents
+
+- Claude Code and Codex run only as accounts you add in **Settings → Agents → Accounts**; Kovan no longer uses the sign-in the CLI already has on your computer. If you used Claude Code or Codex in Kovan before, add your account there once: it signs in inside Kovan, and your conversations carry on with it.
+
 ## 0.1.7 · 2026-10-26
 
 ### Agents
