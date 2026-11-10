@@ -190,3 +190,63 @@ describe('desktop providers and their keys', () => {
     ).rejects.toThrow(/kayıtlı anahtar yok/);
   });
 });
+
+import { claudeCatalog, codexCatalog } from './catalogs.js';
+
+describe('the CLIs’ own model lists', () => {
+  it('reads Claude Code’s newest catalog: names, descriptions, sections, effort levels', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kv-'));
+    const cat = join(dir, 'cache', 'model-catalog');
+    mkdirSync(cat, { recursive: true });
+    const file = (at: number, ids: string[], surface = 'cc') =>
+      JSON.stringify({
+        fetchedAt: at,
+        catalog: {
+          surface,
+          config: {
+            models: ids.map((id, i) => ({
+              id,
+              name: id.toUpperCase(),
+              description: `d-${id}`,
+              section: i === 0 ? 'main' : 'overflow',
+              runtime: { effort_levels: ['low', 'high'], default_effort: 'high' },
+            })),
+          },
+        },
+      });
+    writeFileSync(join(cat, 'old-cc.json'), file(1, ['old-model']));
+    writeFileSync(join(cat, 'new-cc.json'), file(5, ['m-new', 'm-older']));
+    writeFileSync(join(cat, 'desktop-ccd.json'), file(9, ['desktop-only'], 'ccd'));
+    const m = claudeCatalog(dir);
+    expect(m.map((x) => x.id)).toEqual(['m-new', 'm-older']);
+    expect(m[0]).toMatchObject({
+      main: true,
+      levels: ['low', 'high'],
+      defaultLevel: 'high',
+      description: 'd-m-new',
+    });
+    expect(m[1]!.main).toBe(false);
+    expect(claudeCatalog(join(dir, 'none'))).toEqual([]);
+  });
+  it('reads Codex’s list without the models it hides', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kv-'));
+    writeFileSync(
+      join(dir, 'models_cache.json'),
+      JSON.stringify({
+        models: [
+          {
+            slug: 'a',
+            display_name: 'A',
+            visibility: 'list',
+            default_reasoning_level: 'medium',
+            supported_reasoning_levels: [{ effort: 'low' }, { effort: 'high' }],
+          },
+          { slug: 'h', display_name: 'H', visibility: 'hide' },
+        ],
+      }),
+    );
+    expect(codexCatalog(dir)).toMatchObject([
+      { id: 'a', name: 'A', levels: ['low', 'high'], defaultLevel: 'medium' },
+    ]);
+  });
+});

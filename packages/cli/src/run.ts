@@ -35,14 +35,14 @@ import { cliDir, desktopDataDir } from './paths.js';
 import {
   claudeAccounts,
   claudeEnv,
-  CLAUDE_MODELS,
   ClaudeRunner,
   findBinary,
   findClaude,
   type ClaudeAccount,
 } from './claude.js';
 import { desktopProviders, providerKey } from './desktopKeys.js';
-import { CODEX_MODELS, CodexRunner, codexEnv } from './codex.js';
+import { CodexRunner, codexEnv } from './codex.js';
+import { claudeCatalog, codexCatalog, type EngineModel } from './catalogs.js';
 import { Renderer } from './render.js';
 import { TuiApp, type ModelGroup, type TuiHost, type TuiIO } from './tui/app.js';
 import type { TranscriptEvent } from './tui/transcript.js';
@@ -568,8 +568,31 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       : undefined;
     if (cm && cAccount && codexBin) codex = { account: cAccount, model: cm[2]! };
   }
-  const claudeLabel = (c: { account: ClaudeAccount; model: string }) =>
-    `Claude Code · ${c.account.name}${c.model === 'default' ? '' : ` · ${c.model}`}`;
+  // The models each CLI offers, as the CLI itself lists them (its own cache), per account.
+  const claudeModelsOf = (id: string | null): EngineModel[] => {
+    const own = id
+      ? claudeCatalog(join(dataDir, 'agent-accounts', id))
+      : claudeCatalog(deps.env['CLAUDE_CONFIG_DIR'] ?? join(ex.home, '.claude'));
+    return own.length ? own : claudeCatalog(join(ex.home, '.claude'));
+  };
+  const codexModelsOf = (id: string | null): EngineModel[] => {
+    const own = id
+      ? codexCatalog(join(dataDir, 'agent-accounts', id))
+      : codexCatalog(deps.env['CODEX_HOME'] ?? join(ex.home, '.codex'));
+    return own.length ? own : codexCatalog(join(ex.home, '.codex'));
+  };
+  const nameOf = (list: EngineModel[], model: string) =>
+    model === 'default' ? '' : (list.find((m) => m.id === model)?.name ?? model);
+  const claudeLabel = (c: { account: ClaudeAccount; model: string }) => {
+    const n = nameOf(claudeModelsOf(c.account.id), c.model);
+    return `Claude Code · ${c.account.name}${n ? ` · ${n}` : ''}`;
+  };
+  /** The effort levels the chosen model takes, from the CLI's own list; the default model is the list's first. */
+  const engineEfforts = (list: EngineModel[], model: string, fallback: string[]) => {
+    const m = model === 'default' ? list[0] : list.find((x) => x.id === model);
+    const levels = m?.levels ?? fallback;
+    return { levels, default: m?.defaultLevel ?? 'medium' };
+  };
 
   const turn = async (text: string) => {
     lastReason = null;
@@ -656,7 +679,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     const host: TuiHost = {
       header: () => ({
         model: codex
-          ? `Codex · ${codex.account.name}${codex.model === 'default' ? '' : ` · ${codex.model}`}`
+          ? `Codex · ${codex.account.name}${nameOf(codexModelsOf(codex.account.id), codex.model) ? ` · ${nameOf(codexModelsOf(codex.account.id), codex.model)}` : ''}`
           : claude
             ? claudeLabel(claude)
             : provider.model,
@@ -676,9 +699,20 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       },
       efforts: () =>
         codex
-          ? { levels: ['minimal', 'low', 'medium', 'high'], default: 'medium' }
+          ? engineEfforts(codexModelsOf(codex.account.id), codex.model, [
+              'minimal',
+              'low',
+              'medium',
+              'high',
+            ])
           : claude
-            ? { levels: ['low', 'medium', 'high', 'xhigh', 'max'], default: 'medium' }
+            ? engineEfforts(claudeModelsOf(claude.account.id), claude.model, [
+                'low',
+                'medium',
+                'high',
+                'xhigh',
+                'max',
+              ])
             : { levels: [...EFFORTS], default: 'medium' },
       setMode: (m) => {
         mode = m;
@@ -743,25 +777,53 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
           }
         }
         const groups: ModelGroup[] = [];
+        const engineItems = (
+          list: EngineModel[],
+          prefix: string,
+          accountId: string | null,
+          fallback: string[],
+        ) => {
+          const item = (m: EngineModel, hint: string) => ({
+            label: m.name,
+            hint,
+            value: `${prefix}:${accountId ?? ''}:${m.id}`,
+          });
+          if (!list.length)
+            return fallback.map((m) => ({
+              label: m,
+              value: `${prefix}:${accountId ?? ''}:${m}`,
+            }));
+          const first = list[0]!;
+          return [
+            {
+              label: 'Default (recommended)',
+              hint: `${first.name}${first.description ? ` · ${first.description}` : ''}`,
+              value: `${prefix}:${accountId ?? ''}:default`,
+            },
+            ...list.filter((m) => m.main).map((m) => item(m, m.description)),
+            ...list
+              .filter((m) => !m.main)
+              .map((m) => item(m, m.description ? `eski · ${m.description}` : 'eski')),
+          ];
+        };
         if (claudeBin)
           for (const a of claudeAccounts(dataDir))
             groups.push({
               label: `Claude Code · ${a.name}`,
               hint: 'Claude hesabın',
-              items: CLAUDE_MODELS.map((m) => ({
-                label: m === 'default' ? 'varsayılan model' : m,
-                value: `claude:${a.id ?? ''}:${m}`,
-              })),
+              items: engineItems(claudeModelsOf(a.id), 'claude', a.id, [
+                'default',
+                'sonnet',
+                'opus',
+                'haiku',
+              ]),
             });
         if (codexBin)
           for (const a of claudeAccounts(dataDir, 'codex'))
             groups.push({
               label: `Codex · ${a.name}`,
               hint: 'ChatGPT hesabın',
-              items: CODEX_MODELS.map((m) => ({
-                label: m === 'default' ? 'varsayılan model' : m,
-                value: `codex:${a.id ?? ''}:${m}`,
-              })),
+              items: engineItems(codexModelsOf(a.id), 'codex', a.id, ['default']),
             });
         for (const p of desktopProviders(dataDir))
           groups.push({
