@@ -42,6 +42,8 @@ Conversations are kept the same way the desktop app keeps its own, so a conversa
 - `kovan -r <name or id>` continues a conversation from anywhere, in the folder it was held in. A word of the name is enough when only one conversation fits; when several do, `kovan` lists them instead of guessing.
 - `kovan sessions` lists them all with their ids, folders and dates.
 
+Coming back to a conversation brings back how you left it: the model (or the Claude Code or Codex account, with that CLI's own session, so it remembers what was said to it), the effort and the permission mode. A model you name now (`-m`, `--effort`, `--mode`) wins over what was saved. If what the conversation last used isn't available any more (an account you removed, say), `kovan` says so and carries on with the model at hand.
+
 ## Which model it uses
 
 Your own key or gateway always comes first:

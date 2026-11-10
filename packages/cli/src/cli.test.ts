@@ -573,6 +573,101 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
     expect(await exact.done).toBe(0);
   });
 
+  it('back in a chat, the model, effort and mode it last used come back, unless named now', async () => {
+    const first = run(
+      ['-m', 'a/first', '--effort', 'high', '--mode', 'plan', 'soru'],
+      terminal([]),
+      { model: scripted([[text('cevap'), done()]]) },
+    );
+    expect(await first.done).toBe(0);
+    const [meta] = first.store.list();
+    const saved = first.store.load(dir, meta!.id)!;
+    expect(saved).toMatchObject({
+      model: 'a/first',
+      cliModel: 'a/first',
+      effort: 'high',
+      mode: 'plan',
+    });
+
+    const again = scripted([[text('devam'), done()]]);
+    expect(await run(['-c', 'devam et'], terminal([]), { model: again }).done).toBe(0);
+    expect(again.requests[0]).toMatchObject({ model: 'a/first', effort: 'high' });
+    expect(first.store.load(dir, meta!.id)).toMatchObject({ mode: 'plan', effort: 'high' });
+
+    // Named on the command line, the new one wins, and is what the chat remembers from then on.
+    const other = scripted([[text('ok'), done()]]);
+    expect(
+      await run(['-c', '-m', 'b/second', 'şimdi bununla'], terminal([]), { model: other }).done,
+    ).toBe(0);
+    expect(other.requests[0]).toMatchObject({ model: 'b/second' });
+    expect(first.store.load(dir, meta!.id)).toMatchObject({ cliModel: 'b/second' });
+  });
+
+  // A stand-in claude on PATH (a Unix script): it logs how it was called and answers in Claude Code's stream-json.
+  it.runIf(process.platform !== 'win32')(
+    'a chat on Claude Code comes back on the same account, carrying on its Claude Code session',
+    async () => {
+      const bin = join(dir, 'fakebin');
+      const data = join(dir, 'data');
+      await mkdir(bin, { recursive: true });
+      await mkdir(data, { recursive: true });
+      await writeFile(
+        join(data, 'agent-accounts.json'),
+        JSON.stringify([{ id: 'acc1', harness: 'claude-code', name: 'Work' }]),
+      );
+      const log = join(dir, 'claude-calls.log');
+      await writeFile(
+        join(bin, 'claude'),
+        [
+          '#!/usr/bin/env node',
+          'const a = process.argv.slice(2);',
+          `require('fs').appendFileSync(${JSON.stringify(log)}, a.join(' ') + '\\n');`,
+          'const at = (f) => (a.indexOf(f) >= 0 ? a[a.indexOf(f) + 1] : null);',
+          "const sid = at('--resume') || at('--session-id');",
+          "const out = (o) => process.stdout.write(JSON.stringify(o) + '\\n');",
+          "out({ type: 'system', subtype: 'init', session_id: sid, model: 'sonnet' });",
+          "out({ type: 'assistant', message: { content: [{ type: 'text', text: 'tamam' }] }, session_id: sid });",
+          "out({ type: 'result', subtype: 'success', is_error: false, result: 'tamam', session_id: sid, total_cost_usd: 0 });",
+        ].join('\n'),
+        { mode: 0o755 },
+      );
+      const env = {
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        KOVAN_DATA_DIR: data,
+        KOVAN_BASE_URL: 'http://127.0.0.1:9/v1',
+        KOVAN_MODEL: 'x/y',
+      };
+      const first = run(['-m', 'claude:acc1:sonnet', 'merhaba'], terminal([]), { env });
+      expect(await first.done).toBe(0);
+      const [meta] = first.store.list();
+      const saved = first.store.load(dir, meta!.id)!;
+      expect(saved.cliModel).toBe('claude:acc1:sonnet');
+      const session = saved.cliSession!;
+      expect(session).toMatch(/^[0-9a-f-]{36}$/);
+
+      // No -m this time: it goes back to Claude Code on that account and resumes the same session.
+      expect(await run(['-c', 'devam et'], terminal([]), { env }).done).toBe(0);
+      const calls = (await readFile(log, 'utf8')).trim().split('\n');
+      expect(calls).toHaveLength(2);
+      expect(calls[0]).toContain(`--session-id ${session}`);
+      expect(calls[1]).toContain(`--resume ${session}`);
+      expect(calls[1]).toContain('devam et');
+    },
+  );
+
+  it('a chat whose Claude Code account is gone says so, and goes on with the model at hand', async () => {
+    const store = new ConversationStore(join(dir, 'data'));
+    const c = store.create(dir, { model: 'm/x', effort: null, mode: 'allow' });
+    c.title = 'eski';
+    c.cliModel = 'claude:gone:sonnet';
+    store.save(c);
+    const model = scripted([[text('ok'), done()]]);
+    const r = run(['-c', 'devam'], terminal([]), { store, model });
+    expect(await r.done).toBe(0);
+    expect(r.errors.join('\n')).toMatch(/last used claude:gone:sonnet, which isn't available here/);
+    expect(model.requests[0]!.model).not.toContain('claude:');
+  });
+
   it('-c with nothing to continue says so and starts fresh', async () => {
     const r = run(['-c', 'selam'], terminal([]), { model: scripted([[text('x'), done()]]) });
     expect(await r.done).toBe(0);

@@ -30,6 +30,13 @@ export interface StoredConversation {
   model: string;
   effort: Effort | null;
   mode: PermissionMode;
+  /**
+   * The terminal's own last choice, which may be an engine the desktop doesn't run this conversation with (`claude:<account>:<model>`,
+   * `codex:…`); `model` stays what Kovan's agent last used, so the app can still carry on. Missing in chats the terminal never ran.
+   */
+  cliModel?: string;
+  /** When `cliModel` is Claude Code or Codex: that CLI's own session (thread) id, so coming back carries on its conversation. */
+  cliSession?: string | null;
 }
 
 export interface ConversationSummary {

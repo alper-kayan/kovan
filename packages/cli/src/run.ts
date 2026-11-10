@@ -49,7 +49,7 @@ import type { TranscriptEvent } from './tui/transcript.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.4.5';
+export const VERSION = '0.4.6';
 
 export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
 
@@ -432,7 +432,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     } else deps.err('No chat to continue in this folder; starting a new one.');
   }
   let mode: PermissionMode = args.mode ?? (resumed ? conv!.mode : 'allow');
-  let effort = args.effort;
+  let effort = args.effort ?? (resumed ? conv!.effort : null);
   conv ??= deps.store.create(root, { model: provider.model, effort, mode });
   // The system prompt is rebuilt each time (a changed KOVAN.md applies); what was said before it is kept.
   const history: ChatMessage[] = resumed
@@ -645,6 +645,80 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
   };
 
+  /**
+   * The model a turn goes to: a model id, a provider's from the desktop app (`@<provider>/<model>`), or Claude Code / Codex as one of
+   * the desktop app's accounts (`claude:<account>:<model>`, `codex:…`). Resolves with why not, when it can't be used.
+   */
+  let modelChoice: string = args.model ?? provider.model;
+  const chooseModel = async (id: string): Promise<string | void> => {
+    const custom = /^@([a-z0-9-]+)\/(.+)$/.exec(id);
+    if (custom) {
+      // A provider you added in the desktop app: its key comes from the keychain, once, and stays in memory.
+      const p = desktopProviders(dataDir).find((x) => x.id === custom[1]);
+      if (!p) return "Couldn't find that provider in the desktop app";
+      try {
+        const key = await providerKey(dataDir, p.id);
+        agent.configure({
+          model: new OpenRouterClient({ apiKey: key, baseUrl: p.baseUrl, dialect: 'openai' }),
+          modelId: custom[2]!,
+        });
+      } catch (e) {
+        return e instanceof Error ? e.message : String(e);
+      }
+      provider = { ...provider, model: custom[2]!, label: p.name, managed: false };
+      claude = null;
+      codex = null;
+      modelChoice = id;
+      return;
+    }
+    agent.configure({ model: baseStreamer });
+    const cx = /^codex:([^:]*):(.+)$/.exec(id);
+    if (cx) {
+      const account = claudeAccounts(dataDir, 'codex').find((a) => (a.id ?? '') === cx[1]);
+      if (account) {
+        if (!codex || codex.account.id !== account.id) codexThread = null;
+        codex = { account, model: cx[2]! };
+        claude = null;
+        modelChoice = id;
+        return;
+      }
+    }
+    const m = /^claude:([^:]*):(.+)$/.exec(id);
+    if (m) {
+      const account = claudeAccounts(dataDir).find((a) => (a.id ?? '') === m[1]);
+      if (account) {
+        if (!claude || claude.account.id !== account.id) claudeSession = null;
+        claude = { account, model: m[2]! };
+        codex = null;
+        modelChoice = id;
+        return;
+      }
+    }
+    if (cx || m) return "that account isn't in the desktop app any more";
+    claude = null;
+    codex = null;
+    provider = { ...provider, model: id };
+    agent.configure({ modelId: id });
+    modelChoice = id;
+  };
+
+  /** Back in a chat: the model (or Claude Code / Codex account) it last used, unless one was named now. Says why not, if it can't. */
+  const restoreModel = async (c: StoredConversation): Promise<string | null> => {
+    const want = c.cliModel ?? c.model;
+    if (!want || (args.model && args.model !== want)) return null;
+    if (want !== modelChoice) {
+      const why = await chooseModel(want);
+      if (why)
+        return `This chat last used ${want}, which isn't available here (${why}); continuing with ${modelChoice}.`;
+    }
+    // The engine's own session too, so Claude Code or Codex remembers what was said to it.
+    if (claude) claudeSession = c.cliSession ?? null;
+    if (codex) codexThread = c.cliSession ?? null;
+    return null;
+  };
+
+  const restoreNote = resumed ? await restoreModel(conv) : null;
+
   const turn = async (text: string) => {
     lastReason = null;
     conv!.events.push({ type: 'user', text, attachments: [], at: Date.now() });
@@ -676,8 +750,12 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     } else await agent.send(text);
     conv!.messages = [...agent.messages];
     conv!.updatedAt = Date.now();
-    conv!.model = provider.model;
+    // What the desktop app can carry on with (Kovan's agent's model) and the terminal's own choice, which may be an engine.
+    if (!claude && !codex) conv!.model = modelChoice;
+    conv!.cliModel = modelChoice;
+    conv!.cliSession = claude ? claudeSession : codex ? codexThread : null;
     conv!.mode = mode;
+    conv!.effort = effort;
     if (conv!.title === 'New chat')
       conv!.title = clip(text.replace(/\s+/g, ' ').trim(), 80) || 'New chat';
     try {
@@ -721,6 +799,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
 
   // One message: do it and go.
   if (args.task) {
+    if (restoreNote) deps.err(restoreNote);
     const s = args.task.startsWith('/') ? await slash(args.task) : null;
     await turn(s ? s.send : args.task);
     return finish(lastReason === 'done' ? 0 : 1);
@@ -769,54 +848,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         mode = m;
         agent.configure({ mode });
       },
-      setModel: async (id) => {
-        const custom = /^@([a-z0-9-]+)\/(.+)$/.exec(id);
-        if (custom) {
-          // A provider you added in the desktop app: its key comes from the keychain, once, and stays in memory.
-          const p = desktopProviders(dataDir).find((x) => x.id === custom[1]);
-          if (!p) return "Couldn't find that provider in the desktop app";
-          try {
-            const key = await providerKey(dataDir, p.id);
-            agent.configure({
-              model: new OpenRouterClient({ apiKey: key, baseUrl: p.baseUrl, dialect: 'openai' }),
-              modelId: custom[2]!,
-            });
-          } catch (e) {
-            return e instanceof Error ? e.message : String(e);
-          }
-          provider = { ...provider, model: custom[2]!, label: p.name, managed: false };
-          claude = null;
-          codex = null;
-          conv!.model = id;
-          return;
-        }
-        agent.configure({ model: baseStreamer });
-        const cx = /^codex:([^:]*):(.+)$/.exec(id);
-        if (cx) {
-          const account = claudeAccounts(dataDir, 'codex').find((a) => (a.id ?? '') === cx[1]);
-          if (account) {
-            if (!codex || codex.account.id !== account.id) codexThread = null;
-            codex = { account, model: cx[2]! };
-            claude = null;
-            return;
-          }
-        }
-        const m = /^claude:([^:]*):(.+)$/.exec(id);
-        if (m) {
-          const account = claudeAccounts(dataDir).find((a) => (a.id ?? '') === m[1]);
-          if (account) {
-            if (!claude || claude.account.id !== account.id) claudeSession = null;
-            claude = { account, model: m[2]! };
-            codex = null;
-            return;
-          }
-        }
-        claude = null;
-        codex = null;
-        provider = { ...provider, model: id };
-        agent.configure({ modelId: id });
-        conv!.model = id;
-      },
+      setModel: chooseModel,
       models: async () => {
         let modelError = 'no models on this account';
         // The account's own list, asked for fresh: what you can use, not a guess.
@@ -921,6 +953,10 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         // Its files are in another folder: the agent would work in the wrong one, so say how to open it there.
         if (saved.root !== root) return { elsewhere: saved.root, id: saved.id };
         conv = saved;
+        mode = saved.mode;
+        effort = saved.effort ?? effort;
+        agent.configure({ mode, effort });
+        void restoreModel(saved);
         agent.messages.splice(
           1,
           agent.messages.length,
@@ -932,11 +968,15 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       title: () => conv!.title,
       newChat: () => {
         agent.messages.splice(1);
+        claudeSession = null;
+        codexThread = null;
         conv = deps.store.create(root, { model: provider.model, effort, mode });
       },
       history: conv.events.flatMap((e) => (e.type === 'user' ? [e.text] : [])),
       initialEvents: resumed ? (conv.events as TranscriptEvent[]) : [],
-      startLines: resumed ? [`continuing: ${conv.title}`] : [],
+      startLines: resumed
+        ? [`continuing: ${conv.title}`, ...(restoreNote ? [restoreNote] : [])]
+        : [],
       notchEnabled: notch !== NOOP_NOTCH,
       contextText,
       reasoning: args.reasoning,
@@ -958,6 +998,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       ? `continuing: ${conv.title}`
       : 'New chat. /help lists the commands; Ctrl+C stops a turn.',
   );
+  if (restoreNote) deps.err(restoreNote);
 
   while (!leaving) {
     const raw = await t.readLine('\n› ');
@@ -986,6 +1027,8 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     if (line === '/clear') {
       agent.messages.splice(1);
+      claudeSession = null;
+      codexThread = null;
       conv = deps.store.create(root, { model: provider.model, effort, mode });
       out('Cleared: new chat.');
       continue;
@@ -1011,11 +1054,10 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     if (/^\/model(\s|$)/.test(line)) {
       const id = line.slice(6).trim();
-      if (!id) out(`model: ${provider.model}`);
+      if (!id) out(`model: ${modelChoice}`);
       else {
-        provider = { ...provider, model: id };
-        agent.configure({ modelId: id });
-        out(`model: ${id}`);
+        const why = await chooseModel(id);
+        out(why ? `Couldn't switch: ${why}` : `model: ${id}`);
       }
       continue;
     }
