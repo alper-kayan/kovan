@@ -29,12 +29,13 @@ import {
 } from './auth.js';
 import { expandCommand, findCommand, skillPlaces, userNotes } from './extras.js';
 import { CONFIG_FILE, loadProvider, type Provider, type ProviderResult } from './config.js';
+import { NOOP_NOTCH, createNotch, notchEventsFor, hookTool, type Notch } from './notch.js';
 import { cliDir } from './paths.js';
 import { Renderer } from './render.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.2.1';
+export const VERSION = '0.2.2';
 
 export const USAGE = `kovan ${VERSION}: terminalde Kovan'ın kodlama ajanı.
 
@@ -68,7 +69,7 @@ export interface Terminal {
   readonly isTTY: boolean;
   write(s: string): void;
   /** `null` when the input has ended. */
-  readLine(prompt: string): Promise<string | null>;
+  readLine(prompt: string, signal?: AbortSignal): Promise<string | null>;
   onInterrupt(handler: () => void): void;
   close(): void;
 }
@@ -95,6 +96,8 @@ export interface Deps {
   stateDir?: string;
   /** His home folder (where `.claude` lives); the real one unless a test says otherwise. */
   home?: string;
+  /** Coucou's notch; a stand-in in tests. Otherwise the real socket, when there is one. */
+  notch?: Notch;
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -279,7 +282,15 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     deps.checkUpdates && t.isTTY
       ? updateNow(deps, server, false).catch((): UpdateResult => ({ status: 'failed', why: '' }))
       : null;
+  // The notch is made once the conversation exists; until then there is nothing to tell it.
+  let notch: Notch = NOOP_NOTCH;
+  let notchOpen = false;
   const finish = async (code: number): Promise<number> => {
+    if (notchOpen) {
+      notchOpen = false;
+      notch.event('SessionEnd');
+      await notch.flush();
+    }
     const note = update ? describeUpdate(await update) : null;
     if (note) out(note);
     return code;
@@ -377,26 +388,69 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const always = new Set<string>();
   let lastReason: string | null = null;
 
+  // What the notch is told when something needs his say: the same tool name and input Claude Code's hook sends.
+  const askNotch = (r: ApprovalRequest, signal?: AbortSignal) => {
+    const input = hookTool(
+      r.tool,
+      r.path ? { path: r.path, command: r.detail } : { command: r.detail },
+    );
+    return notch.permission(
+      {
+        tool_name: input.tool_name,
+        tool_input:
+          r.kind === 'command'
+            ? { command: r.detail }
+            : { ...input.tool_input, description: r.detail },
+      },
+      signal,
+    );
+  };
+
   const approve = async (r: ApprovalRequest): Promise<boolean> => {
     if (always.has(r.tool)) return true;
     if (!t.isTTY) {
+      // Nobody at the terminal: the notch can still be asked (his phone and lock screen too).
+      const d = await askNotch(r);
+      if (d === 'allow' || d === 'always') {
+        if (d === 'always') always.add(r.tool);
+        out(`  notch: onaylandı (${r.title})`);
+        return true;
+      }
       out(
-        `izin gerekiyor ama soracak kimse yok: ${r.title} (${clip(r.detail, 120)}). --mode full ile çalıştır.`,
+        d === 'deny'
+          ? `  notch: reddedildi (${r.title})`
+          : `izin gerekiyor ama soracak kimse yok: ${r.title} (${clip(r.detail, 120)}). --mode full ile çalıştır.`,
       );
       return false;
     }
     out(`\n? ${r.title}\n  ${clip(r.detail, 400)}`);
-    const a =
-      (await t.readLine('  izin ver? [e]vet / [h]ayır / [t]ümüne (bu oturumda) › '))
-        ?.trim()
-        .toLowerCase() ?? '';
-    if (a === 't') {
+    // The terminal and the notch ask at once; the first real answer wins and the other question is withdrawn.
+    // A notch that is absent, silent or says "ask" never decides: only the terminal does then.
+    const ac = new AbortController();
+    const fromNotch = askNotch(r, ac.signal).then((d) =>
+      d === 'allow' || d === 'always' || d === 'deny'
+        ? ({ from: 'notch', d } as const)
+        : new Promise<never>(() => {}),
+    );
+    const fromTerminal = t
+      .readLine('  izin ver? [e]vet / [h]ayır / [t]ümüne (bu oturumda) › ', ac.signal)
+      .then((a) => ({ from: 'terminal', a: a?.trim().toLowerCase() ?? '' }) as const);
+    const first = await Promise.race([fromNotch, fromTerminal]);
+    ac.abort();
+    if (first.from === 'notch') {
+      out(first.d === 'deny' ? '  notch: reddedildi' : '  notch: onaylandı');
+      if (first.d === 'always') always.add(r.tool);
+      return first.d !== 'deny';
+    }
+    if (first.a === 't') {
       always.add(r.tool);
       return true;
     }
-    return a === 'e' || a === 'evet' || a === 'y' || a === 'yes';
+    return first.a === 'e' || first.a === 'evet' || first.a === 'y' || first.a === 'yes';
   };
 
+  const toolNames = new Map<string, string>();
+  const lastText = { value: '' };
   const agent = new Agent(
     {
       model: streamer,
@@ -420,6 +474,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         }
         if (keepEvent(e)) conv!.events.push(e);
         renderer.event(e);
+        for (const n of notchEventsFor(e, toolNames, lastText)) notch.event(n.name, n.fields);
       },
     },
     history,
@@ -428,6 +483,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const turn = async (text: string) => {
     lastReason = null;
     conv!.events.push({ type: 'user', text, attachments: [], at: Date.now() });
+    notch.event('UserPromptSubmit', { prompt: text });
     await agent.send(text);
     conv!.messages = [...agent.messages];
     conv!.updatedAt = Date.now();
@@ -441,6 +497,18 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       deps.err(`sohbet kaydedilemedi: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
+
+  notch =
+    deps.notch ??
+    createNotch({
+      env: deps.env,
+      home: ex.home,
+      sessionId: () => conv!.id,
+      cwd: root,
+      title: () => conv!.title,
+    });
+  notchOpen = true;
+  notch.event('SessionStart');
 
   let leaving = false;
   t.onInterrupt(() => {

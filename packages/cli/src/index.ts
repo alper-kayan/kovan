@@ -13,14 +13,19 @@ function nodeTerminal(): Terminal {
   return {
     isTTY: tty,
     write: (s) => void process.stdout.write(s),
-    readLine: (prompt) =>
+    readLine: (prompt, signal) =>
       new Promise((resolve) => {
         const onClose = () => resolve(null);
         rl.once('close', onClose);
-        rl.question(prompt, (answer) => {
+        const finish = (answer: string | null) => {
           rl.off('close', onClose);
           resolve(answer);
-        });
+        };
+        // Withdrawn (the notch answered first): the question goes away and nobody waits for it.
+        if (signal?.aborted) return finish(null);
+        signal?.addEventListener('abort', () => finish(null), { once: true });
+        if (signal) rl.question(prompt, { signal }, (answer) => finish(answer));
+        else rl.question(prompt, (answer) => finish(answer));
       }),
     onInterrupt: (handler) => {
       interrupt = handler;

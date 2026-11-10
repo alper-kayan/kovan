@@ -27,6 +27,18 @@ What he already wrote for Claude works here, in the same formats (`KOVAN_NO_CLAU
 
 Not yet: hooks, MCP servers from `.mcp.json`, Claude plugins (a folder with `.claude-plugin/` is not a skill), and `@file` / `!command` inside a command.
 
+## In Coucou's notch
+
+[Coucou](https://github.com/Louis-CFM/coucou) (MIT) is a notch companion for AI coding agents. It documents how any tool can show up next to Claude Code
+(`docs/AGENTS.md`): newline-terminated hook JSON to its Unix socket, tagged `coucou_agent`. `kovan` speaks that, with no change to Coucou:
+
+- a **kovan** pill with the session live: `SessionStart`, `UserPromptSubmit`, `PreToolUse` / `PostToolUse` per tool call ("Edit Invoice.swift", "Bash npm test", in Claude Code's tool names),
+  `Stop` with the last words, `SessionEnd`; the terminal's identity is sent too so the notch can jump back to it.
+- **approvals from the notch** (and Coucou's lock-screen and phone cards): when the agent asks permission, the terminal and the notch ask at once; the first real answer wins and the other question
+  is withdrawn. `allow`, `always` (that tool, for the session) and `deny` come from the notch; `ask` or silence leaves it to the terminal. With nobody at the terminal, the notch alone can answer.
+- Nothing changes when Coucou is not running (a missing, refused or silent socket is "no notch", never a wait). `KOVAN_NO_NOTCH=1` turns it off, `KOVAN_NOTCH_SOCKET=<path>` points at another socket.
+  Looks for the GitHub build's `~/Library/Application Support/NotchBuddy/nb.sock`, then the App Store build's.
+
 ## Which model server
 
 Anything OpenAI-compatible. OpenRouter is the default (the same one Kovan's own agent uses):
