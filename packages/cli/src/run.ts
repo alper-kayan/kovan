@@ -5,6 +5,7 @@ import {
   Agent,
   buildSystemPrompt,
   discoverSkills,
+  parseSkillCommand,
   type ApprovalRequest,
   type ModelStreamer,
   type PermissionMode,
@@ -26,13 +27,14 @@ import {
   type Auth,
   type AuthStore,
 } from './auth.js';
+import { expandCommand, findCommand, skillPlaces, userNotes } from './extras.js';
 import { CONFIG_FILE, loadProvider, type Provider, type ProviderResult } from './config.js';
 import { cliDir } from './paths.js';
 import { Renderer } from './render.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.2.1';
 
 export const USAGE = `kovan ${VERSION}: terminalde Kovan'ın kodlama ajanı.
 
@@ -56,7 +58,9 @@ export const USAGE = `kovan ${VERSION}: terminalde Kovan'ın kodlama ajanı.
 
 Model: kendi anahtarın (OPENROUTER_API_KEY, ya da KOVAN_BASE_URL + KOVAN_MODEL [+ KOVAN_API_KEY]) önce gelir; yoksa 'kovan login' ile Kovan hesabın
 (yönetilen kullanım, hesabına yazılır). Sohbetler Kovan masaüstünün sohbet listesinde de görünür.
-Sohbette: /help /mode /model /models /clear /cost /context /exit
+Claude'un okuduklarını okur: depodaki ve ~/.claude'daki skill'ler (/skill-adı), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md,
+.claude/commands/*.md (özel komutlar). KOVAN_NO_CLAUDE=1 hepsini kapatır.
+Sohbette: /help /mode /model /models /clear /cost /context /skills /exit
 `;
 
 /** What `kovan` needs from the terminal. Real in index.ts, scripted in tests. */
@@ -89,6 +93,8 @@ export interface Deps {
   checkUpdates?: boolean;
   /** Where the "when did I last look" stamp goes. */
   stateDir?: string;
+  /** His home folder (where `.claude` lives); the real one unless a test says otherwise. */
+  home?: string;
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -306,10 +312,18 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       deps.err(`bağlam dosyası okunamadı: ${args.contextFile} (onsuz devam ediyorum)`);
     }
   }
+  const ex = { env: deps.env, home: deps.home ?? homedir() };
   const base = await buildSystemPrompt({ root, name: basename(root), isRepo });
-  const system = contextText
-    ? `${base}\n\nAdditional instructions from the tool that started this session:\n\n${contextText}`
-    : base;
+  const notes = await userNotes(ex);
+  const system = [
+    base,
+    notes,
+    contextText
+      ? `Additional instructions from the tool that started this session:\n\n${contextText}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
 
   let conv: StoredConversation | null = null;
   let resumed = false;
@@ -398,8 +412,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         const info = catalog.find((c) => c.id === m);
         return info ? estimateCost(info, usage) : null;
       },
-      skills: () =>
-        discoverSkills({ root, userDir: join(homedir(), '.kovan', 'skills'), claudeDir: null }),
+      skills: () => discoverSkills(skillPlaces(root, ex)),
       onEvent: (e) => {
         if (e.type === 'turn_end') {
           lastReason = e.reason;
@@ -438,9 +451,21 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
   });
 
+  /** What a typed line becomes: a custom command's text, or itself (a skill is recognised by the agent). Null: not a command at all. */
+  const slash = async (line: string): Promise<{ send: string } | null> => {
+    const m = /^\/([A-Za-z0-9][A-Za-z0-9:_-]*)(?:\s+([\s\S]*))?$/.exec(line);
+    if (!m) return null;
+    const name = m[1]!;
+    const skills = (await discoverSkills(skillPlaces(root, ex)).catch(() => null))?.skills ?? [];
+    if (parseSkillCommand(`/${name}`, skills)) return { send: line };
+    const cmd = await findCommand(name, root, ex);
+    return cmd ? { send: expandCommand(cmd.body, (m[2] ?? '').trim()) } : null;
+  };
+
   // One message: do it and go.
   if (args.task) {
-    await turn(args.task);
+    const s = args.task.startsWith('/') ? await slash(args.task) : null;
+    await turn(s ? s.send : args.task);
     return finish(lastReason === 'done' ? 0 : 1);
   }
 
@@ -505,8 +530,29 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       }
       continue;
     }
+    if (/^\/skills(\s|$)/.test(line)) {
+      const q = line.slice(7).trim().toLowerCase();
+      const set = await discoverSkills(skillPlaces(root, ex)).catch(() => null);
+      const rows = (set?.skills ?? [])
+        .filter((k) => !q || k.name.toLowerCase().includes(q))
+        .map((k) => `/${k.name}  (${k.source})  ${clip(k.description, 80)}`);
+      out(
+        rows.length
+          ? rows.join('\n')
+          : 'skill yok. SKILL.md içeren klasörler .kovan/skills, .claude/skills ya da ~/.claude/skills altında olmalı.',
+      );
+      // A skill that could not be read is said, not silently missing.
+      for (const w of set?.warnings ?? [])
+        out(`! atlandı: ${w.path.replace(ex.home, '~')} — ${w.problem}`);
+      continue;
+    }
     if (line.startsWith('/')) {
-      out("bilinmeyen komut. /help'e bak.");
+      const s = await slash(line);
+      if (!s) {
+        out("bilinmeyen komut. /help ve /skills'e bak.");
+        continue;
+      }
+      await turn(s.send);
       continue;
     }
     await turn(line);

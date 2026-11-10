@@ -241,6 +241,7 @@ describe('the commands', () => {
       auth,
       err: (s) => errors.push(s),
       checkUpdates: false,
+      home: join(dir, 'home'),
       stateDir: join(dir, 'state'),
       ...over,
     });
@@ -414,6 +415,7 @@ describe('which model server', () => {
         err: () => {},
         configFile: join(dir, 'none.json'),
         checkUpdates: false,
+        home: join(dir, 'home'),
       });
       expect(code).toBe(0);
       const chat = srv.seen.find((s) => s.url === '/api/inference/v1/chat/completions')!;
@@ -631,7 +633,7 @@ describe('self-update', () => {
         stateDir: join(dir, 'state'),
       };
       expect(await main(['update'], { ...base, argv1: target })).toBe(0);
-      expect(t.text()).toContain('0.2.0 → 0.3.0');
+      expect(t.text()).toContain(`${VERSION} → 0.3.0`);
 
       const t2 = term();
       expect(

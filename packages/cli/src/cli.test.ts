@@ -95,6 +95,8 @@ function run(
     terminal: term.t,
     store,
     auth,
+    // A made-up home: a test must not read the real ~/.claude (skills, CLAUDE.md) of whoever runs it.
+    home: join(dir, 'home'),
     err: (s) => errors.push(s),
     checkUpdates: false,
     stateDir: join(dir, 'state'),
