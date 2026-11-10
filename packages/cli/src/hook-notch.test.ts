@@ -3,21 +3,23 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { combineNotches, createFounderNotch, doingOf, founderConfig } from './founder-notch.js';
+import { combineNotches, createHookNotch, doingOf, hookConfig } from './hook-notch.js';
 import { NOOP_NOTCH, type Notch } from './notch.js';
 
 let server: Server | null = null;
 afterEach(() => server?.close());
 
-/** A stand-in FounderOS: records what it is told and answers approvals as a script says. */
-async function fakeFounder(answerAfter: number | null, answer = 'allow') {
+/** A stand-in status server: records what it is told and answers approvals as a script says. */
+async function fakeHook(answerAfter: number | null, answer = 'allow') {
   const live: Record<string, unknown>[] = [];
   const asked: Record<string, unknown>[] = [];
   const closed: string[] = [];
   const headers: (string | undefined)[] = [];
   let polls = 0;
   server = createServer((req, res) => {
-    headers.push(req.headers['x-founderos-token'] as string | undefined);
+    headers.push(
+      (req.headers['authorization'] ?? req.headers['x-hook-token']) as string | undefined,
+    );
     let body = '';
     req.on('data', (d) => (body += d));
     req.on('end', () => {
@@ -46,32 +48,53 @@ async function fakeFounder(answerAfter: number | null, answer = 'allow') {
 }
 
 const opts = (url: string) => ({
-  config: { url, token: 'T' },
+  config: { url, token: 'T', tokenHeader: null },
   sessionId: () => 's1',
   cwd: '/proje',
   title: () => 'sohbet',
   pollSeconds: 0,
 });
 
-describe('founder notch', () => {
-  it('reads the address and token from ~/.founderos/env, and is off without them', () => {
-    const home = mkdtempSync(join(tmpdir(), 'kv-'));
-    expect(founderConfig({}, home)).toBeNull();
-    mkdirSync(join(home, '.founderos'));
+describe('hook notch', () => {
+  it('reads the address and token from the environment or ~/.kovan/hook.env, and is off without them', () => {
+    const home = mkdtempSync(join(tmpdir(), 'kv-home-'));
+    expect(hookConfig({}, home)).toBeNull();
+    mkdirSync(join(home, '.kovan'));
     writeFileSync(
-      join(home, '.founderos', 'env'),
-      'FOUNDER_URL="https://f.test/"\nFOUNDER_TOKEN=abc\nOTHER=1\n',
+      join(home, '.kovan', 'hook.env'),
+      'KOVAN_HOOK_URL="https://f.test/"\nKOVAN_HOOK_TOKEN=abc\nOTHER=1\n',
     );
-    expect(founderConfig({}, home)).toEqual({ url: 'https://f.test', token: 'abc' });
-    expect(founderConfig({ FOUNDER_URL: 'https://x', FOUNDER_TOKEN: 'y' }, home)).toEqual({
-      url: 'https://x',
-      token: 'y',
+    expect(hookConfig({}, home)).toEqual({
+      url: 'https://f.test',
+      token: 'abc',
+      tokenHeader: null,
     });
+    expect(
+      hookConfig(
+        {
+          KOVAN_HOOK_URL: 'https://x',
+          KOVAN_HOOK_TOKEN: 'y',
+          KOVAN_HOOK_TOKEN_HEADER: 'x-hook-token',
+        },
+        home,
+      ),
+    ).toEqual({ url: 'https://x', token: 'y', tokenHeader: 'x-hook-token' });
+  });
+
+  it('puts the token in the header you name, or in Authorization: Bearer', async () => {
+    const f = await fakeHook(null);
+    const n = createHookNotch({
+      ...opts(f.url),
+      config: { url: f.url, token: 'T', tokenHeader: 'x-hook-token' },
+    });
+    n.event('SessionStart');
+    await n.flush?.();
+    expect(f.headers).toEqual(['T']);
   });
 
   it('reports a session start, what it is doing, and the end, with the token', async () => {
-    const f = await fakeFounder(null);
-    const n = createFounderNotch(opts(f.url));
+    const f = await fakeHook(null);
+    const n = createHookNotch(opts(f.url));
     n.event('SessionStart');
     n.event('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: '/p/src/a.ts' } });
     n.event('Stop');
@@ -80,7 +103,7 @@ describe('founder notch', () => {
     await new Promise((r) => setTimeout(r, 900));
     await n.flush();
     expect(f.live.map((l) => l['event'])).toEqual(expect.arrayContaining(['start', 'idle', 'end']));
-    expect(f.headers.every((h) => h === 'T')).toBe(true);
+    expect(f.headers.every((h) => h === 'Bearer T')).toBe(true);
     expect(f.live[0]).toMatchObject({ session: 's1', cwd: '/proje' });
     expect(
       doingOf('PreToolUse', { tool_name: 'Edit', tool_input: { file_path: '/p/src/a.ts' } }),
@@ -88,16 +111,16 @@ describe('founder notch', () => {
   });
 
   it('asks the server and returns the answer from the phone or the notch', async () => {
-    const f = await fakeFounder(2, 'always');
-    const n = createFounderNotch(opts(f.url));
+    const f = await fakeHook(2, 'always');
+    const n = createHookNotch(opts(f.url));
     const d = await n.permission({ tool_name: 'Bash', tool_input: { command: 'npm test' } });
     expect(d).toBe('always');
     expect(f.asked[0]).toMatchObject({ session: 's1', tool: 'Bash', detail: 'npm test' });
   });
 
   it('withdraws the question when the terminal answered first', async () => {
-    const f = await fakeFounder(null);
-    const n = createFounderNotch(opts(f.url));
+    const f = await fakeHook(null);
+    const n = createHookNotch(opts(f.url));
     const ac = new AbortController();
     const p = n.permission({ tool_name: 'Bash', tool_input: { command: 'ls' } }, ac.signal);
     await new Promise((r) => setTimeout(r, 150));
@@ -108,7 +131,7 @@ describe('founder notch', () => {
   });
 
   it('is silent when the server is unreachable', async () => {
-    const n = createFounderNotch(opts('http://127.0.0.1:1'));
+    const n = createHookNotch(opts('http://127.0.0.1:1'));
     n.event('SessionStart');
     await n.flush();
     expect(await n.permission({ tool_name: 'Bash', tool_input: {} })).toBeNull();

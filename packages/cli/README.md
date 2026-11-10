@@ -39,6 +39,15 @@ Not yet: hooks, MCP servers from `.mcp.json`, Claude plugins (a folder with `.cl
 - Nothing changes when Coucou is not running (a missing, refused or silent socket is "no notch", never a wait). `KOVAN_NO_NOTCH=1` turns it off, `KOVAN_NOTCH_SOCKET=<path>` points at another socket.
   Looks for the GitHub build's `~/Library/Application Support/NotchBuddy/nb.sock`, then the App Store build's.
 
+## Reporting to a status server of your own
+
+`kovan` can report to any HTTP server you run, so a notch, a phone app or a chat bot reading from it can show what it is doing and
+answer its permission questions. Set `KOVAN_HOOK_URL` and `KOVAN_HOOK_TOKEN` (or put them as `NAME=value` lines in `~/.kovan/hook.env`);
+the token goes in `Authorization: Bearer`, or in the header named by `KOVAN_HOOK_TOKEN_HEADER`. Only a one-line summary (tool, file or
+command, folder) is sent. The server answers four calls, described at the top of `src/hook-notch.ts`:
+`POST /api/kovan/live`, `POST` / `GET` (long poll) / `DELETE /api/kovan/approval`. The terminal asks as well, and the first answer wins.
+Nothing is sent when it is not set up; `KOVAN_NO_NOTCH=1` turns it off.
+
 ## Which model server
 
 Anything OpenAI-compatible. OpenRouter is the default (the same one Kovan's own agent uses):

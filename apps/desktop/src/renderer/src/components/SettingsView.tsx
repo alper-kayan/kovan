@@ -3525,7 +3525,7 @@ function ApiKeyList({ base }: { base: string }) {
         <div className="api-key-form">
           <input
             className="input"
-            placeholder="FounderOS"
+            placeholder="My integration"
             maxLength={60}
             value={name}
             onChange={(e) => setName(e.target.value)}

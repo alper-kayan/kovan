@@ -4,42 +4,57 @@ import { join } from 'node:path';
 import { NOOP_NOTCH, type Notch, type NotchDecision } from './notch.js';
 
 /**
- * `kovan` in the notch you already have, with no extra app: it reports to your FounderOS server, which is where the notch (and the phone) read
- * their state from. A session at work shows as a job running; a permission question becomes a row of FounderOS's pending inbox, so the
- * notch's approval count, the phone and Telegram all show it and any of them can answer. The terminal asks as well and the first answer wins.
+ * `kovan` reporting to a status server of your own, over plain HTTP: a session at work shows as a job running, and a permission
+ * question becomes a row of the server's pending list, so a notch, a phone app or a chat bot reading from it can show it and any of them
+ * can answer. The terminal asks as well and the first answer wins.
  *
- * Only a one-line summary leaves the terminal (what tool, on which file or command, in which folder), to the server you run, over the address
- * and token in `~/.founderos/env` (or FOUNDER_URL / FOUNDER_TOKEN). Nothing is sent when that is not set up, and KOVAN_NO_NOTCH=1 turns it off.
+ * The server needs three calls under its base address (all carry the token):
+ *   POST   /api/kovan/live                   { session, cwd, title, event: start|working|idle|end, doing, lines[] }
+ *   POST   /api/kovan/approval               { session, tool, title, detail }  →  { id }
+ *   GET    /api/kovan/approval?id=&wait=<s>  →  { status: pending|allow|always|deny }   (long poll)
+ *   DELETE /api/kovan/approval?id=           the terminal answered first: withdraw the question
+ *
+ * Only a one-line summary leaves the terminal (what tool, on which file or command, in which folder), to the address you set in
+ * `KOVAN_HOOK_URL` and `KOVAN_HOOK_TOKEN` (or `~/.kovan/hook.env`, the same two names as `NAME=value` lines). The token goes in the
+ * `Authorization: Bearer` header, or in the header named by `KOVAN_HOOK_TOKEN_HEADER`. Nothing is sent when this is not set up, and
+ * KOVAN_NO_NOTCH=1 turns it off.
  */
-export interface FounderConfig {
+export interface HookConfig {
   url: string;
   token: string;
+  /** The header the token goes in; `Authorization: Bearer <token>` when none is named. */
+  tokenHeader: string | null;
 }
 
-export function founderConfig(
+export function hookConfig(
   env: Record<string, string | undefined>,
   home: string = homedir(),
-): FounderConfig | null {
-  let url = env['FOUNDER_URL'];
-  let token = env['FOUNDER_TOKEN'];
+): HookConfig | null {
+  let url = env['KOVAN_HOOK_URL'];
+  let token = env['KOVAN_HOOK_TOKEN'];
+  let header = env['KOVAN_HOOK_TOKEN_HEADER'];
   if (!url || !token) {
     try {
-      for (const line of readFileSync(join(home, '.founderos', 'env'), 'utf8').split('\n')) {
-        const m = /^\s*(?:export\s+)?(FOUNDER_URL|FOUNDER_TOKEN)=(.*)$/.exec(line);
+      for (const line of readFileSync(join(home, '.kovan', 'hook.env'), 'utf8').split('\n')) {
+        const m =
+          /^\s*(?:export\s+)?(KOVAN_HOOK_URL|KOVAN_HOOK_TOKEN|KOVAN_HOOK_TOKEN_HEADER)=(.*)$/.exec(
+            line,
+          );
         if (!m) continue;
         const v = m[2]!.trim().replace(/^["']|["']$/g, '');
-        if (m[1] === 'FOUNDER_URL') url ||= v;
-        else token ||= v;
+        if (m[1] === 'KOVAN_HOOK_URL') url ||= v;
+        else if (m[1] === 'KOVAN_HOOK_TOKEN') token ||= v;
+        else header ||= v;
       }
     } catch {
       return null;
     }
   }
-  return url && token ? { url: url.replace(/\/+$/, ''), token } : null;
+  return url && token ? { url: url.replace(/\/+$/, ''), token, tokenHeader: header || null } : null;
 }
 
-export interface FounderNotchOptions {
-  config: FounderConfig;
+export interface HookNotchOptions {
+  config: HookConfig;
   sessionId: () => string;
   cwd: string;
   title: () => string;
@@ -63,9 +78,14 @@ export function doingOf(name: string, fields: Record<string, unknown>): string {
   return short(`${t} ${String(what).split('/').slice(-2).join('/')}`, 100);
 }
 
-export function createFounderNotch(o: FounderNotchOptions): Notch {
+export function createHookNotch(o: HookNotchOptions): Notch {
   const f = o.fetchImpl ?? fetch;
-  const headers = { 'content-type': 'application/json', 'x-founderos-token': o.config.token };
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    ...(o.config.tokenHeader
+      ? { [o.config.tokenHeader]: o.config.token }
+      : { authorization: `Bearer ${o.config.token}` }),
+  };
   const call = (path: string, init: RequestInit = {}, ms = 4000) =>
     f(`${o.config.url}${path}`, {
       ...init,
@@ -76,9 +96,12 @@ export function createFounderNotch(o: FounderNotchOptions): Notch {
   // Reports go one at a time, and only the newest of a burst matters: a "working" that is already stale is not worth a request.
   let chain: Promise<void> = Promise.resolve();
   let pending: Record<string, unknown> | null = null;
+  /** What the terminal showed since the last request, in order: the notch's terminal view. */
+  let lines: string[] = [];
   const flushPending = () => {
-    const body = pending;
+    const body = pending ? { ...pending, lines } : null;
     pending = null;
+    lines = [];
     if (!body) return;
     chain = chain
       .then(() =>
@@ -86,7 +109,8 @@ export function createFounderNotch(o: FounderNotchOptions): Notch {
       )
       .catch(() => {});
   };
-  const report = (event: 'start' | 'working' | 'idle' | 'end', doing = '') => {
+  const report = (event: 'start' | 'working' | 'idle' | 'end', doing = '', line = '') => {
+    if (line) lines.push(line);
     pending = {
       session: o.sessionId(),
       cwd: o.cwd,
@@ -112,12 +136,19 @@ export function createFounderNotch(o: FounderNotchOptions): Notch {
         case 'SessionStart':
           return report('start');
         case 'UserPromptSubmit':
-          return report('working', 'thinking');
-        case 'PreToolUse':
-          return report('working', doingOf(name, fields));
-        case 'Stop':
+          return report('working', 'thinking', `› ${short(fields['prompt'], 160)}`);
+        case 'PreToolUse': {
+          const d = doingOf(name, fields);
+          return report('working', d, `▸ ${d}`);
+        }
+        case 'PostToolUseFailure':
+          return report('working', '', `✗ ${short(fields['tool_name'], 40)} failed`);
+        case 'Stop': {
+          const said = short(fields['last_assistant_message'], 200);
+          return report('idle', '', said ? `✔ ${said}` : '✔ done');
+        }
         case 'StopFailure':
-          return report('idle');
+          return report('idle', '', `✗ ${short(fields['error'], 160)}`);
         case 'SessionEnd':
           return report('end');
       }
