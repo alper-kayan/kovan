@@ -35,7 +35,8 @@ export interface TuiHost {
   efforts(): { levels: string[]; default: string };
   /** Resolves with a reason when the switch could not be made. */
   setModel(id: string): void | Promise<string | void>;
-  models(): Promise<{ items: ListItem[]; error?: string }>;
+  /** The places a model can come from (an account, a provider), each with its own models. */
+  models(): Promise<{ groups: ModelGroup[]; error?: string }>;
   /** Runs one turn and resolves when the agent is done with it. `shown` is what he typed (a custom command may send more text than that). */
   turn(send: string): Promise<void>;
   stop(): void;
@@ -53,6 +54,14 @@ export interface TuiHost {
   notchEnabled: boolean;
   contextText: string;
   reasoning: boolean;
+}
+
+export interface ModelGroup {
+  label: string;
+  hint?: string;
+  items: ListItem[];
+  /** Said when the group has nothing to pick. */
+  empty?: string;
 }
 
 export interface Ui {
@@ -93,6 +102,7 @@ export class TuiApp {
   private transcript: Transcript;
   private parser = new KeyParser();
   private dialog: Dialog | null = null;
+  private onBack: (() => void) | null = null;
   private onPick: ((value: string) => void) | null = null;
   private resolveApproval: ((a: ApprovalAnswer | null) => void) | null = null;
   private scroll = 0;
@@ -332,9 +342,11 @@ export class TuiApp {
     items: ListItem[],
     empty: string,
     pick: (value: string) => void,
+    back: (() => void) | null = null,
   ): void {
     this.dialog = { kind: 'list', title, items, filter: '', index: 0, empty };
     this.onPick = pick;
+    this.onBack = back;
   }
 
   private dialogKey(k: Key): void {
@@ -380,7 +392,9 @@ export class TuiApp {
     // a picker
     const items = filterItems(d.items, d.filter);
     if (k.name === 'escape' || (k.ctrl && k.name === 'c')) {
+      const back = this.onBack;
       this.dialog = null;
+      back?.();
       return;
     }
     if (k.name === 'enter') {
@@ -521,14 +535,31 @@ export class TuiApp {
         if (cmd === '/model' && arg) {
           this.chooseModel(arg);
         } else {
-          this.openList('model', [], 'hesabındaki modeller alınıyor…', (v) => this.chooseModel(v));
+          // First the places (accounts, providers); the models of the one he picks come second.
+          this.openList('model', [], 'hesaplar alınıyor…', () => {});
           const d = this.dialog;
           void this.host.models().then((m) => {
-            if (d && d.kind === 'list' && this.dialog === d) {
-              d.items = m.items;
-              d.empty = m.error ?? 'hesabında model yok';
-              this.schedule();
-            }
+            if (!d || d.kind !== 'list' || this.dialog !== d) return;
+            const showGroups = () => {
+              this.openList(
+                'model · hesap seç',
+                m.groups.map((g, i) => ({ label: g.label, hint: g.hint ?? '', value: String(i) })),
+                m.error ?? 'kullanılabilir hesap yok',
+                (v) => {
+                  const g = m.groups[Number(v)];
+                  if (!g) return;
+                  this.openList(
+                    g.label,
+                    g.items,
+                    g.empty ?? 'bu hesapta model yok',
+                    (id) => this.chooseModel(id),
+                    showGroups,
+                  );
+                },
+              );
+            };
+            showGroups();
+            this.schedule();
           });
         }
         return true;

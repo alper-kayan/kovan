@@ -44,7 +44,7 @@ import {
 import { desktopProviders, providerKey } from './desktopKeys.js';
 import { CODEX_MODELS, CodexRunner, codexEnv } from './codex.js';
 import { Renderer } from './render.js';
-import { TuiApp, type TuiHost, type TuiIO } from './tui/app.js';
+import { TuiApp, type ModelGroup, type TuiHost, type TuiIO } from './tui/app.js';
 import type { TranscriptEvent } from './tui/transcript.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
@@ -742,38 +742,42 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
             modelError = `liste alınamadı: ${e instanceof Error ? e.message : String(e)}`;
           }
         }
-        const claudeItems = claudeBin
-          ? claudeAccounts(dataDir).flatMap((a) =>
-              CLAUDE_MODELS.map((m) => ({
-                label: `Claude Code · ${a.name}${m === 'default' ? '' : ` · ${m}`}`,
-                hint: 'hesabındaki Claude, ek kurulum yok',
+        const groups: ModelGroup[] = [];
+        if (claudeBin)
+          for (const a of claudeAccounts(dataDir))
+            groups.push({
+              label: `Claude Code · ${a.name}`,
+              hint: 'Claude hesabın',
+              items: CLAUDE_MODELS.map((m) => ({
+                label: m === 'default' ? 'varsayılan model' : m,
                 value: `claude:${a.id ?? ''}:${m}`,
               })),
-            )
-          : [];
-        const codexItems = codexBin
-          ? claudeAccounts(dataDir, 'codex').flatMap((a) =>
-              CODEX_MODELS.map((m) => ({
-                label: `Codex · ${a.name}${m === 'default' ? '' : ` · ${m}`}`,
-                hint: 'hesabındaki ChatGPT, ek kurulum yok',
+            });
+        if (codexBin)
+          for (const a of claudeAccounts(dataDir, 'codex'))
+            groups.push({
+              label: `Codex · ${a.name}`,
+              hint: 'ChatGPT hesabın',
+              items: CODEX_MODELS.map((m) => ({
+                label: m === 'default' ? 'varsayılan model' : m,
                 value: `codex:${a.id ?? ''}:${m}`,
               })),
-            )
-          : [];
-        const customItems = desktopProviders(dataDir).flatMap((p) =>
-          p.models.map((m) => ({
-            label: `${p.name} · ${m}`,
+            });
+        for (const p of desktopProviders(dataDir))
+          groups.push({
+            label: p.name,
             hint: 'masaüstünde eklediğin sağlayıcı',
-            value: `@${p.id}/${m}`,
-          })),
-        );
-        const items = [
-          ...claudeItems,
-          ...codexItems,
-          ...customItems,
-          ...catalog.map((c) => ({ label: c.id, value: c.id })),
-        ];
-        return items.length ? { items } : { items, error: modelError };
+            items: p.models.map((m) => ({ label: m, value: `@${p.id}/${m}` })),
+            empty: 'bu sağlayıcının kayıtlı modeli yok; masaüstünden listeyi yenile',
+          });
+        if (client)
+          groups.push({
+            label: 'Kovan hesabı',
+            hint: catalog.length ? `${catalog.length} model` : modelError,
+            items: catalog.map((c) => ({ label: c.id, value: c.id })),
+            empty: modelError,
+          });
+        return groups.length ? { groups } : { groups, error: modelError };
       },
       turn,
       stop: () => (codex ? codexRunner.stop() : claude ? claudeRunner.stop() : agent.stop()),

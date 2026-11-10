@@ -125,9 +125,9 @@ function host(over: Partial<TuiHost> = {}): TuiHost {
     efforts: () => ({ levels: ['low', 'medium', 'high'], default: 'medium' }),
     setModel: () => {},
     models: async () => ({
-      items: [
-        { label: 'a/one', value: 'a/one' },
-        { label: 'b/two', value: 'b/two' },
+      groups: [
+        { label: 'Hesap A', items: [{ label: 'a/one', value: 'a/one' }] },
+        { label: 'Hesap B', items: [{ label: 'b/two', value: 'b/two' }] },
       ],
     }),
     turn: async () => {},
@@ -284,8 +284,20 @@ describe('TuiApp', () => {
     io.send('/models');
     io.send('\r');
     await tick();
-    expect(screen(app).join('\n')).toContain('a/one');
-    io.send('two');
+    // first the accounts, not the models
+    expect(screen(app).join('\n')).toContain('Hesap A');
+    expect(screen(app).join('\n')).not.toContain('a/one');
+    io.send('B');
+    await tick();
+    io.send('\r');
+    await tick();
+    expect(screen(app).join('\n')).toContain('b/two');
+    expect(setModel).not.toHaveBeenCalled();
+    io.send('\u001b'); // esc goes back to the accounts
+    await tick(60);
+    expect(screen(app).join('\n')).toContain('Hesap A');
+    io.send('B');
+    io.send('\r');
     await tick();
     io.send('\r');
     await tick();
