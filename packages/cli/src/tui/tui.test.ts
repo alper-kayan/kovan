@@ -206,6 +206,34 @@ describe('TuiApp', () => {
     expect(turn).toHaveBeenCalledWith('ilk\nikinci');
   });
 
+  it('says so in the status row once an update has been installed, whatever the width', async () => {
+    const io = fakeIO(130, 24);
+    const app = new TuiApp(io, host());
+    void app.run();
+    await tick();
+    expect(screen(app).join('\n')).not.toContain('Update installed');
+    app.markUpdated();
+    await tick();
+    const status = screen(app).at(-1)!;
+    expect(status).toContain('✔ Update installed · Restart to update');
+    expect(status).toContain('ctrl+c'); // the key hints stay beside it when there is room
+    expect(strWidth(status)).toBeLessThanOrEqual(130);
+    io.send('\u0004');
+    await tick();
+
+    const narrowIO = fakeIO(60, 24);
+    const narrowApp = new TuiApp(narrowIO, host());
+    void narrowApp.run();
+    await tick();
+    narrowApp.markUpdated();
+    await tick();
+    const narrow = screen(narrowApp).at(-1)!;
+    expect(narrow).toContain('Update installed');
+    expect(strWidth(narrow)).toBeLessThanOrEqual(60);
+    narrowIO.send('\u0004');
+    await tick();
+  });
+
   it('tab cycles the permission mode', async () => {
     const io = fakeIO();
     const h = host();

@@ -48,6 +48,8 @@ export interface View {
   /** Slash suggestions under the transcript, above the box. */
   suggestions: { items: ListItem[]; index: number } | null;
   status: { tokens: string; cost: number; note: string | null };
+  /** A newer version was installed in the background: it takes effect after a restart. */
+  updated: boolean;
   /** Extra lines for the start screen (what is loaded, what is connected). */
   startLines: string[];
 }
@@ -66,6 +68,7 @@ export const APPROVAL_CHOICES = [
   { key: 'a', label: 'always this session', value: 'always' },
 ] as const;
 
+export const UPDATE_NOTICE = '✔ Update installed · Restart to update';
 export const KEY_HINTS = 'tab mode · / commands · ctrl+p palette · esc stop · ctrl+c quit';
 
 /** A bordered box with a title on the top edge; every row is exactly `width` columns. */
@@ -266,7 +269,10 @@ function statusRow(v: View): string {
     ? paint(S.accent, `${SPINNER[v.spin % SPINNER.length]} working`)
     : paint(S.green, '● ready');
   const left = ` ${state}${paint(S.dim, `  ${v.status.tokens}`)}${v.status.note ? `  ${paint(S.yellow, v.status.note)}` : ''}`;
-  const right = `${paint(S.dim, KEY_HINTS)} `;
+  const hints = paint(S.dim, KEY_HINTS);
+  const update = v.updated ? paint(S.green, UPDATE_NOTICE) : '';
+  // The update notice comes first on the right; the key hints stay beside it when there is room.
+  const right = `${update && strWidth(left) + strWidth(update) + strWidth(hints) + 6 > v.width ? update : update ? `${update}  ${hints}` : hints} `;
   const gap = v.width - strWidth(left) - strWidth(right);
   return gap >= 2 ? left + ' '.repeat(gap) + right : truncate(left, v.width);
 }

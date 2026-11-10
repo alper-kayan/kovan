@@ -896,6 +896,10 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     };
     const app = new TuiApp(deps.screen(), host);
     tui = app;
+    // An update that lands while the screen is open shows in the status row, the way Claude Code's does.
+    void update?.then((r) => {
+      if (r.status === 'updated') app.markUpdated();
+    });
     const code = await app.run();
     tui = null;
     return finish(code);

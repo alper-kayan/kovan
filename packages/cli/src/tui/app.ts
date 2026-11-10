@@ -115,6 +115,7 @@ export class TuiApp {
   private palette: ListItem[] = BUILTINS;
   private suggIndex = 0;
   private note: string | null = null;
+  private updated = false;
   private noteTimer: ReturnType<typeof setTimeout> | null = null;
   private quitArmed = false;
   private done: ((code: number) => void) | null = null;
@@ -173,6 +174,12 @@ export class TuiApp {
     this.escTimer = setTimeout(() => {
       for (const k of this.parser.flush()) this.key(k);
     }, 25);
+    this.schedule();
+  }
+
+  /** A newer version was installed while this one runs: the status row says to restart. */
+  markUpdated(): void {
+    this.updated = true;
     this.schedule();
   }
 
@@ -648,6 +655,7 @@ export class TuiApp {
         cost: t.cost,
         note: this.note,
       },
+      updated: this.updated,
       startLines: this.host.startLines,
     };
   }
