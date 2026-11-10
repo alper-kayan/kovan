@@ -87,6 +87,7 @@ import {
   optionLabel,
   parseCustomModelId,
   sameOption,
+  type AgentAccount,
   type AgentOption,
   type CustomProviderInfo,
   type CustomProviderInput,
@@ -2217,7 +2218,7 @@ const MAX_ORDER = 24;
  * Whether the CLI is signed in as the account. Asked again every few seconds while it isn't,
  * so finishing the sign-in in the terminal shows here.
  */
-function AccountStatus({ harness, account }: { harness: ExternalHarness; account: string | null }) {
+function useAccountStatus(harness: ExternalHarness, account: string) {
   const [status, setStatus] = useState<
     { signedIn: boolean; who: string | null } | null | 'checking'
   >('checking');
@@ -2239,12 +2240,54 @@ function AccountStatus({ harness, account }: { harness: ExternalHarness; account
       clearTimeout(timer);
     };
   }, [harness, account]);
-  if (status === 'checking') return <span className="small muted">Checking…</span>;
-  if (!status) return <span className="small muted">Not installed</span>;
-  return status.signedIn ? (
-    <span className="small account-on">Signed in{status.who ? ` · ${status.who}` : ''}</span>
-  ) : (
-    <span className="small account-off">Not signed in</span>
+  return status;
+}
+
+/** One added account: its sign-in, its usage, and a way to sign in only while it is signed out. */
+function AccountRow({ account: a, installed }: { account: AgentAccount; installed: boolean }) {
+  const status = useAccountStatus(a.harness, a.id);
+  const limit = useStore((st) => st.agentLimits.find((l) => l.account === `${a.harness}#${a.id}`));
+  const signedOut = status !== 'checking' && status !== null && !status.signedIn;
+  return (
+    <Row
+      title={`${HARNESS_NAMES[a.harness]} · ${a.name}`}
+      desc="Its own sign-in, in Kovan's data folder."
+    >
+      <div className="account-state">
+        {status === 'checking' ? (
+          <span className="small muted">Checking…</span>
+        ) : !status ? (
+          <span className="small muted">Not installed</span>
+        ) : status.signedIn ? (
+          <span className="small account-on" title={status.who ?? undefined}>
+            Signed in{status.who ? ` · ${status.who}` : ''}
+          </span>
+        ) : (
+          <span className="small account-off">Not signed in</span>
+        )}
+        {limit && limitLabel(limit, Date.now()) ? (
+          <LimitLine account={`${a.harness}#${a.id}`} />
+        ) : (
+          status !== 'checking' &&
+          status?.signedIn && <span className="setting-desc">Usage shows after its first turn</span>
+        )}
+      </div>
+      {signedOut && (
+        <button
+          className="btn btn-sm"
+          disabled={!installed}
+          title="Opens a terminal to sign this account in"
+          onClick={() =>
+            void newTerminal(a.harness, { account: a.id, login: true, title: `${a.name}: sign in` })
+          }
+        >
+          Sign in
+        </button>
+      )}
+      <button className="icon-btn" title="Remove" onClick={() => void removeAgentAccount(a)}>
+        <X size={14} />
+      </button>
+    </Row>
   );
 }
 
@@ -2272,31 +2315,7 @@ function AccountsGroup() {
           {accounts
             .filter((a) => a.harness === h)
             .map((a) => (
-              <Row
-                key={a.id}
-                title={`${HARNESS_NAMES[h]} · ${a.name}`}
-                desc="Its own sign-in, in Kovan's data folder."
-              >
-                <AccountStatus harness={h} account={a.id} />
-                <LimitLine account={`${h}#${a.id}`} />
-                <button
-                  className="btn btn-sm"
-                  disabled={!installed(h)}
-                  title="Opens a terminal to sign this account in again"
-                  onClick={() =>
-                    void newTerminal(h, { account: a.id, login: true, title: `${a.name}: sign in` })
-                  }
-                >
-                  Sign in
-                </button>
-                <button
-                  className="icon-btn"
-                  title="Remove"
-                  onClick={() => void removeAgentAccount(a)}
-                >
-                  <X size={14} />
-                </button>
-              </Row>
+              <AccountRow key={a.id} account={a} installed={installed(h)} />
             ))}
         </Fragment>
       ))}

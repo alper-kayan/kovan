@@ -6803,5 +6803,22 @@ button.swarm-chat-head:hover .swarm-chat-open {
 
 .account-off {
   color: var(--warn, var(--fg3));
+}
+
+.account-state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  max-width: 280px;
+  min-width: 0;
   margin-right: 8px;
+  text-align: right;
+}
+
+.account-state > * {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
