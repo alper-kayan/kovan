@@ -500,6 +500,67 @@ th[aria-sort='descending'] .sort::after {
   font-weight: 600;
 }
 
+/* the terminal agent, under the desktop downloads */
+
+.cli {
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+  padding: 26px 24px 24px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.cli h2 {
+  font-size: 21px;
+  letter-spacing: -0.02em;
+}
+
+.cli-text {
+  display: grid;
+  gap: 8px;
+}
+
+.cli-text p,
+.cli-more {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.cli .mono {
+  font-family: var(--font-mono);
+  color: var(--text);
+}
+
+.cli-cmd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.cli-cmd code {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--honey);
+}
+
+.cli-copy {
+  flex: none;
+}
+
+.cli-more .link {
+  margin-left: 6px;
+}
+
 /* ---------- account ---------- */
 
 .panel {

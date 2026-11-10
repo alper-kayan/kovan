@@ -263,6 +263,26 @@ rsync -a Kovan-mac-arm64.dmg Kovan-mac-arm64.zip Kovan-mac-arm64.zip.blockmap ro
 rsync -a latest-mac.yml root@<host>:/srv/kovan/releases/
 ```
 
+### The terminal agent (kovan CLI)
+
+`kovan` ships as one file, `kovan.mjs`, served from `/srv/kovan/releases/cli/` (so at `/updates/cli/`).
+People install it with `curl -fsSL https://kovan.alperkayan.dev/install.sh | sh` (the script is
+`apps/web/public/install.sh`, part of the website); installed copies look for `cli/latest.json`
+every twelve hours and only take one signed with the update key. To publish a version, raise
+`version` in `packages/cli/package.json` and `VERSION` in `packages/cli/src/run.ts`, then:
+
+```sh
+set -a; . ./secrets/desktop-update/keys.env; set +a   # embeds the public key, signs latest.json
+pnpm --filter @kovan/cli... build && pnpm --filter @kovan/cli bundle
+mkdir -p /tmp/cli && cp packages/cli/dist-bundle/kovan.mjs /tmp/cli/
+rsync -a --chmod=D755,F644 /tmp/cli/ root@<host>:/srv/kovan/releases/cli/
+cp packages/cli/dist-bundle/latest.json packages/cli/dist-bundle/latest.json.sig /tmp/cli/
+rsync -a --chmod=D755,F644 /tmp/cli/ root@<host>:/srv/kovan/releases/cli/   # the manifest last
+```
+
+The public key is also written into `install.sh`; if the update key is ever replaced, change it
+there too.
+
 ## Mobile app
 
 `apps/mobile` (Expo) is built on this Mac: Xcode for iOS, Gradle for Android. EAS and Expo's

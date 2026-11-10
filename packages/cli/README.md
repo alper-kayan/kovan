@@ -16,6 +16,16 @@ kovan config                which server and model it talks to (never the key)
 (extra instructions appended to the system prompt), `--reasoning`, `--cwd`. In the conversation: `/mode /model /models /clear /cost /context /help /exit`.
 Ctrl+C stops a running turn; at the prompt it leaves.
 
+## Install
+
+```sh
+curl -fsSL https://kovan.alperkayan.dev/install.sh | sh
+```
+
+macOS and Linux, Node.js 22 or newer. It goes to `~/.kovan/cli/kovan.mjs` with a `kovan` command in `~/.local/bin`, checked against
+the release key before it is installed, and keeps itself up to date (see Updates below). Remove it with
+`rm -rf ~/.kovan/cli ~/.local/bin/kovan`.
+
 ## What it reads of Claude Code's
 
 What you already wrote for Claude works here, in the same formats (`KOVAN_NO_CLAUDE=1` leaves everything of Claude's alone):
