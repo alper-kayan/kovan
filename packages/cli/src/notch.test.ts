@@ -71,6 +71,8 @@ const wait = async (cond: () => boolean, ms = 2000) => {
 
 const opts = (over: Partial<Parameters<typeof createNotch>[0]> = {}) => ({
   env: { KOVAN_NOTCH_SOCKET: sockPath } as Record<string, string | undefined>,
+  // Never the real home: it holds the real FounderOS address and token.
+  home: mkdtempSync(join(tmpdir(), 'kv-home-')),
   sessionId: () => 'sess-1',
   cwd: '/Users/me/proj',
   title: () => 'Menüyü sadeleştir',

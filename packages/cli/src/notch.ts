@@ -3,6 +3,7 @@ import { statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AgentEvent } from '@kovan/harness';
+import { combineNotches, createFounderNotch, founderConfig } from './founder-notch.js';
 
 /**
  * Showing this agent in Coucou's notch (https://github.com/Louis-CFM/coucou, MIT), and answering its approvals from there.
@@ -106,8 +107,17 @@ export interface NotchOptions {
   title: () => string;
 }
 
+/** Coucou's notch (when it is installed) together with the FounderOS notch (when this machine is set up for it). */
 export function createNotch(o: NotchOptions): Notch {
   if (o.env['KOVAN_NO_NOTCH'] === '1') return NOOP_NOTCH;
+  const config = founderConfig(o.env, o.home);
+  const founder = config
+    ? createFounderNotch({ config, sessionId: o.sessionId, cwd: o.cwd, title: o.title })
+    : NOOP_NOTCH;
+  return combineNotches([createCoucouNotch(o), founder]);
+}
+
+export function createCoucouNotch(o: NotchOptions): Notch {
   const sockets = notchSockets(o.env, o.home);
 
   /** What `nb-hook` adds so the notch can jump back to this terminal. */
