@@ -348,13 +348,21 @@ describe('which model server', () => {
   };
   const none = '/nonexistent/agent.json';
 
-  it('his own key wins over being signed in', () => {
-    const p = resolveProvider({ OPENROUTER_API_KEY: 'sk-own' }, none, auth, null);
+  it('signed in, the account wins over an own key unless he asks for his own', () => {
+    expect(resolveProvider({ OPENROUTER_API_KEY: 'sk-own' }, none, auth, null)).toMatchObject({
+      provider: { managed: true },
+    });
+    const p = resolveProvider(
+      { OPENROUTER_API_KEY: 'sk-own', KOVAN_PROVIDER: 'own' },
+      none,
+      auth,
+      null,
+    );
     expect(p).toMatchObject({ ok: true, provider: { managed: false, label: 'openrouter.ai' } });
   });
-  it('his own gateway wins too', () => {
+  it('his own gateway is used when he asks for it', () => {
     const p = resolveProvider(
-      { KOVAN_BASE_URL: 'http://localhost:20128/v1', KOVAN_MODEL: 'm' },
+      { KOVAN_BASE_URL: 'http://localhost:20128/v1', KOVAN_MODEL: 'm', KOVAN_PROVIDER: 'own' },
       none,
       auth,
       null,
@@ -382,7 +390,12 @@ describe('which model server', () => {
   });
   it('a half-configured gateway is his to fix, not a reason to bill the account', () => {
     expect(
-      resolveProvider({ KOVAN_BASE_URL: 'http://localhost:20128/v1' }, none, auth, null).ok,
+      resolveProvider(
+        { KOVAN_BASE_URL: 'http://localhost:20128/v1', KOVAN_PROVIDER: 'own' },
+        none,
+        auth,
+        null,
+      ).ok,
     ).toBe(false);
   });
   it('no key and no sign-in says both ways out', () => {
@@ -455,7 +468,7 @@ describe('versions', () => {
 describe('self-update', () => {
   const NEW = Buffer.from('#!/usr/bin/env node\nconsole.log("yeni sürüm");\n');
   const manifest = (over: object = {}) => ({
-    version: '0.3.0',
+    version: '9.9.0',
     url: 'kovan.mjs',
     sha256: sha(NEW),
     ...over,
@@ -488,7 +501,7 @@ describe('self-update', () => {
       const target = join(dir, 'kovan.mjs');
       writeFileSync(target, 'eski sürüm');
       const r = await checkAndUpdate(deps(srv.url, target));
-      expect(r).toEqual({ status: 'updated', from: '0.2.0', to: '0.3.0' });
+      expect(r).toEqual({ status: 'updated', from: '0.2.0', to: '9.9.0' });
       expect(readFileSync(target)).toEqual(NEW);
       expect(readFileSync(`${target}.old`, 'utf8')).toBe('eski sürüm');
       expect(statSync(target).mode & 0o111).not.toBe(0); // runnable
@@ -571,7 +584,7 @@ describe('self-update', () => {
     try {
       expect(await checkAndUpdate(deps(srv.url, null))).toEqual({
         status: 'available',
-        version: '0.3.0',
+        version: '9.9.0',
       });
     } finally {
       srv.close();
@@ -633,7 +646,7 @@ describe('self-update', () => {
         stateDir: join(dir, 'state'),
       };
       expect(await main(['update'], { ...base, argv1: target })).toBe(0);
-      expect(t.text()).toContain(`${VERSION} → 0.3.0`);
+      expect(t.text()).toContain(`${VERSION} → 9.9.0`);
 
       const t2 = term();
       expect(

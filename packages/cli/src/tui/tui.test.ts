@@ -217,7 +217,7 @@ describe('TuiApp', () => {
     const app = new TuiApp(io, host());
     void app.run();
     await tick();
-    io.send('/re');
+    io.send('/rev');
     await tick();
     expect(screen(app).join('\n')).toContain('/review');
     io.send('\t');

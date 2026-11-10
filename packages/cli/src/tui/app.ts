@@ -64,6 +64,7 @@ const BUILTINS: ListItem[] = [
   { label: '/help', hint: 'tuşlar ve komutlar', value: '/help' },
   { label: '/mode', hint: 'plan · request · allow · full', value: '/mode ' },
   { label: '/models', hint: 'modeli seç', value: '/models' },
+  { label: '/resume', hint: 'önceki sohbete devam et', value: '/resume' },
   { label: '/sessions', hint: 'önceki sohbetlere dön', value: '/sessions' },
   { label: '/clear', hint: 'yeni sohbet', value: '/clear' },
   { label: '/cost', hint: 'jeton ve maliyet', value: '/cost' },
@@ -75,7 +76,7 @@ const HELP = [
   'enter gönder · \\+enter ya da alt+enter yeni satır · ↑↓ geçmiş / satır',
   'tab mod değiştir (allow → plan → request → full) · esc çalışanı durdur',
   'pageup / pagedown sohbeti kaydır · end en alta · ctrl+l ekranı yenile',
-  'ctrl+p komut paleti · / yazınca komut, skill ve özel komutlar önerilir',
+  '/resume önceki sohbete döner · ctrl+p komut paleti · / yazınca komut, skill ve özel komutlar önerilir',
   'ctrl+a / ctrl+e satır başı / sonu · ctrl+w kelime sil · ctrl+u / ctrl+k satır sil',
   'ctrl+c çalışanı durdurur; boşken iki kez basınca çıkar · ctrl+d boşken çıkar',
   '',
@@ -495,6 +496,7 @@ export class TuiApp {
             },
           );
         return true;
+      case '/resume':
       case '/sessions':
         this.openList('sohbetler', this.host.sessions(), 'bu klasörde sohbet yok', (id) => {
           const events = this.host.resume(id);

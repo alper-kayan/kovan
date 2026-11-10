@@ -114,13 +114,17 @@ export function workspaceRoot(dir: string): { root: string; isRepo: boolean } {
   }
 }
 
-/** His own key or gateway first; Kovan's managed usage only when there is none and he is signed in. */
+/** Signed in: Kovan's managed usage. Otherwise his own key or gateway (or both ways out). */
 export function resolveProvider(
   env: Record<string, string | undefined>,
   file: string | undefined,
   auth: Auth | null,
   model: string | null,
 ): ProviderResult {
+  // Signed in: Kovan's account is the default. His own key or gateway applies only when he asks (KOVAN_PROVIDER=own).
+  if (auth && env['KOVAN_PROVIDER'] !== 'own') {
+    return { ok: true, provider: managedProvider(auth, model ?? env['KOVAN_MODEL'] ?? null) };
+  }
   const own = loadProvider(env, file);
   if (own.ok || !auth) return own;
   // A custom gateway that is half configured is his to fix; only the "no key at all" case falls back to the account.
