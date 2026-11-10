@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { createInterface } from 'node:readline';
-import { SessionStore } from './session.js';
+import { spawn } from 'node:child_process';
+import { AuthStore } from './auth.js';
 import { main, type Terminal } from './run.js';
+import { ConversationStore } from './store.js';
 
 function nodeTerminal(): Terminal {
   const tty = Boolean(process.stdin.isTTY && process.stdout.isTTY);
@@ -27,12 +29,29 @@ function nodeTerminal(): Terminal {
   };
 }
 
+/** The browser, for the sign-in page. Best effort: the address is printed as well. */
+function openBrowser(url: string): void {
+  const [cmd, args] =
+    process.platform === 'darwin'
+      ? ['open', [url]]
+      : process.platform === 'win32'
+        ? ['cmd', ['/c', 'start', '', url]]
+        : ['xdg-open', [url]];
+  spawn(cmd as string, args as string[], { stdio: 'ignore', detached: true })
+    .on('error', () => {})
+    .unref();
+}
+
 const terminal = nodeTerminal();
 main(process.argv.slice(2), {
   env: process.env,
   cwd: process.cwd(),
   terminal,
-  store: new SessionStore(),
+  store: new ConversationStore(),
+  auth: new AuthStore(),
+  argv1: process.argv[1],
+  checkUpdates: true,
+  open: openBrowser,
   err: (s) => console.error(s),
 }).then(
   (code) => {

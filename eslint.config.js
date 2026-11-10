@@ -7,6 +7,8 @@ export default tseslint.config(
   {
     ignores: [
       '**/dist/**',
+      // The terminal agent's single-file build (packages/cli/scripts/bundle.mjs): generated, and what gets published.
+      '**/dist-bundle/**',
       '**/out/**',
       '**/release/**',
       '**/coverage/**',

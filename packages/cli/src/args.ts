@@ -1,7 +1,8 @@
 import type { PermissionMode } from '@kovan/harness';
 import type { Effort } from '@kovan/model-gateway';
 
-export type Command = 'chat' | 'sessions' | 'config' | 'help' | 'version';
+export type Command =
+  'chat' | 'sessions' | 'config' | 'login' | 'logout' | 'whoami' | 'update' | 'help' | 'version';
 
 export interface Args {
   command: Command;
@@ -16,6 +17,8 @@ export interface Args {
   /** A file of extra instructions appended to the system prompt (what a surrounding tool knows). */
   contextFile: string | null;
   cwd: string | null;
+  /** `login --server <url>`: a Kovan server other than the default. */
+  server: string | null;
   json: boolean;
   /** Show the model's reasoning instead of one quiet line. */
   reasoning: boolean;
@@ -24,7 +27,16 @@ export interface Args {
 
 export const MODES: readonly PermissionMode[] = ['plan', 'request', 'allow', 'full'];
 const EFFORTS: readonly Effort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
-const COMMANDS = new Set(['sessions', 'config', 'help', 'version']);
+const COMMANDS = new Set([
+  'sessions',
+  'config',
+  'login',
+  'logout',
+  'whoami',
+  'update',
+  'help',
+  'version',
+]);
 
 export function parseArgs(argv: readonly string[]): Args {
   const a: Args = {
@@ -37,6 +49,7 @@ export function parseArgs(argv: readonly string[]): Args {
     effort: null,
     contextFile: null,
     cwd: null,
+    server: null,
     json: false,
     reasoning: false,
     error: null,
@@ -92,6 +105,12 @@ export function parseArgs(argv: readonly string[]): Args {
       case '--cwd': {
         const v = value(i, arg);
         if (v) a.cwd = v;
+        i++;
+        break;
+      }
+      case '--server': {
+        const v = value(i, arg);
+        if (v) a.server = v;
         i++;
         break;
       }

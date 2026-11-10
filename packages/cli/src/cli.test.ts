@@ -1,6 +1,6 @@
 import type { ChatRequest, StreamEvent } from '@kovan/model-gateway';
 import type { ModelStreamer } from '@kovan/harness';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,7 +9,13 @@ import { parseArgs } from './args.js';
 import { loadProvider } from './config.js';
 import { Renderer } from './render.js';
 import { main, type Terminal } from './run.js';
-import { digestOf, SessionStore } from './session.js';
+import { AuthStore } from './auth.js';
+import {
+  conversationsDirFor,
+  ConversationStore,
+  digestOf,
+  type StoredConversation,
+} from './store.js';
 
 let dir: string;
 beforeEach(async () => {
@@ -81,16 +87,20 @@ function run(
   over: Partial<Parameters<typeof main>[1]> = {},
 ) {
   const errors: string[] = [];
-  const store = new SessionStore(join(dir, 'sessions'));
+  const store = over.store ?? new ConversationStore(join(dir, 'data'));
+  const auth = over.auth ?? new AuthStore(join(dir, 'kovan-home'));
   const done = main(argv, {
     env: {},
     cwd: dir,
     terminal: term.t,
     store,
+    auth,
     err: (s) => errors.push(s),
+    checkUpdates: false,
+    stateDir: join(dir, 'state'),
     ...over,
   });
-  return { done, errors, store };
+  return { done, errors, store, auth };
 }
 
 // ── arguments ────────────────────────────────────────────────────────────────
@@ -442,32 +452,107 @@ describe('extra instructions', () => {
   });
 });
 
-describe('sessions', () => {
-  it('each turn is saved, privately, and -c picks the conversation up with its history', async () => {
-    const first = scripted([[text('ilk cevap'), done()]]);
+describe('conversations, kept the way the desktop app keeps its own', () => {
+  const file = (id: string, root = dir) =>
+    join(conversationsDirFor(join(dir, 'data'), root), `${id}.json`);
+
+  it('each turn is saved where the desktop lists chats, in its format, readable only by the user', async () => {
+    const first = scripted([[text('ilk cevap'), done(0.01)]]);
     const r1 = run(['ilk soru'], terminal([]), { model: first });
     await r1.done;
     const [meta] = r1.store.list();
-    expect(meta).toMatchObject({ title: 'ilk soru', cwd: dir, turns: 1 });
-    expect(statSync(join(dir, 'sessions', `${meta!.id}.json`)).mode & 0o777).toBe(0o600);
+    expect(meta).toMatchObject({ title: 'ilk soru', root: dir, harness: 'kovan' });
+    expect(statSync(file(meta!.id)).mode & 0o777).toBe(0o600);
 
+    const c = JSON.parse(await readFile(file(meta!.id), 'utf8')) as StoredConversation;
+    expect(c).toMatchObject({
+      id: meta!.id,
+      title: 'ilk soru',
+      root: dir,
+      harness: 'kovan',
+      auto: false,
+      mode: 'allow',
+      effort: null,
+    });
+    expect(typeof c.updatedAt).toBe('number');
+    expect(c.cost).toBeCloseTo(0.01);
+    // The transcript the screen replays: his message, then the turn, in the app's own event shapes.
+    expect(c.events[0]).toMatchObject({ type: 'user', text: 'ilk soru', attachments: [] });
+    expect(typeof (c.events[0] as { at: number }).at).toBe('number');
+    expect(c.events.map((e) => e.type)).toEqual(
+      expect.arrayContaining(['user', 'turn_start', 'text', 'turn_end']),
+    );
+    expect(c.events.some((e) => e.type === 'tool_progress')).toBe(false);
+    // The model's own history, so the next turn (here, or in the app) can carry on.
+    expect(c.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant']);
+  });
+
+  it('the conversation belongs to the repository’s top, whichever folder inside it he is in', async () => {
+    await mkdir(join(dir, '.git'));
+    await mkdir(join(dir, 'src', 'deep'), { recursive: true });
+    const r = run(['selam'], terminal([]), {
+      model: scripted([[text('x'), done()]]),
+      cwd: join(dir, 'src', 'deep'),
+    });
+    await r.done;
+    expect(r.store.list(dir)).toHaveLength(1);
+    expect(r.store.list(join(dir, 'src', 'deep'))).toHaveLength(0);
+  });
+
+  it('-c picks the last chat in this folder up, with its history, as the same conversation', async () => {
+    const r1 = run(['ilk soru'], terminal([]), { model: scripted([[text('ilk cevap'), done()]]) });
+    await r1.done;
     const second = scripted([[text('ikinci cevap'), done()]]);
     const r2 = run(['-c', 'ikinci soru'], terminal([]), { model: second, store: r1.store });
     await r2.done;
-    const roles = convo(second.requests[0]!).map((m) => m.role);
-    expect(roles).toEqual(['system', 'user', 'assistant', 'user']);
+    expect(convo(second.requests[0]!).map((m) => m.role)).toEqual([
+      'system',
+      'user',
+      'assistant',
+      'user',
+    ]);
     expect(JSON.stringify(second.requests[0]!.messages)).toContain('ilk soru');
-    expect(r1.store.list()).toHaveLength(1); // the same session, not a new one
-    expect(r1.store.list()[0]!.turns).toBe(2);
+    expect(r1.store.list()).toHaveLength(1);
+    const c = r1.store.load(dir, r1.store.list()[0]!.id)!;
+    expect(c.title).toBe('ilk soru'); // the first prompt names it, later ones do not
+    expect(c.events.filter((e) => e.type === 'user')).toHaveLength(2);
   });
 
   it('-c with nothing to continue says so and starts fresh', async () => {
     const r = run(['-c', 'selam'], terminal([]), { model: scripted([[text('x'), done()]]) });
     expect(await r.done).toBe(0);
-    expect(r.errors.join('\n')).toMatch(/devam edilecek oturum yok/);
+    expect(r.errors.join('\n')).toMatch(/devam edilecek sohbet yok/);
   });
 
-  it('/clear starts a new session', async () => {
+  it('a chat the desktop made with Claude Code is not ours to continue; one made with Kovan’s agent is', async () => {
+    const store = new ConversationStore(join(dir, 'data'));
+    const mine = store.create(dir, { model: 'm', effort: null, mode: 'allow' });
+    mine.title = 'masaüstünden';
+    mine.messages = [
+      { role: 'system', content: 'ESKI SISTEM' },
+      { role: 'user', content: 'önce masaüstünde sordum' },
+      { role: 'assistant', content: 'cevapladım' },
+    ];
+    mine.updatedAt = 1000;
+    store.save(mine);
+    // A newer one, but from another harness.
+    const theirs = {
+      ...store.create(dir, { model: 'haiku', effort: null, mode: 'request' }),
+      harness: 'claude-code' as never,
+      title: 'claude',
+      updatedAt: 2000,
+    };
+    store.save(theirs as StoredConversation);
+
+    const model = scripted([[text('devam ettim'), done()]]);
+    await run(['-c', 'devam et'], terminal([]), { model, store }).done;
+    const sent = JSON.stringify(convo(model.requests[0]!));
+    expect(sent).toContain('önce masaüstünde sordum');
+    expect(sent).not.toContain('ESKI SISTEM'); // the system prompt is rebuilt, not replayed
+    expect(sent).toContain('You are the Kovan coding agent');
+  });
+
+  it('/clear starts a new conversation', async () => {
     const model = scripted([
       [text('a'), done()],
       [text('b'), done()],
@@ -475,11 +560,25 @@ describe('sessions', () => {
     const r = run([], terminal(['bir', '/clear', 'iki', '/exit']), { model });
     await r.done;
     expect(r.store.list()).toHaveLength(2);
-    // After /clear the model no longer sees the first question.
     expect(JSON.stringify(model.requests[1]!.messages)).not.toContain('"bir"');
   });
 
-  it('`sessions` lists, `sessions export` is what a surrounding tool may remember', async () => {
+  it('`sessions` lists them, and `sessions --json` is what a surrounding tool reads', async () => {
+    const r = run(['bir şey yaz'], terminal([]), { model: scripted([[text('tamam'), done()]]) });
+    await r.done;
+    const [meta] = r.store.list();
+    const listing = terminal([]);
+    await run(['sessions'], listing, { store: r.store }).done;
+    expect(listing.text()).toContain(meta!.id);
+    const json = terminal([]);
+    await run(['sessions', '--json'], json, { store: r.store }).done;
+    expect(JSON.parse(json.text())).toEqual([
+      expect.objectContaining({ id: meta!.id, cwd: dir, title: 'bir şey yaz', harness: 'kovan' }),
+    ]);
+    expect(JSON.parse(json.text())[0].updatedAt).toMatch(/^\d{4}-\d\d-\d\dT/);
+  });
+
+  it('`sessions export` is what a surrounding tool may remember', async () => {
     const model = scripted([
       [call('c1', 'write_file', { path: 'yeni.txt', content: 'x' }), done()],
       [text('yeni.txt yazıldı.'), done()],
@@ -487,42 +586,27 @@ describe('sessions', () => {
     const r = run(['--mode', 'full', 'bir dosya yaz'], terminal([]), { model });
     await r.done;
     const [meta] = r.store.list();
-
-    const listing = terminal([]);
-    await main(['sessions'], {
-      env: {},
-      cwd: dir,
-      terminal: listing.t,
-      store: r.store,
-      err: () => {},
-    });
-    expect(listing.text()).toContain(meta!.id);
-
     const exp = terminal([]);
-    await main(['sessions', 'export', meta!.id], {
-      env: {},
-      cwd: dir,
-      terminal: exp.t,
-      store: r.store,
-      err: () => {},
-    });
+    await run(['sessions', 'export', meta!.id], exp, { store: r.store }).done;
     expect(JSON.parse(exp.text())).toMatchObject({
       tool: 'kovan',
       sessionId: meta!.id,
+      cwd: dir,
       firstPrompt: 'bir dosya yaz',
       lastAnswer: 'yeni.txt yazıldı.',
       files: ['yeni.txt'],
     });
   });
 
-  it('an unknown session id is an error', async () => {
-    const r = run(['sessions', 'export', 'kv_yok'], terminal([]));
+  it('an unknown id is an error', async () => {
+    const r = run(['sessions', 'export', 'yok-boyle-bir-sey'], terminal([]));
     expect(await r.done).toBe(1);
   });
 
   it('a digest names no file for an edit whose arguments are not JSON', () => {
-    const meta = new SessionStore(join(dir, 's')).create(dir, 'm');
-    const d = digestOf(meta, [
+    const store = new ConversationStore(join(dir, 's'));
+    const c = store.create(dir, { model: 'm', effort: null, mode: 'allow' });
+    c.messages = [
       { role: 'user', content: 'x' },
       {
         role: 'assistant',
@@ -531,8 +615,16 @@ describe('sessions', () => {
           { id: '1', type: 'function', function: { name: 'edit_file', arguments: '{bozuk' } },
         ],
       },
-    ]);
-    expect(d.files).toEqual([]);
+    ];
+    expect(digestOf(c).files).toEqual([]);
+  });
+
+  it('a file that is not a conversation is ignored, not a crash', async () => {
+    const store = new ConversationStore(join(dir, 'data'));
+    const c = store.create(dir, { model: 'm', effort: null, mode: 'allow' });
+    store.save(c);
+    await writeFile(file('bozuk'), '{not json');
+    expect(store.list(dir).map((x) => x.id)).toEqual([c.id]);
   });
 });
 

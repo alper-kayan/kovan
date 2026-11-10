@@ -329,6 +329,10 @@ importers:
       '@kovan/model-gateway':
         specifier: workspace:*
         version: link:../model-gateway
+    devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
 
   packages/git-engine: {}
 

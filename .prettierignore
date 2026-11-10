@@ -1,6 +1,7 @@
 pnpm-lock.yaml
 docs/research/source/
 dist/
+dist-bundle/
 out/
 release/
 coverage/

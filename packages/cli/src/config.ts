@@ -17,6 +17,8 @@ export interface Provider {
   dialect: 'openrouter' | 'openai';
   /** For the screen: which server, never the key. */
   label: string;
+  /** Kovan's own managed usage, billed to the account, as opposed to a key or gateway of his own. */
+  managed: boolean;
 }
 
 export type ProviderResult = { ok: true; provider: Provider } | { ok: false; why: string };
@@ -56,7 +58,7 @@ export function loadProvider(
     if (!apiKey) {
       return {
         ok: false,
-        why: 'model anahtarı yok: OPENROUTER_API_KEY ver, ya da KOVAN_BASE_URL (+ KOVAN_API_KEY, KOVAN_MODEL) ile kendi ağ geçidini göster.',
+        why: "model anahtarı yok: OPENROUTER_API_KEY ver, KOVAN_BASE_URL (+ KOVAN_API_KEY, KOVAN_MODEL) ile kendi ağ geçidini göster, ya da 'kovan login' ile Kovan hesabına gir (yönetilen kullanım).",
       };
     }
     return {
@@ -67,6 +69,7 @@ export function loadProvider(
         model: model ?? 'openrouter/auto',
         dialect: 'openrouter',
         label: 'openrouter.ai',
+        managed: false,
       },
     };
   }
@@ -92,6 +95,7 @@ export function loadProvider(
       model,
       dialect: dialect === 'openrouter' ? 'openrouter' : 'openai',
       label,
+      managed: false,
     },
   };
 }
