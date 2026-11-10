@@ -33,7 +33,8 @@ export interface TuiHost {
   effort(): string;
   setEffort(e: string): void;
   efforts(): { levels: string[]; default: string };
-  setModel(id: string): void;
+  /** Resolves with a reason when the switch could not be made. */
+  setModel(id: string): void | Promise<string | void>;
   models(): Promise<{ items: ListItem[]; error?: string }>;
   /** Runs one turn and resolves when the agent is done with it. `shown` is what he typed (a custom command may send more text than that). */
   turn(send: string): Promise<void>;
@@ -518,13 +519,9 @@ export class TuiApp {
       case '/model':
       case '/models':
         if (cmd === '/model' && arg) {
-          this.host.setModel(arg);
-          this.flash(`model: ${arg}`);
+          this.chooseModel(arg);
         } else {
-          this.openList('model', [], 'hesabındaki modeller alınıyor…', (v) => {
-            this.host.setModel(v);
-            this.flash(`model: ${v}`);
-          });
+          this.openList('model', [], 'hesabındaki modeller alınıyor…', (v) => this.chooseModel(v));
           const d = this.dialog;
           void this.host.models().then((m) => {
             if (d && d.kind === 'list' && this.dialog === d) {
@@ -556,6 +553,13 @@ export class TuiApp {
       default:
         return false;
     }
+  }
+
+  private chooseModel(id: string): void {
+    this.flash(`model: ${id}`, 8000);
+    void Promise.resolve(this.host.setModel(id)).then((why) => {
+      if (why) this.flash(why, 6000);
+    });
   }
 
   private async run1(send: string, shown: string): Promise<void> {

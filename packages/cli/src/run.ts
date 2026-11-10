@@ -41,6 +41,7 @@ import {
   findClaude,
   type ClaudeAccount,
 } from './claude.js';
+import { desktopProviders, providerKey } from './desktopKeys.js';
 import { CODEX_MODELS, CodexRunner, codexEnv } from './codex.js';
 import { Renderer } from './render.js';
 import { TuiApp, type TuiHost, type TuiIO } from './tui/app.js';
@@ -427,6 +428,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       .catch(() => {});
   }
 
+  const baseStreamer = streamer;
   const renderer = new Renderer((s) => t.write(s), {
     color: t.isTTY && !deps.env['NO_COLOR'],
     reasoning: args.reasoning,
@@ -682,7 +684,28 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         mode = m;
         agent.configure({ mode });
       },
-      setModel: (id) => {
+      setModel: async (id) => {
+        const custom = /^@([a-z0-9-]+)\/(.+)$/.exec(id);
+        if (custom) {
+          // A provider he added in the desktop app: its key comes from the keychain, once, and stays in memory.
+          const p = desktopProviders(dataDir).find((x) => x.id === custom[1]);
+          if (!p) return 'masaüstündeki sağlayıcı bulunamadı';
+          try {
+            const key = await providerKey(dataDir, p.id);
+            agent.configure({
+              model: new OpenRouterClient({ apiKey: key, baseUrl: p.baseUrl, dialect: 'openai' }),
+              modelId: custom[2]!,
+            });
+          } catch (e) {
+            return e instanceof Error ? e.message : String(e);
+          }
+          provider = { ...provider, model: custom[2]!, label: p.name, managed: false };
+          claude = null;
+          codex = null;
+          conv!.model = id;
+          return;
+        }
+        agent.configure({ model: baseStreamer });
         const cx = /^codex:([^:]*):(.+)$/.exec(id);
         if (cx) {
           const account = claudeAccounts(dataDir, 'codex').find((a) => (a.id ?? '') === cx[1]);
@@ -737,9 +760,17 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
               })),
             )
           : [];
+        const customItems = desktopProviders(dataDir).flatMap((p) =>
+          p.models.map((m) => ({
+            label: `${p.name} · ${m}`,
+            hint: 'masaüstünde eklediğin sağlayıcı',
+            value: `@${p.id}/${m}`,
+          })),
+        );
         const items = [
           ...claudeItems,
           ...codexItems,
+          ...customItems,
           ...catalog.map((c) => ({ label: c.id, value: c.id })),
         ];
         return items.length ? { items } : { items, error: modelError };

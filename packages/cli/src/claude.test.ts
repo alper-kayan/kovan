@@ -143,3 +143,50 @@ describe('codex stream', () => {
     ]);
   });
 });
+
+import { createCipheriv, pbkdf2Sync } from 'node:crypto';
+import { decryptSafeStorage, desktopProviders, providerKey } from './desktopKeys.js';
+
+describe('desktop providers and their keys', () => {
+  const seal = (text: string, secret: string) => {
+    const key = pbkdf2Sync(secret, 'saltysalt', 1003, 16, 'sha1');
+    const c = createCipheriv('aes-128-cbc', key, Buffer.alloc(16, 0x20));
+    return Buffer.concat([Buffer.from('v10'), c.update(text, 'utf8'), c.final()]);
+  };
+  it('lists the providers from the app’s file, no key needed', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kv-'));
+    writeFileSync(
+      join(dir, 'custom-providers.json'),
+      JSON.stringify([
+        {
+          id: 'deepinfra',
+          name: 'DeepInfra',
+          baseUrl: 'https://api.deepinfra.com/v1/openai',
+          models: [{ id: '@deepinfra/qwen/Qwen3' }],
+        },
+      ]),
+    );
+    expect(desktopProviders(dir)).toEqual([
+      {
+        id: 'deepinfra',
+        name: 'DeepInfra',
+        baseUrl: 'https://api.deepinfra.com/v1/openai',
+        models: ['qwen/Qwen3'],
+      },
+    ]);
+  });
+  it('opens the app’s encrypted keys with the keychain secret, and says so when it cannot', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kv-'));
+    writeFileSync(
+      join(dir, 'custom-provider-keys.bin'),
+      seal(JSON.stringify({ deepinfra: 'sk-test' }), 'hunter2'),
+    );
+    expect(decryptSafeStorage(seal('merhaba', 's'), 's')).toBe('merhaba');
+    expect(await providerKey(dir, 'deepinfra', async () => 'hunter2')).toBe('sk-test');
+    await expect(providerKey(dir, 'other', async () => 'hunter2')).rejects.toThrow(/kayıtlı değil/);
+    await expect(providerKey(dir, 'deepinfra', async () => 'wrong')).rejects.toThrow();
+    await expect(
+      providerKey(mkdtempSync(join(tmpdir(), 'kv-')), 'x', async () => 'a'),
+    ).rejects.toThrow(/kayıtlı anahtar yok/);
+  });
+});
