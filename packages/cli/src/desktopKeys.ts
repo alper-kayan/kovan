@@ -4,9 +4,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * The providers he added in the desktop app (DeepInfra, Ollama, …). Their addresses and model lists sit in `custom-providers.json`, in the
+ * The providers you added in the desktop app (DeepInfra, Ollama, …). Their addresses and model lists sit in `custom-providers.json`, in the
  * clear; their keys are in `custom-provider-keys.bin`, encrypted by Electron with the key the app keeps in the macOS keychain
- * ("Kovan Safe Storage"). Listing the models needs no key. Using one asks the keychain for that item, so macOS asks him once to allow it
+ * ("Kovan Safe Storage"). Listing the models needs no key. Using one asks the keychain for that item, so macOS asks you once to allow it
  * (Always Allow makes it silent). The key is held in memory for the session only and is never written anywhere or printed.
  */
 export interface DesktopProvider {
@@ -53,7 +53,7 @@ export function keychainSecret(
       ['find-generic-password', '-w', '-s', service, '-a', account],
       { timeout: 60_000 },
       (error, stdout) => {
-        if (error) reject(new Error('anahtar zincirine erişilemedi (izin verilmedi mi?)'));
+        if (error) reject(new Error("Couldn't read the keychain (was access denied?)"));
         else resolve(stdout.trim());
       },
     ),
@@ -62,7 +62,7 @@ export function keychainSecret(
 
 /** Chromium's `v10` format on macOS: AES-128-CBC, key = PBKDF2-SHA1(secret, "saltysalt", 1003), IV of 16 spaces. */
 export function decryptSafeStorage(data: Buffer, secret: string): string {
-  if (data.subarray(0, 3).toString() !== 'v10') throw new Error('bilinmeyen şifreleme biçimi');
+  if (data.subarray(0, 3).toString() !== 'v10') throw new Error('Unknown encryption format');
   const key = pbkdf2Sync(secret, 'saltysalt', 1003, 16, 'sha1');
   const d = createDecipheriv('aes-128-cbc', key, Buffer.alloc(16, 0x20));
   return Buffer.concat([d.update(data.subarray(3)), d.final()]).toString('utf8');
@@ -78,10 +78,10 @@ export async function providerKey(
   try {
     raw = readFileSync(join(dataDir, 'custom-provider-keys.bin'));
   } catch {
-    throw new Error('masaüstünde bu sağlayıcı için kayıtlı anahtar yok');
+    throw new Error('The desktop app has no saved keys');
   }
   const keys = JSON.parse(decryptSafeStorage(raw, await secret())) as Record<string, string>;
   const key = keys[id];
-  if (!key) throw new Error('bu sağlayıcının anahtarı masaüstünde kayıtlı değil');
+  if (!key) throw new Error('The desktop app has no key saved for this provider');
   return key;
 }

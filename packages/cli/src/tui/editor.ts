@@ -1,14 +1,14 @@
 import { charWidth, strWidth } from './text.js';
 
 /**
- * The text he is typing: several lines, a cursor, the usual line-editing keys, and a history of what he sent before. Pure, so it can be
+ * The text you are typing: several lines, a cursor, the usual line-editing keys, and a history of what you sent before. Pure, so it can be
  * tested without a terminal. `cursor` is an index into `value` (UTF-16 units), never inside a surrogate pair.
  */
 export class LineEditor {
   value = '';
   cursor = 0;
   private history: string[] = [];
-  /** Where in the history he is, or -1 when he is on what he is typing now. */
+  /** Where in the history you are, or -1 when you are on what you are typing now. */
   private at = -1;
   private draft = '';
 
@@ -132,7 +132,7 @@ export class LineEditor {
     this.value = this.value.slice(0, this.cursor) + this.value.slice(to);
   }
 
-  /** What he sent, newest last. Sending adds to it (a repeat of the last one does not). */
+  /** What you sent, newest last. Sending adds to it (a repeat of the last one does not). */
   remember(text: string): void {
     const t = text.trim();
     if (t && this.history.at(-1) !== t) this.history.push(t);

@@ -5,7 +5,7 @@ import { join } from 'node:path';
 /**
  * Which model server `kovan` talks to, and as whom.
  *
- * Anything OpenAI-compatible works (OpenRouter, his own OmniRoute gateway, a local server); OpenRouter is the
+ * Anything OpenAI-compatible works (OpenRouter, your own OmniRoute gateway, a local server); OpenRouter is the
  * default because that is what Kovan's own agent already uses. The key is read from the environment or one file,
  * and nothing here ever returns it in a message.
  */
@@ -17,11 +17,14 @@ export interface Provider {
   dialect: 'openrouter' | 'openai';
   /** For the screen: which server, never the key. */
   label: string;
-  /** Kovan's own managed usage, billed to the account, as opposed to a key or gateway of his own. */
+  /** Kovan's own managed usage, billed to the account, as opposed to a key or gateway of your own. */
   managed: boolean;
 }
 
-export type ProviderResult = { ok: true; provider: Provider } | { ok: false; why: string };
+export type ProviderResult =
+  | { ok: true; provider: Provider }
+  /** `noKey`: nothing of the person's own is set up at all (as opposed to a gateway missing its model). */
+  | { ok: false; why: string; noKey?: boolean };
 
 export const CONFIG_FILE = join(homedir(), '.config', 'kovan', 'agent.json');
 const OPENROUTER = 'https://openrouter.ai/api/v1';
@@ -58,7 +61,8 @@ export function loadProvider(
     if (!apiKey) {
       return {
         ok: false,
-        why: "model anahtarı yok: OPENROUTER_API_KEY ver, KOVAN_BASE_URL (+ KOVAN_API_KEY, KOVAN_MODEL) ile kendi ağ geçidini göster, ya da 'kovan login' ile Kovan hesabına gir (yönetilen kullanım).",
+        noKey: true,
+        why: "No model key: set OPENROUTER_API_KEY, point KOVAN_BASE_URL (+ KOVAN_API_KEY, KOVAN_MODEL) at your own gateway, or sign in to a Kovan account with 'kovan login' (managed usage).",
       };
     }
     return {
@@ -78,7 +82,7 @@ export function loadProvider(
   if (!model)
     return {
       ok: false,
-      why: `${baseUrl} için model adı yok: KOVAN_MODEL ver (ya da ${CONFIG_FILE} içinde "model").`,
+      why: `No model name for ${baseUrl}: set KOVAN_MODEL (or "model" in ${CONFIG_FILE}).`,
     };
   const dialect = str(env['KOVAN_DIALECT']) ?? str(f.dialect);
   let label = baseUrl!;

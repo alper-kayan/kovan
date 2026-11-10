@@ -18,12 +18,12 @@ Ctrl+C stops a running turn; at the prompt it leaves.
 
 ## What it reads of Claude Code's
 
-What he already wrote for Claude works here, in the same formats (`KOVAN_NO_CLAUDE=1` leaves everything of Claude's alone):
+What you already wrote for Claude works here, in the same formats (`KOVAN_NO_CLAUDE=1` leaves everything of Claude's alone):
 
 - **Skills**: `SKILL.md` folders in the repository's `.kovan/skills` and `.claude/skills`, the desktop app's own skill folder, and `~/.claude/skills`. The model is
   told which exist and loads one with `use_skill`; typing `/skill-name args` loads it for that turn. `/skills` lists them (and names any that could not be read).
-- **Notes**: the repository's `KOVAN.md`, `AGENTS.md`, `CLAUDE.md` (and the rules in subfolders, read as the agent reaches them), plus his own `~/.kovan/KOVAN.md` and `~/.claude/CLAUDE.md`.
-- **Custom commands**: `.kovan/commands/<name>.md`, `.claude/commands/<name>.md` and `~/.claude/commands/`; the file is the prompt, `$ARGUMENTS` / `$1`…`$9` are what he typed after the name.
+- **Notes**: the repository's `KOVAN.md`, `AGENTS.md`, `CLAUDE.md` (and the rules in subfolders, read as the agent reaches them), plus your own `~/.kovan/KOVAN.md` and `~/.claude/CLAUDE.md`.
+- **Custom commands**: `.kovan/commands/<name>.md`, `.claude/commands/<name>.md` and `~/.claude/commands/`; the file is the prompt, `$ARGUMENTS` / `$1`…`$9` are what you typed after the name.
 
 Not yet: hooks, MCP servers from `.mcp.json`, Claude plugins (a folder with `.claude-plugin/` is not a skill), and `@file` / `!command` inside a command.
 
@@ -51,10 +51,21 @@ export KOVAN_BASE_URL=http://localhost:20128/v1 KOVAN_MODEL=auto/best-coding-fas
 
 The same fields can live in `~/.config/kovan/agent.json` (`baseUrl`, `apiKey`, `model`, `dialect`); the environment wins.
 
+Your own key or gateway always comes first. Signed in with `kovan login` and with nothing of your own set up, `kovan` uses your Kovan
+account's managed usage instead (billed to the account, provider cost + 5%), if the server offers it. `KOVAN_PROVIDER=managed` asks
+for the account even when you have a key; `KOVAN_PROVIDER=own` never falls back to it.
+
 ## Asking before it acts
 
-`allow`/`request` ask before a command (and, in `request`, an edit): `e`vet, `h`ayır, or `t`ümüne (this tool, for the rest of the session). Without a terminal
+`allow`/`request` ask before a command (and, in `request`, an edit): `y`es, `n`o, or `a`lways (this tool, for the rest of the session). Without a terminal
 there is nobody to ask, so it refuses and says to use `--mode full`.
+
+## Updates
+
+A bundle (`pnpm --filter @kovan/cli bundle`) looks for a newer version every twelve hours and replaces itself only when the manifest
+is signed with the release key (`latest.json.sig`, Ed25519, the desktop's Linux update key) and the file matches the manifest's hash.
+Build the bundle with `KOVAN_UPDATE_PUBLIC_KEY` set, or it never updates itself; sign with `KOVAN_UPDATE_PRIVATE_KEY` set, or
+installed copies won't accept it. `KOVAN_NO_UPDATE=1` turns updates off.
 
 ## Build and test
 

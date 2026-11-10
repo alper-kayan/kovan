@@ -61,7 +61,7 @@ export class Renderer {
           this.midLine = !e.text.endsWith('\n');
         } else if (!this.thought) {
           this.thought = true;
-          this.line(this.dim('· düşünüyor'));
+          this.line(this.dim('· thinking'));
         }
         break;
       case 'text':
@@ -95,7 +95,7 @@ export class Renderer {
             .map((l) => `    ${clip(l, 160)}`)
             .join('\n');
           this.line(
-            `  ${this.green('✓')} ${this.dim(`çıkış ${e.meta.exitCode}`)}${tail ? `\n${this.dim(tail)}` : ''}`,
+            `  ${this.green('✓')} ${this.dim(`exit ${e.meta.exitCode}`)}${tail ? `\n${this.dim(tail)}` : ''}`,
           );
         } else {
           this.line(`  ${this.green('✓')}${first ? ` ${this.dim(clip(first, 80))}` : ''}`);
@@ -103,7 +103,7 @@ export class Renderer {
         break;
       }
       case 'approval_resolved':
-        this.line(this.dim(e.approved ? '  onaylandı' : '  reddedildi'));
+        this.line(this.dim(e.approved ? '  approved' : '  denied'));
         break;
       case 'usage':
         this.tokensIn += e.usage.promptTokens;
@@ -114,21 +114,21 @@ export class Renderer {
         this.turnCost += e.usage.cost ?? 0;
         break;
       case 'compacted':
-        this.line(this.dim(`· konuşmanın eski kısmı özetlendi (${e.before} → ${e.after} jeton)`));
+        this.line(this.dim(`· earlier conversation summarized (${e.before} → ${e.after} tokens)`));
         break;
       case 'outcome_unknown':
         this.line(
           this.yellow(
-            `! yarıda kesilen komutun sonucu bilinmiyor: ${clip(e.command, 100)}. Elle kontrol et.`,
+            `! An interrupted command's result is unknown: ${clip(e.command, 100)}. Check it yourself.`,
           ),
         );
         break;
       case 'turn_end': {
-        const tail = `── ${this.model || '—'} · ${this.turnIn}→${this.turnOut} jeton${this.turnCost > 0 ? ` · $${this.turnCost.toFixed(4)}` : ''}`;
-        if (e.reason === 'error') this.line(this.red(`hata: ${e.error ?? 'bilinmeyen'}`));
-        else if (e.reason === 'stopped') this.line(this.yellow('durduruldu'));
+        const tail = `── ${this.model || '—'} · ${this.turnIn}→${this.turnOut} tokens${this.turnCost > 0 ? ` · $${this.turnCost.toFixed(4)}` : ''}`;
+        if (e.reason === 'error') this.line(this.red(`error: ${e.error ?? 'unknown'}`));
+        else if (e.reason === 'stopped') this.line(this.yellow('stopped'));
         else if (e.reason === 'step_limit')
-          this.line(this.yellow('adım sınırına ulaştı; devam etmesini söyleyebilirsin'));
+          this.line(this.yellow('Reached the step limit; you can tell it to continue.'));
         this.line(this.dim(tail));
         break;
       }

@@ -37,12 +37,12 @@ export interface TuiHost {
   setModel(id: string): void | Promise<string | void>;
   /** The places a model can come from (an account, a provider), each with its own models. */
   models(): Promise<{ groups: ModelGroup[]; error?: string }>;
-  /** Runs one turn and resolves when the agent is done with it. `shown` is what he typed (a custom command may send more text than that). */
+  /** Runs one turn and resolves when the agent is done with it. `shown` is what you typed (a custom command may send more text than that). */
   turn(send: string): Promise<void>;
   stop(): void;
   /** What a typed `/…` line is: a skill or custom command (`send` is what goes to the agent), or null for nothing known. */
   slash(line: string): Promise<{ send: string } | null>;
-  /** Every command he can type: the built-ins, skills, custom commands. */
+  /** Every command you can type: the built-ins, skills, custom commands. */
   palette(): Promise<ListItem[]>;
   sessions(): ListItem[];
   /** Switches to a saved conversation and returns what was said in it, or null when it cannot be loaded. */
@@ -66,7 +66,7 @@ export interface ModelGroup {
 
 export interface Ui {
   event(e: TranscriptEvent): void;
-  /** Asks for permission on screen. Resolves with his answer, or null if the question was withdrawn (the notch answered first). */
+  /** Asks for permission on screen. Resolves with your answer, or null if the question was withdrawn (the notch answered first). */
   approve(r: ApprovalRequest, signal: AbortSignal): Promise<ApprovalAnswer | null>;
   note(text: string): void;
 }
@@ -74,27 +74,27 @@ export interface Ui {
 const MODE_CYCLE: PermissionMode[] = ['allow', 'plan', 'request', 'full'];
 
 const BUILTINS: ListItem[] = [
-  { label: '/help', hint: 'tuşlar ve komutlar', value: '/help' },
+  { label: '/help', hint: 'keys and commands', value: '/help' },
   { label: '/mode', hint: 'plan · request · allow · full', value: '/mode ' },
-  { label: '/effort', hint: 'düşünme eforu (low … max)', value: '/effort ' },
-  { label: '/models', hint: 'modeli seç', value: '/models' },
-  { label: '/resume', hint: 'önceki sohbete devam et', value: '/resume' },
-  { label: '/sessions', hint: 'önceki sohbetlere dön', value: '/sessions' },
-  { label: '/clear', hint: 'yeni sohbet', value: '/clear' },
-  { label: '/cost', hint: 'jeton ve maliyet', value: '/cost' },
-  { label: '/context', hint: 'bu oturuma verilen ek bağlam', value: '/context' },
-  { label: '/exit', hint: 'çık', value: '/exit' },
+  { label: '/effort', hint: 'thinking effort (low … max)', value: '/effort ' },
+  { label: '/models', hint: 'choose the model', value: '/models' },
+  { label: '/resume', hint: 'continue an earlier chat', value: '/resume' },
+  { label: '/sessions', hint: 'earlier chats', value: '/sessions' },
+  { label: '/clear', hint: 'new chat', value: '/clear' },
+  { label: '/cost', hint: 'tokens and cost', value: '/cost' },
+  { label: '/context', hint: 'extra context given to this session', value: '/context' },
+  { label: '/exit', hint: 'quit', value: '/exit' },
 ];
 
 const HELP = [
-  'enter gönder · \\+enter ya da alt+enter yeni satır · ↑↓ geçmiş / satır',
-  'tab mod değiştir (allow → plan → request → full) · esc çalışanı durdur',
-  'pageup / pagedown sohbeti kaydır · end en alta · ctrl+l ekranı yenile',
-  '/resume önceki sohbete döner · ctrl+p komut paleti · / yazınca komut, skill ve özel komutlar önerilir',
-  'ctrl+a / ctrl+e satır başı / sonu · ctrl+w kelime sil · ctrl+u / ctrl+k satır sil',
-  'ctrl+c çalışanı durdurur; boşken iki kez basınca çıkar · ctrl+d boşken çıkar',
+  'enter send · \\+enter or alt+enter new line · ↑↓ history / line',
+  'tab change mode (allow → plan → request → full) · esc stop the running turn',
+  'pageup / pagedown scroll the chat · end jump to the bottom · ctrl+l redraw',
+  '/resume goes back to an earlier chat · ctrl+p command palette · typing / suggests commands, skills and custom commands',
+  'ctrl+a / ctrl+e start / end of line · ctrl+w delete word · ctrl+u / ctrl+k delete line',
+  'ctrl+c stops the running turn; pressed twice when idle it quits · ctrl+d quits when the input is empty',
   '',
-  'izin penceresi: e evet · h hayır · t bu oturumda hep (←→ ve enter de olur)',
+  'permission prompt: y yes · n no · a always this session (or ←→ and enter)',
 ];
 
 export class TuiApp {
@@ -139,7 +139,7 @@ export class TuiApp {
     note: (t) => this.flash(t),
   };
 
-  /** Runs until he leaves. Resolves with the exit code. */
+  /** Runs until you leave. Resolves with the exit code. */
   run(): Promise<number> {
     this.io.setup();
     this.io.onData((d) => this.onData(d));
@@ -197,7 +197,7 @@ export class TuiApp {
       if (!e.empty) return e.clear();
       if (this.quitArmed) return this.exit(0);
       this.quitArmed = true;
-      return this.flash('çıkmak için ctrl+c’ye tekrar bas');
+      return this.flash('press ctrl+c again to quit');
     }
     if (k.ctrl && k.name === 'd') return e.empty ? this.exit(0) : e.del();
     if (k.name === 'escape') {
@@ -331,7 +331,7 @@ export class TuiApp {
   }
 
   private openPalette(): void {
-    this.openList('komutlar', this.palette, 'komut yok', (v) => {
+    this.openList('commands', this.palette, 'no commands', (v) => {
       this.editor.setValue(v.endsWith(' ') ? v : `${v} `);
       if (!v.endsWith(' ')) void this.submit(v);
     });
@@ -363,7 +363,7 @@ export class TuiApp {
         const level = d.levels[d.index]!;
         this.dialog = null;
         this.host.setEffort(level);
-        this.flash(`efor: ${level}`);
+        this.flash(`effort: ${level}`);
       }
       return;
     }
@@ -371,15 +371,7 @@ export class TuiApp {
       const answer = (a: ApprovalAnswer) => this.closeApproval(a);
       if (k.name === 'escape' || (k.ctrl && k.name === 'c')) return answer('deny');
       if (k.name === 'char' && k.text) {
-        const hit =
-          APPROVAL_CHOICES.find((c) => c.key === k.text!.toLowerCase()) ??
-          (k.text === 'y'
-            ? APPROVAL_CHOICES[0]
-            : k.text === 'n'
-              ? APPROVAL_CHOICES[1]
-              : k.text === 'a'
-                ? APPROVAL_CHOICES[2]
-                : undefined);
+        const hit = APPROVAL_CHOICES.find((c) => c.key === k.text!.toLowerCase());
         if (hit) return answer(hit.value);
       }
       if (k.name === 'left' || k.name === 'backtab')
@@ -439,12 +431,12 @@ export class TuiApp {
     });
   }
 
-  // ── what he sent ───────────────────────────────────────────────────────────
+  // ── what you sent ───────────────────────────────────────────────────────────
 
   private async submit(raw: string): Promise<void> {
     const text = raw.trim();
     if (!text) return;
-    if (this.running) return this.flash('çalışıyor: esc ile durdur, sonra gönder');
+    if (this.running) return this.flash('working: press esc to stop it, then send');
     this.editor.remember(text);
     this.editor.clear();
     this.scroll = 0;
@@ -453,7 +445,7 @@ export class TuiApp {
     if (text.startsWith('/')) {
       if (await this.builtin(text)) return;
       const s = await this.host.slash(text);
-      if (!s) return this.flash("bilinmeyen komut: /help ve ctrl+p'ye bak");
+      if (!s) return this.flash('unknown command: see /help and ctrl+p');
       return this.run1(s.send, text);
     }
     return this.run1(text, text);
@@ -474,12 +466,12 @@ export class TuiApp {
       case '/clear':
         this.host.newChat();
         this.transcript.clear();
-        this.flash('yeni sohbet');
+        this.flash('new chat');
         return true;
       case '/cost': {
         const t = this.transcript.totals;
         this.transcript.notice(
-          `${t.tokensIn}→${t.tokensOut} jeton${t.cost > 0 ? ` · $${t.cost.toFixed(4)}` : ''}`,
+          `${t.tokensIn}→${t.tokensOut} tokens${t.cost > 0 ? ` · $${t.cost.toFixed(4)}` : ''}`,
         );
         return true;
       }
@@ -487,7 +479,7 @@ export class TuiApp {
         this.transcript.notice(
           this.host.contextText
             ? this.host.contextText.slice(0, 600)
-            : 'bu sohbete ek bağlam verilmedi.',
+            : 'No extra context was given to this chat.',
         );
         return true;
       case '/mode': {
@@ -516,13 +508,13 @@ export class TuiApp {
         const e = levels.find((x) => x === arg);
         if (e) {
           this.host.setEffort(e);
-          this.flash(`efor: ${e}`);
+          this.flash(`effort: ${e}`);
         } else {
           const cur = levels.indexOf(this.host.effort());
           const defaultIndex = Math.max(0, levels.indexOf(def));
           this.dialog = {
             kind: 'slider',
-            title: 'Efor',
+            title: 'Effort',
             levels,
             index: cur >= 0 ? cur : defaultIndex,
             defaultIndex,
@@ -535,23 +527,23 @@ export class TuiApp {
         if (cmd === '/model' && arg) {
           this.chooseModel(arg);
         } else {
-          // First the places (accounts, providers); the models of the one he picks come second.
-          this.openList('model', [], 'hesaplar alınıyor…', () => {});
+          // First the places (accounts, providers); the models of the one you pick come second.
+          this.openList('model', [], 'loading accounts…', () => {});
           const d = this.dialog;
           void this.host.models().then((m) => {
             if (!d || d.kind !== 'list' || this.dialog !== d) return;
             const showGroups = () => {
               this.openList(
-                'model · hesap seç',
+                'model · choose an account',
                 m.groups.map((g, i) => ({ label: g.label, hint: g.hint ?? '', value: String(i) })),
-                m.error ?? 'kullanılabilir hesap yok',
+                m.error ?? 'no accounts available',
                 (v) => {
                   const g = m.groups[Number(v)];
                   if (!g) return;
                   this.openList(
                     g.label,
                     g.items,
-                    g.empty ?? 'bu hesapta model yok',
+                    g.empty ?? 'no models on this account',
                     (id) => this.chooseModel(id),
                     showGroups,
                   );
@@ -565,19 +557,19 @@ export class TuiApp {
         return true;
       case '/resume':
       case '/sessions':
-        this.openList('sohbetler', this.host.sessions(), 'bu klasörde sohbet yok', (id) => {
+        this.openList('chats', this.host.sessions(), 'no chats in this folder', (id) => {
           const events = this.host.resume(id);
-          if (!events) return this.flash('sohbet yüklenemedi');
+          if (!events) return this.flash("couldn't load the chat");
           this.transcript = Transcript.from(events);
           this.scroll = 0;
-          this.flash('sohbet açıldı');
+          this.flash('chat opened');
         });
         return true;
       case '/skills':
         this.openList(
-          'skill ve komutlar',
+          'skills and commands',
           this.palette.filter((i) => !BUILTINS.some((b) => b.label === i.label)),
-          'skill yok: SKILL.md içeren klasörler .claude/skills ya da ~/.claude/skills altında olmalı',
+          'No skills: folders with a SKILL.md go under .claude/skills or ~/.claude/skills',
           (v) => this.editor.setValue(v),
         );
         return true;
@@ -604,7 +596,7 @@ export class TuiApp {
     try {
       await this.host.turn(send);
     } catch (e) {
-      this.transcript.notice(`hata: ${e instanceof Error ? e.message : String(e)}`, 'error');
+      this.transcript.notice(`error: ${e instanceof Error ? e.message : String(e)}`, 'error');
     } finally {
       this.running = false;
       if (this.ticker) clearInterval(this.ticker);
@@ -652,7 +644,7 @@ export class TuiApp {
         ? { items: sugg, index: Math.min(this.suggIndex, sugg.length - 1) }
         : null,
       status: {
-        tokens: t.tokensIn || t.tokensOut ? `${t.tokensIn}→${t.tokensOut} jeton` : '',
+        tokens: t.tokensIn || t.tokensOut ? `${t.tokensIn}→${t.tokensOut} tokens` : '',
         cost: t.cost,
         note: this.note,
       },
@@ -685,8 +677,8 @@ export class TuiApp {
 }
 
 const MODE_HINT: Record<string, string> = {
-  plan: 'sadece okur, hiçbir şeyi değiştirmez',
-  request: 'her düzenlemeyi ve komutu sorar',
-  allow: 'dosyayı düzenler, komuttan önce sorar',
-  full: 'hiçbir şey sormaz',
+  plan: 'only reads, changes nothing',
+  request: 'asks before every edit and command',
+  allow: 'edits files, asks before commands',
+  full: 'asks nothing',
 };

@@ -17,7 +17,7 @@ export interface ClaudeAccount {
 
 export const CLAUDE_MODELS = ['default', 'sonnet', 'opus', 'haiku'] as const;
 
-/** What the app has registered, plus the CLI's own default sign-in. */
+/** The accounts added in the desktop app. Like the app, the CLI's own sign-in (~/.claude, ~/.codex) is never used. */
 export function claudeAccounts(dataDir: string, harness = 'claude-code'): ClaudeAccount[] {
   const out: ClaudeAccount[] = [];
   try {
@@ -37,7 +37,7 @@ export function claudeAccounts(dataDir: string, harness = 'claude-code'): Claude
   } catch {
     // no accounts registered
   }
-  return [...out, { id: null, name: 'varsayılan' }];
+  return out;
 }
 
 export function claudeEnv(dataDir: string, id: string | null): Record<string, string> {
@@ -230,7 +230,7 @@ export class ClaudeLines {
       this.finish(
         bad ? 'error' : 'done',
         cost,
-        bad ? str(line['result']) || 'Claude Code hata verdi' : undefined,
+        bad ? str(line['result']) || 'Claude Code reported an error' : undefined,
       );
     }
   }
@@ -282,7 +282,7 @@ export class ClaudeRunner {
   }
 
   async send(prompt: string, o: ClaudeTurn): Promise<string | null> {
-    if (this.child) throw new Error('Claude Code zaten çalışıyor');
+    if (this.child) throw new Error('Claude Code is already running');
     const session = o.sessionId ?? randomUUID();
     const args = [
       '-p',
@@ -337,7 +337,7 @@ export class ClaudeRunner {
       lines.finish(
         'error',
         0,
-        err.trim().split('\n').slice(-3).join(' ') || `claude ${code} koduyla çıktı`,
+        err.trim().split('\n').slice(-3).join(' ') || `claude exited with code ${code}`,
       );
     else lines.finish('done');
     return lines.sessionId ?? session;

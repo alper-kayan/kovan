@@ -4,11 +4,11 @@ import { join } from 'node:path';
 import { NOOP_NOTCH, type Notch, type NotchDecision } from './notch.js';
 
 /**
- * `kovan` in the notch he already has, with no extra app: it reports to his FounderOS server, which is where the notch (and the phone) read
+ * `kovan` in the notch you already have, with no extra app: it reports to your FounderOS server, which is where the notch (and the phone) read
  * their state from. A session at work shows as a job running; a permission question becomes a row of FounderOS's pending inbox, so the
  * notch's approval count, the phone and Telegram all show it and any of them can answer. The terminal asks as well and the first answer wins.
  *
- * Only a one-line summary leaves the terminal (what tool, on which file or command, in which folder), to the server he runs, over the address
+ * Only a one-line summary leaves the terminal (what tool, on which file or command, in which folder), to the server you run, over the address
  * and token in `~/.founderos/env` (or FOUNDER_URL / FOUNDER_TOKEN). Nothing is sent when that is not set up, and KOVAN_NO_NOTCH=1 turns it off.
  */
 export interface FounderConfig {
@@ -112,7 +112,7 @@ export function createFounderNotch(o: FounderNotchOptions): Notch {
         case 'SessionStart':
           return report('start');
         case 'UserPromptSubmit':
-          return report('working', 'düşünüyor');
+          return report('working', 'thinking');
         case 'PreToolUse':
           return report('working', doingOf(name, fields));
         case 'Stop':
@@ -126,7 +126,7 @@ export function createFounderNotch(o: FounderNotchOptions): Notch {
     async permission(fields, signal) {
       if (signal?.aborted) return null;
       const input = (fields['tool_input'] ?? {}) as Record<string, unknown>;
-      const title = doingOf('', fields) || 'izin';
+      const title = doingOf('', fields) || 'permission';
       let id: string;
       try {
         const res = await call('/api/kovan/approval', {

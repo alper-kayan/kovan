@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey, verify } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
@@ -17,9 +17,31 @@ import { basename, dirname } from 'node:path';
  * Only a single-file bundle (`kovan.mjs`, from `pnpm --filter @kovan/cli bundle --install`) can replace itself. A checkout run from `dist/` is
  * the developer's own build: there it says a newer one exists and leaves the files alone.
  *
- * Code fetched over the network is code run on this machine, so: the address must be on the same origin as the server he signed in to or
- * configured, the bytes must match the manifest's hash, the old file is kept as `.old`, and `KOVAN_NO_UPDATE=1` turns the whole thing off.
+ * Code fetched over the network is code run on this machine, so: the manifest must carry a signature (`latest.json.sig`) made with the
+ * release key, checked against the public half built into the bundle (KOVAN_UPDATE_PUBLIC_KEY, the desktop's Linux update key); the
+ * address must be on the same origin as the server; the bytes must match the manifest's hash; the old file is kept as `.old`; and
+ * `KOVAN_NO_UPDATE=1` turns the whole thing off. A bundle built without the public key never replaces itself.
  */
+declare const __KOVAN_UPDATE_PUBLIC_KEY__: string | undefined;
+
+/** The public half of the release key (Ed25519, base64 SPKI), set when the bundle was built. */
+export const UPDATE_PUBLIC_KEY: string =
+  typeof __KOVAN_UPDATE_PUBLIC_KEY__ === 'string' ? __KOVAN_UPDATE_PUBLIC_KEY__ : '';
+
+/** True when `signature` (base64) is the release key's signature over `text`. */
+export function verifyManifest(text: string, signature: string, publicKey: string): boolean {
+  try {
+    const key = createPublicKey({
+      key: Buffer.from(publicKey, 'base64'),
+      format: 'der',
+      type: 'spki',
+    });
+    return verify(null, Buffer.from(text), key, Buffer.from(signature.trim(), 'base64'));
+  } catch {
+    return false;
+  }
+}
+
 export interface Manifest {
   version: string;
   url: string;
@@ -49,20 +71,34 @@ export function manifestUrl(server: string): string {
   return `${server.replace(/\/$/, '')}/updates/cli/latest.json`;
 }
 
+const isManifest = (m: Partial<Manifest>): m is Manifest =>
+  typeof m.version === 'string' &&
+  typeof m.url === 'string' &&
+  typeof m.sha256 === 'string' &&
+  /^[0-9a-f]{64}$/.test(m.sha256);
+
+/** The manifest, and its text as served (the signature is over those exact bytes). */
 export async function fetchManifest(
   server: string,
   fetchImpl: typeof fetch,
-): Promise<Manifest | null> {
+): Promise<{ manifest: Manifest; text: string } | null> {
   try {
     const res = await fetchImpl(manifestUrl(server), { signal: AbortSignal.timeout(8000) });
     if (!res.ok) return null;
-    const m = (await res.json()) as Partial<Manifest>;
-    return typeof m.version === 'string' &&
-      typeof m.url === 'string' &&
-      typeof m.sha256 === 'string' &&
-      /^[0-9a-f]{64}$/.test(m.sha256)
-      ? (m as Manifest)
-      : null;
+    const text = await res.text();
+    const m = JSON.parse(text) as Partial<Manifest>;
+    return isManifest(m) ? { manifest: m, text } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchSignature(server: string, fetchImpl: typeof fetch): Promise<string | null> {
+  try {
+    const res = await fetchImpl(`${manifestUrl(server)}.sig`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    return res.ok ? await res.text() : null;
   } catch {
     return null;
   }
@@ -86,6 +122,8 @@ export interface UpdateDeps {
   now?: () => number;
   /** `kovan update`: look now, whatever the last time was. */
   force?: boolean;
+  /** The release key's public half; without it nothing is installed. Defaults to the one built in. */
+  publicKey?: string;
   env?: Record<string, string | undefined>;
 }
 
@@ -96,43 +134,59 @@ export async function checkAndUpdate(d: UpdateDeps): Promise<UpdateResult> {
   if (!d.force) {
     try {
       const { checkedAt } = JSON.parse(readFileSync(d.stampFile, 'utf8')) as { checkedAt: number };
-      if (now - checkedAt < CHECK_EVERY_MS)
-        return { status: 'skipped', why: 'yakın zamanda bakıldı' };
+      if (now - checkedAt < CHECK_EVERY_MS) return { status: 'skipped', why: 'checked recently' };
     } catch {
       /* never looked */
     }
   }
 
-  const manifest = await fetchManifest(d.server, d.fetchImpl);
+  const found = await fetchManifest(d.server, d.fetchImpl);
   try {
     mkdirSync(dirname(d.stampFile), { recursive: true });
     writeFileSync(d.stampFile, JSON.stringify({ checkedAt: now }));
   } catch {
     /* the stamp is a courtesy */
   }
-  if (!manifest) return { status: 'failed', why: 'güncelleme bilgisi alınamadı' };
+  if (!found) return { status: 'failed', why: "couldn't read the update information" };
+  const { manifest, text } = found;
   if (!isNewer(manifest.version, d.current)) return { status: 'current' };
   if (!d.target) return { status: 'available', version: manifest.version };
+
+  const publicKey = d.publicKey ?? UPDATE_PUBLIC_KEY;
+  if (!publicKey)
+    return {
+      status: 'failed',
+      why: `${manifest.version} is out, but this build has no update key to check it with; install it from the repository`,
+    };
+  const signature = await fetchSignature(d.server, d.fetchImpl);
+  if (!signature || !verifyManifest(text, signature, publicKey))
+    return {
+      status: 'failed',
+      why: "the update isn't signed with the release key, so it was not downloaded",
+    };
 
   let url: URL;
   try {
     url = new URL(manifest.url, manifestUrl(d.server));
   } catch {
-    return { status: 'failed', why: 'güncelleme adresi geçersiz' };
+    return { status: 'failed', why: 'the update address is invalid' };
   }
   if (url.origin !== new URL(d.server).origin)
-    return { status: 'failed', why: 'güncelleme başka bir adresten geliyor, indirilmedi' };
+    return { status: 'failed', why: 'the update is on another server, so it was not downloaded' };
 
   let bytes: Buffer;
   try {
     const res = await d.fetchImpl(url, { signal: AbortSignal.timeout(60_000) });
-    if (!res.ok) return { status: 'failed', why: `indirilemedi (HTTP ${res.status})` };
+    if (!res.ok) return { status: 'failed', why: `couldn't download it (HTTP ${res.status})` };
     bytes = Buffer.from(await res.arrayBuffer());
   } catch {
-    return { status: 'failed', why: 'indirilemedi' };
+    return { status: 'failed', why: "couldn't download it" };
   }
   if (createHash('sha256').update(bytes).digest('hex') !== manifest.sha256)
-    return { status: 'failed', why: 'indirilen dosya manifestteki özetle tutmuyor, kullanılmadı' };
+    return {
+      status: 'failed',
+      why: "the downloaded file doesn't match the manifest's hash, so it was not used",
+    };
 
   const fresh = `${d.target}.new`;
   const old = `${d.target}.old`;
@@ -143,12 +197,12 @@ export async function checkAndUpdate(d: UpdateDeps): Promise<UpdateResult> {
     try {
       renameSync(fresh, d.target);
     } catch (error) {
-      if (existsSync(old)) renameSync(old, d.target); // never leave him without a working kovan
+      if (existsSync(old)) renameSync(old, d.target); // never leave you without a working kovan
       throw error;
     }
   } catch {
     rmSync(fresh, { force: true });
-    return { status: 'failed', why: 'dosya değiştirilemedi' };
+    return { status: 'failed', why: "couldn't replace the file" };
   }
   return { status: 'updated', from: d.current, to: manifest.version };
 }

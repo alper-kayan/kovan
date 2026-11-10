@@ -418,7 +418,7 @@ describe('kovan in the notch', () => {
       [{ type: 'text', text: 'bitti' }, done],
     ]);
 
-  it('with nobody at the terminal, the notch can approve a command (his lock screen and phone too)', async () => {
+  it('with nobody at the terminal, the notch can approve a command (your lock screen and phone too)', async () => {
     const c = await fakeCoucou((p) => (p.hook_event_name === 'PermissionRequest' ? 'allow' : null));
     try {
       expect(await run(['komutu çalıştır'], shell(), terminal({ tty: false }))).toBe(0);
@@ -439,7 +439,7 @@ describe('kovan in the notch', () => {
       const term = terminal({ tty: false });
       await run(['komutu çalıştır'], shell(), term);
       expect(existsSync(join(base, 'out.txt'))).toBe(false);
-      expect(term.text()).toContain('notch: reddedildi');
+      expect(term.text()).toContain('notch: denied');
     } finally {
       c.close();
     }
@@ -462,12 +462,12 @@ describe('kovan in the notch', () => {
     try {
       const term = terminal({
         tty: true,
-        answer: (p) => (p.includes('izin ver') ? 'never' : null),
+        answer: (p) => (p.includes('allow?') ? 'never' : null),
       });
       expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
       expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
-      expect(term.prompts.find((p) => p.prompt.includes('izin ver'))!.aborted).toBe(true);
-      expect(term.text()).toContain('notch: onaylandı');
+      expect(term.prompts.find((p) => p.prompt.includes('allow?'))!.aborted).toBe(true);
+      expect(term.text()).toContain('notch: approved');
     } finally {
       c.close();
     }
@@ -479,7 +479,7 @@ describe('kovan in the notch', () => {
       const term = terminal({
         tty: true,
         delayMs: 150,
-        answer: (p) => (p.includes('izin ver') ? 'e' : null),
+        answer: (p) => (p.includes('allow?') ? 'y' : null),
       });
       expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
       expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
@@ -492,7 +492,7 @@ describe('kovan in the notch', () => {
   it('a notch that says "ask" leaves it to the terminal', async () => {
     const c = await fakeCoucou(() => 'ask');
     try {
-      const term = terminal({ tty: true, answer: (p) => (p.includes('izin ver') ? 'h' : null) });
+      const term = terminal({ tty: true, answer: (p) => (p.includes('allow?') ? 'n' : null) });
       await run(['komutu çalıştır'], shell(), term);
       expect(existsSync(join(base, 'out.txt'))).toBe(false); // the terminal said no, and the notch’s "ask" did not decide
     } finally {
@@ -518,7 +518,7 @@ describe('kovan in the notch', () => {
   });
 
   it('without Coucou, the terminal works exactly as before', async () => {
-    const term = terminal({ tty: true, answer: (p) => (p.includes('izin ver') ? 'e' : null) });
+    const term = terminal({ tty: true, answer: (p) => (p.includes('allow?') ? 'y' : null) });
     expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
     expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
   });

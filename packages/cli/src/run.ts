@@ -51,31 +51,31 @@ import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
 export const VERSION = '0.3.0';
 
-export const USAGE = `kovan ${VERSION}: terminalde Kovan'ın kodlama ajanı.
+export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
 
-  kovan                       sohbet: bu klasörde ajanla konuş
-  kovan "testleri düzelt"     tek mesaj, işi yapıp çıkar
-  kovan -c                    bu klasördeki son sohbete devam et
-  kovan login [--server <url>]  Kovan hesabına gir (tarayıcıda onaylanır)
-  kovan logout | whoami       çıkış | kim olduğum
-  kovan update                kendini güncelle
-  kovan sessions [--json]     sohbetler (Kovan masaüstündeki sohbet listesiyle aynı)
-  kovan sessions export <id>  bir sohbetin özeti (JSON)
-  kovan config                hangi sunucuyla, hangi modelle konuşuyor
+  kovan                       chat with the agent in this folder
+  kovan "fix the tests"       one message: it does the work and exits
+  kovan -c                    continue the last chat in this folder
+  kovan login [--server <url>]  sign in to a Kovan account (confirmed in the browser)
+  kovan logout | whoami       sign out | who you are signed in as
+  kovan update                update itself
+  kovan sessions [--json]     chats (the same list as in the Kovan desktop app)
+  kovan sessions export <id>  a summary of one chat (JSON)
+  kovan config                which server and model it talks to
 
   -m, --model <id>            model
   --mode <plan|request|allow|full>
-                              plan: sadece oku · request: her düzenlemeyi ve komutu sor · allow: düzenle, komutu sor (varsayılan) · full: sorma
-  --effort <seviye>           none, minimal, low, medium, high, xhigh, max
-  --context-file <dosya>      sistem istemine eklenecek ek talimat
-  --reasoning                 modelin düşüncesini göster
-  --cwd <klasör>              başka bir klasörde çalış
+                              plan: only read · request: ask before every edit and command · allow: edit, ask before commands (default) · full: never ask
+  --effort <level>            none, minimal, low, medium, high, xhigh, max
+  --context-file <file>       extra instructions added to the system prompt
+  --reasoning                 show the model's thinking
+  --cwd <folder>              work in another folder
 
-Model: kendi anahtarın (OPENROUTER_API_KEY, ya da KOVAN_BASE_URL + KOVAN_MODEL [+ KOVAN_API_KEY]) önce gelir; yoksa 'kovan login' ile Kovan hesabın
-(yönetilen kullanım, hesabına yazılır). Sohbetler Kovan masaüstünün sohbet listesinde de görünür.
-Claude'un okuduklarını okur: depodaki ve ~/.claude'daki skill'ler (/skill-adı), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md,
-.claude/commands/*.md (özel komutlar). KOVAN_NO_CLAUDE=1 hepsini kapatır.
-Sohbette: /help /mode /model /models /clear /cost /context /skills /exit
+Model: your own key comes first (OPENROUTER_API_KEY, or KOVAN_BASE_URL + KOVAN_MODEL [+ KOVAN_API_KEY]); without one, your Kovan account
+from 'kovan login' (managed usage, billed to your account) if the server offers it. Chats also show in the Kovan desktop app's chat list.
+Reads what Claude Code reads: skills in the repository and in ~/.claude (/skill-name), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md,
+.claude/commands/*.md (custom commands). KOVAN_NO_CLAUDE=1 turns all of it off.
+In a chat: /help /mode /model /models /clear /cost /context /skills /exit
 `;
 
 /** What `kovan` needs from the terminal. Real in index.ts, scripted in tests. */
@@ -106,9 +106,11 @@ export interface Deps {
   argv1?: string | undefined;
   /** Look for a newer version in the background (off in tests that are not about it). */
   checkUpdates?: boolean;
+  /** The release key's public half for updates; the one built into the bundle unless a test says otherwise. */
+  updateKey?: string;
   /** Where the "when did I last look" stamp goes. */
   stateDir?: string;
-  /** His home folder (where `.claude` lives); the real one unless a test says otherwise. */
+  /** Your home folder (where `.claude` lives); the real one unless a test says otherwise. */
   home?: string;
   /** Coucou's notch; a stand-in in tests. Otherwise the real socket, when there is one. */
   notch?: Notch;
@@ -126,22 +128,23 @@ export function workspaceRoot(dir: string): { root: string; isRepo: boolean } {
   }
 }
 
-/** Signed in: Kovan's managed usage. Otherwise his own key or gateway (or both ways out). */
+/**
+ * The person's own key or gateway comes first. Kovan's managed usage (billed to the account) is used only when nothing of their
+ * own is set up and they are signed in, or when they ask for it with KOVAN_PROVIDER=managed. KOVAN_PROVIDER=own never falls back to it.
+ */
 export function resolveProvider(
   env: Record<string, string | undefined>,
   file: string | undefined,
   auth: Auth | null,
   model: string | null,
 ): ProviderResult {
-  // Signed in: Kovan's account is the default. His own key or gateway applies only when he asks (KOVAN_PROVIDER=own).
-  if (auth && env['KOVAN_PROVIDER'] !== 'own') {
-    return { ok: true, provider: managedProvider(auth, model ?? env['KOVAN_MODEL'] ?? null) };
-  }
+  const managed = () =>
+    ({ ok: true, provider: managedProvider(auth!, model ?? env['KOVAN_MODEL'] ?? null) }) as const;
+  if (auth && env['KOVAN_PROVIDER'] === 'managed') return managed();
   const own = loadProvider(env, file);
-  if (own.ok || !auth) return own;
-  // A custom gateway that is half configured is his to fix; only the "no key at all" case falls back to the account.
-  if (/model adı yok/.test(own.why)) return own;
-  return { ok: true, provider: managedProvider(auth, model ?? env['KOVAN_MODEL'] ?? null) };
+  if (own.ok || !auth || env['KOVAN_PROVIDER'] === 'own') return own;
+  // A gateway missing its model is theirs to fix, not a reason to bill the account.
+  return own.noKey ? managed() : own;
 }
 
 export async function main(argv: readonly string[], deps: Deps): Promise<number> {
@@ -178,7 +181,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
           sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
         });
         deps.auth.save(a);
-        out(`giriş yapıldı: ${a.user?.name ?? '—'} (${a.server})`);
+        out(`Signed in: ${a.user?.name ?? '—'} (${a.server})`);
         return 0;
       } catch (e) {
         deps.err(e instanceof LoginError ? e.message : String(e));
@@ -188,18 +191,18 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
     case 'logout': {
       const a = deps.auth.load();
       if (!a) {
-        out('zaten girişli değilsin.');
+        out("You weren't signed in.");
         return 0;
       }
       await logout(a, fetchImpl);
       deps.auth.clear();
-      out('çıkış yapıldı.');
+      out('Signed out.');
       return 0;
     }
     case 'whoami': {
       const a = deps.auth.load();
       if (!a) {
-        out("girişli değilsin. 'kovan login' ile gir.");
+        out("You're not signed in. Sign in with 'kovan login'.");
         return 1;
       }
       try {
@@ -213,19 +216,21 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
     }
     case 'update': {
       const r = await updateNow(deps, server, true);
-      out(describeUpdate(r) ?? 'güncel.');
+      out(describeUpdate(r) ?? 'Up to date.');
       return r.status === 'failed' ? 1 : 0;
     }
     case 'config': {
       const auth = deps.auth.load();
       const p = resolveProvider(deps.env, deps.configFile, auth, null);
-      const who = auth ? `giriş: ${auth.user?.name ?? 'evet'} (${auth.server})` : 'giriş: yok';
+      const who = auth
+        ? `signed in: ${auth.user?.name ?? 'yes'} (${auth.server})`
+        : 'signed in: no';
       if (!p.ok) {
-        out(`sunucu: yok\n${who}\n${p.why}`);
+        out(`server: none\n${who}\n${p.why}`);
         return 1;
       }
       out(
-        `sunucu: ${p.provider.label}\nmodel:  ${p.provider.model}\nanahtar: ${p.provider.apiKey ? 'var' : 'yok (gerekmeyebilir)'}\n${who}\ndosya:  ${deps.configFile ?? CONFIG_FILE}`,
+        `server: ${p.provider.label}\nmodel:  ${p.provider.model}\nkey:    ${p.provider.apiKey ? 'set' : 'none (may not be needed)'}\n${who}\nfile:   ${deps.configFile ?? CONFIG_FILE}`,
       );
       return 0;
     }
@@ -233,7 +238,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
       if (args.sessionId) {
         const c = deps.store.loadById(args.sessionId);
         if (!c) {
-          deps.err(`sohbet bulunamadı: ${args.sessionId}`);
+          deps.err(`No chat with id ${args.sessionId}`);
           return 1;
         }
         out(JSON.stringify(digestOf(c)));
@@ -253,7 +258,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
             })),
           ),
         );
-      else if (list.length === 0) out('henüz sohbet yok.');
+      else if (list.length === 0) out('No chats yet.');
       else
         for (const c of list)
           out(
@@ -269,11 +274,11 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
 function describeUpdate(r: UpdateResult): string | null {
   switch (r.status) {
     case 'updated':
-      return `kovan güncellendi: ${r.from} → ${r.to} (bir sonraki açılışta geçerli).`;
+      return `kovan updated: ${r.from} → ${r.to} (takes effect next time you start it).`;
     case 'available':
-      return `yeni sürüm var: ${r.version}. Bu kopya depodan çalışıyor; depoda: pnpm --filter @kovan/cli bundle --install`;
+      return `A new version is out: ${r.version}. This copy runs from a checkout; in the repository run: pnpm --filter @kovan/cli bundle --install`;
     case 'failed':
-      return r.why ? `güncellenemedi: ${r.why}` : null;
+      return r.why ? `Couldn't update: ${r.why}` : null;
     default:
       return null;
   }
@@ -288,6 +293,7 @@ function updateNow(deps: Deps, server: string, force: boolean): Promise<UpdateRe
     stampFile: join(deps.stateDir ?? cliDir(), 'update-check.json'),
     force,
     env: deps.env,
+    ...(deps.updateKey !== undefined ? { publicKey: deps.updateKey } : {}),
   });
 }
 
@@ -316,14 +322,22 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     return code;
   };
 
-  // No account, no terminal: signing in comes first, in the same window, and the chat opens right after.
+  // Nothing of their own set up and no account: signing in comes first, in the same window, and the chat opens right after.
   const interactive = Boolean(deps.screen && t.isTTY && !args.plain && deps.env['TERM'] !== 'dumb');
-  if (!deps.model && !auth && deps.env['KOVAN_PROVIDER'] !== 'own' && !args.task) {
+  const own = loadProvider(deps.env, deps.configFile);
+  if (
+    !deps.model &&
+    !auth &&
+    !own.ok &&
+    own.noKey &&
+    deps.env['KOVAN_PROVIDER'] !== 'own' &&
+    !args.task
+  ) {
     if (!interactive) {
-      deps.err("girişli değilsin. 'kovan login' ile Kovan hesabına gir.");
+      deps.err("You're not signed in. Sign in to your Kovan account with 'kovan login'.");
       return 1;
     }
-    out("Kovan'a giriş gerekli. Tarayıcıda onaylayınca terminal açılır.");
+    out('Sign in to Kovan first. Once you confirm in the browser, the terminal opens.');
     try {
       auth = await login({
         server,
@@ -334,7 +348,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
       });
       deps.auth.save(auth);
-      out(`giriş yapıldı: ${auth.user?.name ?? '—'}`);
+      out(`Signed in: ${auth.user?.name ?? '—'}`);
     } catch (e) {
       deps.err(e instanceof LoginError ? e.message : String(e));
       return 1;
@@ -365,7 +379,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     try {
       contextText = readFileSync(args.contextFile, 'utf8').trim();
     } catch {
-      deps.err(`bağlam dosyası okunamadı: ${args.contextFile} (onsuz devam ediyorum)`);
+      deps.err(`Couldn't read the context file ${args.contextFile}; continuing without it.`);
     }
   }
   const ex = { env: deps.env, home: deps.home ?? homedir() };
@@ -389,7 +403,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     if (saved) {
       conv = saved;
       resumed = true;
-    } else deps.err('bu klasörde devam edilecek sohbet yok; yenisi başlıyor.');
+    } else deps.err('No chat to continue in this folder; starting a new one.');
   }
   let mode: PermissionMode = args.mode ?? (resumed ? conv!.mode : 'allow');
   let effort = args.effort;
@@ -436,7 +450,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const always = new Set<string>();
   let lastReason: string | null = null;
 
-  // What the notch is told when something needs his say: the same tool name and input Claude Code's hook sends.
+  // What the notch is told when something needs your say: the same tool name and input Claude Code's hook sends.
   const askNotch = (r: ApprovalRequest, signal?: AbortSignal) => {
     const input = hookTool(
       r.tool,
@@ -474,17 +488,17 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       return first.a !== 'deny';
     }
     if (!t.isTTY) {
-      // Nobody at the terminal: the notch can still be asked (his phone and lock screen too).
+      // Nobody at the terminal: the notch can still be asked (your phone and lock screen too).
       const d = await askNotch(r);
       if (d === 'allow' || d === 'always') {
         if (d === 'always') always.add(r.tool);
-        out(`  notch: onaylandı (${r.title})`);
+        out(`  notch: approved (${r.title})`);
         return true;
       }
       out(
         d === 'deny'
-          ? `  notch: reddedildi (${r.title})`
-          : `izin gerekiyor ama soracak kimse yok: ${r.title} (${clip(r.detail, 120)}). --mode full ile çalıştır.`,
+          ? `  notch: denied (${r.title})`
+          : `Permission needed, but there is nobody to ask: ${r.title} (${clip(r.detail, 120)}). Run with --mode full.`,
       );
       return false;
     }
@@ -498,20 +512,20 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         : new Promise<never>(() => {}),
     );
     const fromTerminal = t
-      .readLine('  izin ver? [e]vet / [h]ayır / [t]ümüne (bu oturumda) › ', ac.signal)
+      .readLine('  allow? [y]es / [n]o / [a]lways (this session) › ', ac.signal)
       .then((a) => ({ from: 'terminal', a: a?.trim().toLowerCase() ?? '' }) as const);
     const first = await Promise.race([fromNotch, fromTerminal]);
     ac.abort();
     if (first.from === 'notch') {
-      out(first.d === 'deny' ? '  notch: reddedildi' : '  notch: onaylandı');
+      out(first.d === 'deny' ? '  notch: denied' : '  notch: approved');
       if (first.d === 'always') always.add(r.tool);
       return first.d !== 'deny';
     }
-    if (first.a === 't') {
+    if (first.a === 'a' || first.a === 'always') {
       always.add(r.tool);
       return true;
     }
-    return first.a === 'e' || first.a === 'evet' || first.a === 'y' || first.a === 'yes';
+    return first.a === 'y' || first.a === 'yes';
   };
 
   const toolNames = new Map<string, string>();
@@ -632,7 +646,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     try {
       deps.store.save(conv!);
     } catch (e) {
-      deps.err(`sohbet kaydedilemedi: ${e instanceof Error ? e.message : String(e)}`);
+      deps.err(`Couldn't save the chat: ${e instanceof Error ? e.message : String(e)}`);
     }
   };
 
@@ -684,15 +698,15 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
             ? claudeLabel(claude)
             : provider.model,
         provider: codex
-          ? 'ChatGPT hesabı (Kovan masaüstündeki hesap)'
+          ? 'ChatGPT account (from the Kovan desktop app)'
           : claude
-            ? 'Claude hesabı (Kovan masaüstündeki hesap)'
+            ? 'Claude account (from the Kovan desktop app)'
             : provider.label,
         folder: root.replace(ex.home, '~'),
         managed: provider.managed,
       }),
       mode: () => mode,
-      effort: () => effort ?? 'varsayılan',
+      effort: () => effort ?? 'default',
       setEffort: (e) => {
         effort = e as typeof effort;
         agent.configure({ effort });
@@ -721,9 +735,9 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       setModel: async (id) => {
         const custom = /^@([a-z0-9-]+)\/(.+)$/.exec(id);
         if (custom) {
-          // A provider he added in the desktop app: its key comes from the keychain, once, and stays in memory.
+          // A provider you added in the desktop app: its key comes from the keychain, once, and stays in memory.
           const p = desktopProviders(dataDir).find((x) => x.id === custom[1]);
-          if (!p) return 'masaüstündeki sağlayıcı bulunamadı';
+          if (!p) return "Couldn't find that provider in the desktop app";
           try {
             const key = await providerKey(dataDir, p.id);
             agent.configure({
@@ -767,13 +781,13 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         conv!.model = id;
       },
       models: async () => {
-        let modelError = 'hesabında model yok';
-        // The account's own list, asked for fresh: what he can use, not a guess.
+        let modelError = 'no models on this account';
+        // The account's own list, asked for fresh: what you can use, not a guess.
         if (client) {
           try {
             catalog = await client.listModels(AbortSignal.timeout(10_000));
           } catch (e) {
-            modelError = `liste alınamadı: ${e instanceof Error ? e.message : String(e)}`;
+            modelError = `couldn't load the list: ${e instanceof Error ? e.message : String(e)}`;
           }
         }
         const groups: ModelGroup[] = [];
@@ -803,14 +817,14 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
             ...list.filter((m) => m.main).map((m) => item(m, m.description)),
             ...list
               .filter((m) => !m.main)
-              .map((m) => item(m, m.description ? `eski · ${m.description}` : 'eski')),
+              .map((m) => item(m, m.description ? `older · ${m.description}` : 'older')),
           ];
         };
         if (claudeBin)
           for (const a of claudeAccounts(dataDir))
             groups.push({
               label: `Claude Code · ${a.name}`,
-              hint: 'Claude hesabın',
+              hint: 'your Claude account',
               items: engineItems(claudeModelsOf(a.id), 'claude', a.id, [
                 'default',
                 'sonnet',
@@ -822,19 +836,19 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
           for (const a of claudeAccounts(dataDir, 'codex'))
             groups.push({
               label: `Codex · ${a.name}`,
-              hint: 'ChatGPT hesabın',
+              hint: 'your ChatGPT account',
               items: engineItems(codexModelsOf(a.id), 'codex', a.id, ['default']),
             });
         for (const p of desktopProviders(dataDir))
           groups.push({
             label: p.name,
-            hint: 'masaüstünde eklediğin sağlayıcı',
+            hint: 'a provider you added in the desktop app',
             items: p.models.map((m) => ({ label: m, value: `@${p.id}/${m}` })),
-            empty: 'bu sağlayıcının kayıtlı modeli yok; masaüstünden listeyi yenile',
+            empty: 'No saved models for this provider; refresh the list in the desktop app',
           });
         if (client)
           groups.push({
-            label: 'Kovan hesabı',
+            label: 'Kovan account',
             hint: catalog.length ? `${catalog.length} model` : modelError,
             items: catalog.map((c) => ({ label: c.id, value: c.id })),
             empty: modelError,
@@ -875,7 +889,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       },
       history: conv.events.flatMap((e) => (e.type === 'user' ? [e.text] : [])),
       initialEvents: resumed ? (conv.events as TranscriptEvent[]) : [],
-      startLines: resumed ? [`sohbet devam ediyor: ${conv.title}`] : [],
+      startLines: resumed ? [`continuing: ${conv.title}`] : [],
       notchEnabled: notch !== NOOP_NOTCH,
       contextText,
       reasoning: args.reasoning,
@@ -890,8 +904,8 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   out(`kovan · ${provider.model} · ${provider.label} · mod: ${mode} · ${root}`);
   out(
     resumed
-      ? `sohbet devam ediyor: ${conv.title}`
-      : 'yeni sohbet. /help ile komutlar, Ctrl+C durdurur.',
+      ? `continuing: ${conv.title}`
+      : 'New chat. /help lists the commands; Ctrl+C stops a turn.',
   );
 
   while (!leaving) {
@@ -906,17 +920,17 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     if (line === '/cost') {
       const c = renderer.totals();
-      out(`${c.tokensIn}→${c.tokensOut} jeton${c.cost > 0 ? ` · $${c.cost.toFixed(4)}` : ''}`);
+      out(`${c.tokensIn}→${c.tokensOut} tokens${c.cost > 0 ? ` · $${c.cost.toFixed(4)}` : ''}`);
       continue;
     }
     if (line === '/context') {
-      out(contextText ? clip(contextText, 600) : 'bu sohbete ek bağlam verilmedi.');
+      out(contextText ? clip(contextText, 600) : 'No extra context was given to this chat.');
       continue;
     }
     if (line === '/clear') {
       agent.messages.splice(1);
       conv = deps.store.create(root, { model: provider.model, effort, mode });
-      out('temizlendi: yeni sohbet.');
+      out('Cleared: new chat.');
       continue;
     }
     if (/^\/mode(\s|$)/.test(line)) {
@@ -926,7 +940,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         mode = m as PermissionMode;
         agent.configure({ mode });
         out(`mod: ${mode}`);
-      } else out(`bilinmeyen mod '${m}' (${MODES.join(', ')})`);
+      } else out(`unknown mode '${m}' (${MODES.join(', ')})`);
       continue;
     }
     if (/^\/models(\s|$)/.test(line)) {
@@ -935,7 +949,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         .map((c) => c.id)
         .filter((id) => id.toLowerCase().includes(q))
         .slice(0, 15);
-      out(ids.length ? ids.join('\n') : 'model listesi alınamadı ya da eşleşen yok.');
+      out(ids.length ? ids.join('\n') : "Couldn't load the model list, or nothing matched.");
       continue;
     }
     if (/^\/model(\s|$)/.test(line)) {
@@ -957,17 +971,17 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       out(
         rows.length
           ? rows.join('\n')
-          : 'skill yok. SKILL.md içeren klasörler .kovan/skills, .claude/skills ya da ~/.claude/skills altında olmalı.',
+          : 'No skills. Folders with a SKILL.md go under .kovan/skills, .claude/skills or ~/.claude/skills.',
       );
       // A skill that could not be read is said, not silently missing.
       for (const w of set?.warnings ?? [])
-        out(`! atlandı: ${w.path.replace(ex.home, '~')} — ${w.problem}`);
+        out(`! skipped: ${w.path.replace(ex.home, '~')} — ${w.problem}`);
       continue;
     }
     if (line.startsWith('/')) {
       const s = await slash(line);
       if (!s) {
-        out("bilinmeyen komut. /help ve /skills'e bak.");
+        out('Unknown command. See /help and /skills.');
         continue;
       }
       await turn(s.send);

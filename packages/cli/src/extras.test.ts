@@ -10,7 +10,7 @@ import { main, type Terminal } from './run.js';
 import { ConversationStore } from './store.js';
 
 /**
- * What Claude Code reads, `kovan` reads: skills (SKILL.md folders), his own CLAUDE.md, custom slash commands. All in a made-up home and repository,
+ * What Claude Code reads, `kovan` reads: skills (SKILL.md folders), your own CLAUDE.md, custom slash commands. All in a made-up home and repository,
  * with a scripted model that records what it was told.
  */
 let base: string;
@@ -115,7 +115,7 @@ describe('skills', () => {
     expect(sent(m)).toContain('Masaüstündeki beceri');
   });
 
-  it('`/skill-name args` typed by him loads that skill for the turn', async () => {
+  it('`/skill-name args` typed by you loads that skill for the turn', async () => {
     skill(
       join(home, '.claude', 'skills'),
       'frontend-design',
@@ -132,7 +132,7 @@ describe('skills', () => {
     put(join(home, '.claude', 'skills', 'bozuk', 'SKILL.md'), 'frontmatter yok burada');
     const term = terminal(['/skills', '/exit']);
     await run([], model(), term);
-    expect(term.text()).toMatch(/atlandı: ~\/\.claude\/skills\/bozuk\/SKILL\.md/);
+    expect(term.text()).toMatch(/skipped: ~\/\.claude\/skills\/bozuk\/SKILL\.md/);
   });
 
   it('`/skills` lists them with where they came from; with none it says where to put one', async () => {
@@ -141,11 +141,11 @@ describe('skills', () => {
     await run([], model(), a);
     expect(a.text()).toContain('/notebooklm');
     expect(a.text()).toContain('claude-code');
-    expect(a.text()).toContain('skill yok');
+    expect(a.text()).toContain('No skills');
   });
 });
 
-describe('his own notes and the repository’s', () => {
+describe('your own notes and the repository’s', () => {
   it('~/.claude/CLAUDE.md and ~/.kovan/KOVAN.md are in the system prompt', async () => {
     put(join(home, '.claude', 'CLAUDE.md'), 'Her zaman kısa yaz KİŞİSEL-CLAUDE');
     put(join(home, '.kovan', 'KOVAN.md'), 'Commit mesajı Türkçe KİŞİSEL-KOVAN');
@@ -155,7 +155,7 @@ describe('his own notes and the repository’s', () => {
     expect(sent(m)).toContain('KİŞİSEL-KOVAN');
   });
 
-  it('KOVAN_NO_CLAUDE=1 drops Claude’s notes but keeps his own', async () => {
+  it('KOVAN_NO_CLAUDE=1 drops Claude’s notes but keeps your own', async () => {
     put(join(home, '.claude', 'CLAUDE.md'), 'KİŞİSEL-CLAUDE');
     put(join(home, '.kovan', 'KOVAN.md'), 'KİŞİSEL-KOVAN');
     const m = model();
@@ -184,7 +184,7 @@ describe('his own notes and the repository’s', () => {
 });
 
 describe('custom slash commands', () => {
-  it('the file is the prompt, with what he typed put where $ARGUMENTS is', async () => {
+  it('the file is the prompt, with what you typed put where $ARGUMENTS is', async () => {
     put(
       join(repo, '.claude', 'commands', 'review.md'),
       '---\ndescription: Kod incele\n---\nŞu dosyayı incele: $ARGUMENTS. Sadece hataları yaz.\n',
@@ -202,7 +202,7 @@ describe('custom slash commands', () => {
     expect(sent(m)).toContain('Depoyu özetle: lib klasörüne odaklan');
   });
 
-  it('the repository’s own comes before his, and his own folders work too', async () => {
+  it('the repository’s own comes before yours, and your own folders work too', async () => {
     put(join(home, '.claude', 'commands', 'ben.md'), 'BENIM-KOMUTUM $ARGUMENTS');
     put(join(repo, '.kovan', 'commands', 'ben.md'), 'DEPONUN-KOMUTU $ARGUMENTS');
     put(join(home, '.claude', 'commands', 'sadece-ben.md'), 'SADECE-BENDE $ARGUMENTS');
@@ -217,7 +217,7 @@ describe('custom slash commands', () => {
     const term = terminal(['/yok-boyle-bir-sey', '/exit']);
     await run([], m, term);
     expect(m.requests).toHaveLength(0);
-    expect(term.text()).toContain('bilinmeyen komut');
+    expect(term.text()).toContain('Unknown command');
   });
 
   it('a name that tries to leave the commands folder finds nothing', async () => {
@@ -226,7 +226,7 @@ describe('custom slash commands', () => {
     const term = terminal(['/../../gizli', '/exit']);
     await run([], m, term);
     expect(m.requests).toHaveLength(0); // not a command, so nothing was sent to the model
-    expect(term.text()).toContain('bilinmeyen komut');
+    expect(term.text()).toContain('Unknown command');
     expect(term.text()).not.toContain('SIZDI');
   });
 });

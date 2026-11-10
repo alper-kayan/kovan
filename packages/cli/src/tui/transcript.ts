@@ -3,7 +3,7 @@ import { renderMarkdown } from './markdown.js';
 import { S, paint } from './style.js';
 import { layoutSpans, truncate } from './text.js';
 
-/** What the screen replays: his messages and the agent's events, in the order they happened (the same shapes the desktop app stores). */
+/** What the screen replays: your messages and the agent's events, in the order they happened (the same shapes the desktop app stores). */
 export type TranscriptEvent =
   AgentEvent | { type: 'user'; text: string; attachments?: string[]; at?: number };
 
@@ -134,11 +134,11 @@ export class Transcript {
         this.totals.cost += e.usage.cost ?? 0;
         return;
       case 'compacted':
-        this.notice(`konuşmanın eski kısmı özetlendi (${e.before} → ${e.after} jeton)`);
+        this.notice(`earlier conversation summarized (${e.before} → ${e.after} tokens)`);
         return;
       case 'outcome_unknown':
         this.notice(
-          `yarıda kesilen komutun sonucu bilinmiyor: ${clip(e.command, 100)}. Elle kontrol et.`,
+          `An interrupted command's result is unknown: ${clip(e.command, 100)}. Check it yourself.`,
           'warn',
         );
         return;
@@ -150,14 +150,14 @@ export class Transcript {
             b.rev++;
           }
         }
-        if (e.reason === 'error') this.notice(`hata: ${e.error ?? 'bilinmeyen'}`, 'error');
-        else if (e.reason === 'stopped') this.notice('durduruldu', 'warn');
+        if (e.reason === 'error') this.notice(`error: ${e.error ?? 'unknown'}`, 'error');
+        else if (e.reason === 'stopped') this.notice('stopped', 'warn');
         else if (e.reason === 'step_limit')
-          this.notice('adım sınırına ulaştı; devam etmesini söyleyebilirsin', 'warn');
+          this.notice('Reached the step limit; you can tell it to continue.', 'warn');
         const t = this.turn;
         this.blocks.push({
           kind: 'footer',
-          text: `${this.model || '—'} · ${t.tokensIn}→${t.tokensOut} jeton${t.cost > 0 ? ` · $${t.cost.toFixed(4)}` : ''}`,
+          text: `${this.model || '—'} · ${t.tokensIn}→${t.tokensOut} tokens${t.cost > 0 ? ` · $${t.cost.toFixed(4)}` : ''}`,
           rev: 0,
         });
         this.assistant = this.thinking = null;
@@ -200,7 +200,7 @@ export class Transcript {
       case 'thinking':
         return o.reasoning
           ? layoutSpans([{ text: b.text.trim(), style: S.dim + S.italic }], width - 2, '  ', '  ')
-          : [`  ${paint(S.dim, '· düşünüyor')}`];
+          : [`  ${paint(S.dim, '· thinking')}`];
       case 'notice': {
         const style = b.tone === 'error' ? S.red : b.tone === 'warn' ? S.yellow : S.dim;
         return layoutSpans([{ text: b.text, style }], width - 2, '  · ', '    ');
@@ -241,7 +241,7 @@ export class Transcript {
       );
     } else if (b.name === 'write_file' && typeof args['content'] === 'string') {
       const n = String(args['content']).split('\n').length;
-      body.push(`${pad}${paint(S.dim, `${n} satır yazıldı`)}`);
+      body.push(`${pad}${paint(S.dim, `${n} lines written`)}`);
     } else if (b.name === 'run_shell') {
       const cmd = String(args['command'] ?? '');
       body.push(

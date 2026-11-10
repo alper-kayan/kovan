@@ -128,11 +128,11 @@ describe('arguments', () => {
     expect(parseArgs(['bunu', 'config', 'yap']).task).toBe('bunu config yap');
   });
   it.each([
-    [['--mode', 'bogus'], /bilinmeyen mod/],
-    [['--effort', 'huge'], /bilinmeyen çaba/],
-    [['--model'], /değer ister/],
-    [['--nope'], /bilinmeyen seçenek/],
-    [['sessions', 'export'], /oturum kimliği/],
+    [['--mode', 'bogus'], /unknown mode/],
+    [['--effort', 'huge'], /unknown effort/],
+    [['--model'], /needs a value/],
+    [['--nope'], /unknown option/],
+    [['sessions', 'export'], /needs a session id/],
   ])('%j is refused with a reason', (argv, why) => {
     expect(parseArgs(argv).error).toMatch(why);
   });
@@ -149,7 +149,7 @@ describe('provider', () => {
       provider: { dialect: 'openrouter', model: 'openrouter/auto', label: 'openrouter.ai' },
     });
   });
-  it('his own gateway needs a model, and no key when it needs none', () => {
+  it('your own gateway needs a model, and no key when it needs none', () => {
     expect(loadProvider({ KOVAN_BASE_URL: 'http://localhost:20128/v1' }, none)).toMatchObject({
       ok: false,
     });
@@ -197,7 +197,7 @@ describe('provider', () => {
     });
     expect(await r.done).toBe(0);
     expect(term.text()).not.toContain('SECRETVALUE');
-    expect(term.text()).toContain('anahtar: var');
+    expect(term.text()).toContain('key:    set');
   });
 });
 
@@ -238,7 +238,7 @@ describe('renderer', () => {
     ]);
     expect(text).toContain('Bakıyorum.\n● Edit a.txt'); // the tool line starts on its own line
     expect(text).toContain('✓ a.txt (+2 −1)');
-    expect(text).toContain('── m/x · 10→5 jeton · $0.0012');
+    expect(text).toContain('── m/x · 10→5 tokens · $0.0012');
   });
   it('a failure shows its first lines, and an error turn says why', () => {
     const { text } = render([
@@ -248,15 +248,15 @@ describe('renderer', () => {
     ]);
     expect(text).toContain('✗');
     expect(text).toContain('Not found: x.ts');
-    expect(text).toContain('hata: HTTP 402');
+    expect(text).toContain('error: HTTP 402');
   });
-  it('reasoning is one quiet line unless he asks for it', () => {
+  it('reasoning is one quiet line unless you ask for it', () => {
     const events = [
       { type: 'turn_start' as const, turnId: 't', model: 'm' },
       { type: 'reasoning' as const, text: 'önce şunu düşünelim' },
       { type: 'reasoning' as const, text: ' sonra bunu' },
     ];
-    expect(render(events).text.match(/düşünüyor/g)).toHaveLength(1);
+    expect(render(events).text.match(/thinking/g)).toHaveLength(1);
     expect(render(events).text).not.toContain('önce şunu');
     expect(render(events, { color: false, reasoning: true }).text).toContain('önce şunu düşünelim');
   });
@@ -314,16 +314,16 @@ describe('asking before it acts', () => {
   ];
 
   it('allow mode: a command asks, yes runs it', async () => {
-    const term = terminal(['e']);
+    const term = terminal(['y']);
     const r = run(['komutu çalıştır'], term, { model: scripted(editPlan()) });
     expect(await r.done).toBe(0);
-    expect(term.prompts.some((p) => p.includes('izin ver'))).toBe(true);
+    expect(term.prompts.some((p) => p.includes('allow?'))).toBe(true);
     expect(term.text()).toContain('echo merhaba');
     expect((await readFile(join(dir, 'out.txt'), 'utf8')).trim()).toBe('merhaba');
   });
 
   it('no (or anything else) does not run it', async () => {
-    const term = terminal(['h']);
+    const term = terminal(['n']);
     const r = run(['komutu çalıştır'], term, { model: scripted(editPlan()) });
     await r.done;
     await expect(readFile(join(dir, 'out.txt'), 'utf8')).rejects.toThrow();
@@ -335,10 +335,10 @@ describe('asking before it acts', () => {
       [call('c2', 'run_shell', { command: 'echo iki > o2.txt' }), done()],
       [text('tamam'), done()],
     ]);
-    const term = terminal(['t']);
+    const term = terminal(['a']);
     const r = run(['iki komut çalıştır'], term, { model });
     await r.done;
-    expect(term.prompts.filter((p) => p.includes('izin ver'))).toHaveLength(1);
+    expect(term.prompts.filter((p) => p.includes('allow?'))).toHaveLength(1);
     expect((await readFile(join(dir, 'o2.txt'), 'utf8')).trim()).toBe('iki');
   });
 
@@ -346,7 +346,7 @@ describe('asking before it acts', () => {
     const term = terminal([], false);
     const r = run(['komutu çalıştır'], term, { model: scripted(editPlan()) });
     await r.done;
-    expect(term.text()).toMatch(/soracak kimse yok/);
+    expect(term.text()).toMatch(/nobody to ask/);
     expect(term.text()).toMatch(/--mode full/);
     await expect(readFile(join(dir, 'out.txt'), 'utf8')).rejects.toThrow();
   });
@@ -381,7 +381,7 @@ describe('the prompt', () => {
     expect(term.text()).toContain('birinci');
     expect(term.text()).toContain('ikinci');
     expect(term.text()).toContain('mod: plan');
-    expect(term.text()).toMatch(/\d+→\d+ jeton/);
+    expect(term.text()).toMatch(/\d+→\d+ tokens/);
   });
 
   it('the input ending ends the session', async () => {
@@ -393,9 +393,9 @@ describe('the prompt', () => {
   it('/mode rejects what it does not know, /model switches, /foo is unknown', async () => {
     const term = terminal(['/mode keyfi', '/model baska/model', '/foo', '/exit']);
     await run([], term, { model: scripted([]) }).done;
-    expect(term.text()).toContain("bilinmeyen mod 'keyfi'");
+    expect(term.text()).toContain("unknown mode 'keyfi'");
     expect(term.text()).toContain('model: baska/model');
-    expect(term.text()).toContain('bilinmeyen komut');
+    expect(term.text()).toContain('Unknown command');
   });
 
   it('Ctrl+C stops a running turn instead of leaving', async () => {
@@ -424,7 +424,7 @@ describe('the prompt', () => {
     const r = run([], term, { model });
     expect(await r.done).toBe(0);
     expect(stopped).toBe(true);
-    expect(term.text()).toContain('durduruldu');
+    expect(term.text()).toContain('stopped');
   });
 });
 
@@ -443,7 +443,7 @@ describe('extra instructions', () => {
       model: model2,
     });
     expect(await r.done).toBe(0);
-    expect(r.errors.join('\n')).toMatch(/okunamadı/);
+    expect(r.errors.join('\n')).toMatch(/Couldn't read the context file/);
   });
 
   it('the repository’s own KOVAN.md rules are in the prompt too', async () => {
@@ -478,7 +478,7 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
     });
     expect(typeof c.updatedAt).toBe('number');
     expect(c.cost).toBeCloseTo(0.01);
-    // The transcript the screen replays: his message, then the turn, in the app's own event shapes.
+    // The transcript the screen replays: your message, then the turn, in the app's own event shapes.
     expect(c.events[0]).toMatchObject({ type: 'user', text: 'ilk soru', attachments: [] });
     expect(typeof (c.events[0] as { at: number }).at).toBe('number');
     expect(c.events.map((e) => e.type)).toEqual(
@@ -489,7 +489,7 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
     expect(c.messages.map((m) => m.role)).toEqual(['system', 'user', 'assistant']);
   });
 
-  it('the conversation belongs to the repository’s top, whichever folder inside it he is in', async () => {
+  it('the conversation belongs to the repository’s top, whichever folder inside it you are in', async () => {
     await mkdir(join(dir, '.git'));
     await mkdir(join(dir, 'src', 'deep'), { recursive: true });
     const r = run(['selam'], terminal([]), {
@@ -523,7 +523,7 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
   it('-c with nothing to continue says so and starts fresh', async () => {
     const r = run(['-c', 'selam'], terminal([]), { model: scripted([[text('x'), done()]]) });
     expect(await r.done).toBe(0);
-    expect(r.errors.join('\n')).toMatch(/devam edilecek sohbet yok/);
+    expect(r.errors.join('\n')).toMatch(/No chat to continue/);
   });
 
   it('a chat the desktop made with Claude Code is not ours to continue; one made with Kovan’s agent is', async () => {

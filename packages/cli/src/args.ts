@@ -69,7 +69,7 @@ export function parseArgs(argv: readonly string[]): Args {
   const value = (i: number, flag: string): string | null => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith('-')) {
-      a.error ??= `${flag} bir değer ister`;
+      a.error ??= `${flag} needs a value`;
       return null;
     }
     return v;
@@ -131,25 +131,25 @@ export function parseArgs(argv: readonly string[]): Args {
       case '--mode': {
         const v = value(i, arg);
         if (v && (MODES as readonly string[]).includes(v)) a.mode = v as PermissionMode;
-        else if (v) a.error ??= `bilinmeyen mod '${v}' (${MODES.join(', ')})`;
+        else if (v) a.error ??= `unknown mode '${v}' (${MODES.join(', ')})`;
         i++;
         break;
       }
       case '--effort': {
         const v = value(i, arg);
         if (v && (EFFORTS as readonly string[]).includes(v)) a.effort = v as Effort;
-        else if (v) a.error ??= `bilinmeyen çaba '${v}' (${EFFORTS.join(', ')})`;
+        else if (v) a.error ??= `unknown effort '${v}' (${EFFORTS.join(', ')})`;
         i++;
         break;
       }
       default:
-        if (arg.startsWith('-') && arg.length > 1) a.error ??= `bilinmeyen seçenek: ${arg}`;
+        if (arg.startsWith('-') && arg.length > 1) a.error ??= `unknown option: ${arg}`;
         else words.push(arg);
     }
   }
   if (a.command === 'sessions' && words[0] === 'export') {
     a.sessionId = words[1] ?? null;
-    if (!a.sessionId) a.error ??= 'sessions export bir oturum kimliği ister';
+    if (!a.sessionId) a.error ??= 'sessions export needs a session id';
   } else {
     a.task = words.join(' ').trim();
   }

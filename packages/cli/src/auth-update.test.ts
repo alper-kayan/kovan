@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -125,7 +125,7 @@ describe('login (the desktop’s own device flow)', () => {
         secret: string;
       };
       expect(poll.loginId).toBe('L1');
-      // The server only ever saw the hash first; the secret that proves it is his arrives at the end.
+      // The server only ever saw the hash first; the secret that proves it is theirs arrives at the end.
       expect(createHash('sha256').update(poll.secret).digest('base64url')).toBe(start.secretHash);
       expect(JSON.stringify(start)).not.toContain(poll.secret);
     } finally {
@@ -139,7 +139,7 @@ describe('login (the desktop’s own device flow)', () => {
       { json: { status: 'failed', error: 'hesap engellendi' } },
       /hesap engellendi/,
     ],
-    ['an expired one is not retried for ever', { status: 404, json: {} }, /süresi doldu/],
+    ['an expired one is not retried for ever', { status: 404, json: {} }, /expired/],
   ])('%s', async (_n, poll, why) => {
     const srv = await serve((r) =>
       r.url === '/auth/desktop/start'
@@ -166,11 +166,11 @@ describe('login (the desktop’s own device flow)', () => {
     const base = { machineId: 'm', open: () => {}, out: () => {}, sleep: async () => {} };
     await expect(
       login({ ...base, server: 'http://127.0.0.1:1', fetchImpl: fetch }),
-    ).rejects.toThrow(/ulaşılamadı/);
+    ).rejects.toThrow(/Can't reach/);
     const srv = await serve(() => ({ status: 500, json: {} }));
     try {
       await expect(login({ ...base, server: srv.url, fetchImpl: fetch })).rejects.toThrow(
-        /başlatılamadı \(HTTP 500\)/,
+        /Couldn't start signing in \(HTTP 500\)/,
       );
     } finally {
       srv.close();
@@ -203,7 +203,7 @@ describe('login (the desktop’s own device flow)', () => {
 });
 
 describe('the sign-in on disk', () => {
-  it('only he can read it, and logging out removes it', () => {
+  it('only its owner can read it, and logging out removes it', () => {
     const store = new AuthStore(join(dir, 'k'));
     expect(store.load()).toBeNull();
     store.save({ server: 'https://s', token: TOKEN, machineId: 'm', user: null, at: 'x' });
@@ -257,7 +257,7 @@ describe('the commands', () => {
     try {
       const r = run(['login', '--server', srv.url], { sleep: async () => {} });
       expect(await r.done).toBe(0);
-      expect(r.t.text()).toContain('giriş yapıldı: Alper');
+      expect(r.t.text()).toContain('Signed in: Alper');
       expect(r.t.text()).not.toContain(TOKEN);
       expect(r.auth.load()).toMatchObject({ token: TOKEN, server: srv.url });
     } finally {
@@ -265,10 +265,19 @@ describe('the commands', () => {
     }
   });
 
+  it('a chat asks to sign in only when there is no key of their own', async () => {
+    const without = run([]);
+    expect(await without.done).toBe(1);
+    expect(without.errors.join('\n')).toMatch(/not signed in/);
+    const own = run([], { env: { OPENROUTER_API_KEY: 'sk-own' } });
+    await own.done;
+    expect(own.errors.join('\n')).not.toMatch(/not signed in/);
+  });
+
   it('login that fails says why and saves nothing', async () => {
     const r = run(['login', '--server', 'http://127.0.0.1:1'], { sleep: async () => {} });
     expect(await r.done).toBe(1);
-    expect(r.errors.join('\n')).toMatch(/ulaşılamadı/);
+    expect(r.errors.join('\n')).toMatch(/Can't reach/);
     expect(r.auth.load()).toBeNull();
   });
 
@@ -319,7 +328,7 @@ describe('the commands', () => {
     expect(store.load()).toBeNull();
   });
 
-  it('config says whether he is signed in, never the token', async () => {
+  it('config says whether you are signed in, never the token', async () => {
     const store = new AuthStore(join(dir, 'k'));
     store.save({
       server: 'https://kovan.test',
@@ -330,13 +339,13 @@ describe('the commands', () => {
     });
     const r = run(['config'], { auth: store, configFile: join(dir, 'none.json') });
     expect(await r.done).toBe(0);
-    expect(r.t.text()).toContain('giriş: Alper (https://kovan.test)');
-    expect(r.t.text()).toContain('yönetilen');
+    expect(r.t.text()).toContain('signed in: Alper (https://kovan.test)');
+    expect(r.t.text()).toContain('managed usage');
     expect(r.t.text()).not.toContain(TOKEN);
   });
 });
 
-// ── which model: his own first, the account when there is none ───────────────
+// ── which model: their own first, the account when there is none ───────────────
 
 describe('which model server', () => {
   const auth: Auth = {
@@ -348,19 +357,25 @@ describe('which model server', () => {
   };
   const none = '/nonexistent/agent.json';
 
-  it('signed in, the account wins over an own key unless he asks for his own', () => {
+  it('signed in, an own key still wins: the account is billed only when asked for', () => {
     expect(resolveProvider({ OPENROUTER_API_KEY: 'sk-own' }, none, auth, null)).toMatchObject({
-      provider: { managed: true },
+      ok: true,
+      provider: { managed: false, label: 'openrouter.ai', apiKey: 'sk-own' },
     });
-    const p = resolveProvider(
-      { OPENROUTER_API_KEY: 'sk-own', KOVAN_PROVIDER: 'own' },
-      none,
-      auth,
-      null,
-    );
-    expect(p).toMatchObject({ ok: true, provider: { managed: false, label: 'openrouter.ai' } });
+    expect(
+      resolveProvider(
+        { OPENROUTER_API_KEY: 'sk-own', KOVAN_PROVIDER: 'managed' },
+        none,
+        auth,
+        null,
+      ),
+    ).toMatchObject({ ok: true, provider: { managed: true } });
   });
-  it('his own gateway is used when he asks for it', () => {
+  it('KOVAN_PROVIDER=own never falls back to the account', () => {
+    const p = resolveProvider({ KOVAN_PROVIDER: 'own' }, none, auth, null);
+    expect(p.ok).toBe(false);
+  });
+  it('your own gateway is used when you ask for it', () => {
     const p = resolveProvider(
       { KOVAN_BASE_URL: 'http://localhost:20128/v1', KOVAN_MODEL: 'm', KOVAN_PROVIDER: 'own' },
       none,
@@ -369,7 +384,7 @@ describe('which model server', () => {
     );
     expect(p).toMatchObject({ ok: true, provider: { managed: false } });
   });
-  it('with nothing of his own and a sign-in, Kovan’s managed usage, filed against the account and said so', () => {
+  it('with nothing of your own and a sign-in, Kovan’s managed usage, filed against the account and said so', () => {
     const p = resolveProvider({}, none, auth, null);
     expect(p).toMatchObject({
       ok: true,
@@ -380,23 +395,18 @@ describe('which model server', () => {
         model: 'openrouter/auto',
       },
     });
-    expect(p.ok && p.provider.label).toMatch(/hesabına yazılır/);
+    expect(p.ok && p.provider.label).toMatch(/billed to your account/);
   });
-  it('a model he named is kept', () => {
+  it('a model you named is kept', () => {
     expect(resolveProvider({}, none, auth, 'anthropic/claude-sonnet')).toMatchObject({
       provider: { model: 'anthropic/claude-sonnet' },
     });
     expect(managedProvider(auth, 'x/y').model).toBe('x/y');
   });
-  it('a half-configured gateway is his to fix, not a reason to bill the account', () => {
-    expect(
-      resolveProvider(
-        { KOVAN_BASE_URL: 'http://localhost:20128/v1', KOVAN_PROVIDER: 'own' },
-        none,
-        auth,
-        null,
-      ).ok,
-    ).toBe(false);
+  it('a half-configured gateway is theirs to fix, not a reason to bill the account', () => {
+    const p = resolveProvider({ KOVAN_BASE_URL: 'http://localhost:20128/v1' }, none, auth, null);
+    expect(p.ok).toBe(false);
+    if (!p.ok) expect(p.why).toMatch(/No model name/);
   });
   it('no key and no sign-in says both ways out', () => {
     const p = resolveProvider({}, none, null, null);
@@ -474,9 +484,23 @@ describe('self-update', () => {
     ...over,
   });
 
-  const publish = (over: object = {}, bytes: Buffer = NEW) =>
+  // The release key: the manifest is signed with the private half, the bundle trusts the public half.
+  const keys = generateKeyPairSync('ed25519');
+  const KEY = keys.publicKey.export({ format: 'der', type: 'spki' }).toString('base64');
+  const signed = (text: string) =>
+    sign(null, Buffer.from(text), keys.privateKey).toString('base64');
+
+  const publish = (
+    over: object = {},
+    bytes: Buffer = NEW,
+    signature: (text: string) => string | null = signed,
+  ) =>
     serve((r) => {
-      if (r.url === '/updates/cli/latest.json') return { json: manifest(over) };
+      const text = JSON.stringify(manifest(over));
+      if (r.url === '/updates/cli/latest.json') return { body: text, type: 'application/json' };
+      const sig = signature(text);
+      if (r.url === '/updates/cli/latest.json.sig' && sig !== null)
+        return { body: sig, type: 'text/plain' };
       if (r.url === '/updates/cli/kovan.mjs') return { body: bytes };
       return undefined;
     });
@@ -492,6 +516,7 @@ describe('self-update', () => {
     target,
     stampFile: join(dir, 'stamp.json'),
     env: {},
+    publicKey: KEY,
     ...over,
   });
 
@@ -539,13 +564,53 @@ describe('self-update', () => {
     }
   });
 
+  it('a manifest without the release key’s signature is not believed, and nothing is downloaded', async () => {
+    const other = generateKeyPairSync('ed25519');
+    for (const signature of [
+      () => null, // no .sig at all
+      (text: string) => sign(null, Buffer.from(text), other.privateKey).toString('base64'), // someone else's key
+      (text: string) => signed(text.replace('9.9.0', '9.9.1')), // signed, but not this text
+    ]) {
+      const srv = await publish({}, NEW, signature);
+      try {
+        const target = join(dir, 'kovan.mjs');
+        writeFileSync(target, 'eski');
+        const r = await checkAndUpdate(
+          deps(srv.url, target, { stampFile: join(dir, `s${Math.random()}.json`) }),
+        );
+        expect(r).toMatchObject({ status: 'failed', why: expect.stringMatching(/isn't signed/) });
+        expect(readFileSync(target, 'utf8')).toBe('eski');
+        expect(srv.seen.some((q) => q.url.endsWith('/kovan.mjs'))).toBe(false);
+      } finally {
+        srv.close();
+      }
+    }
+  });
+
+  it('a bundle built without the release key never replaces itself', async () => {
+    const srv = await publish();
+    try {
+      const target = join(dir, 'kovan.mjs');
+      writeFileSync(target, 'eski');
+      const r = await checkAndUpdate(deps(srv.url, target, { publicKey: '' }));
+      expect(r).toMatchObject({ status: 'failed', why: expect.stringMatching(/no update key/) });
+      expect(readFileSync(target, 'utf8')).toBe('eski');
+      expect(srv.seen.some((q) => q.url.endsWith('/kovan.mjs'))).toBe(false);
+    } finally {
+      srv.close();
+    }
+  });
+
   it('a file that does not match the manifest’s hash is never used', async () => {
     const srv = await publish({}, Buffer.from('baska bir sey'));
     try {
       const target = join(dir, 'kovan.mjs');
       writeFileSync(target, 'eski');
       const r = await checkAndUpdate(deps(srv.url, target));
-      expect(r).toMatchObject({ status: 'failed', why: expect.stringMatching(/özetle tutmuyor/) });
+      expect(r).toMatchObject({
+        status: 'failed',
+        why: expect.stringMatching(/doesn't match the manifest/),
+      });
       expect(readFileSync(target, 'utf8')).toBe('eski');
       expect(existsSync(`${target}.new`)).toBe(false);
     } finally {
@@ -560,7 +625,7 @@ describe('self-update', () => {
       writeFileSync(target, 'eski');
       expect(await checkAndUpdate(deps(srv.url, target))).toMatchObject({
         status: 'failed',
-        why: expect.stringMatching(/başka bir adres/),
+        why: expect.stringMatching(/another server/),
       });
       expect(readFileSync(target, 'utf8')).toBe('eski');
     } finally {
@@ -644,6 +709,7 @@ describe('self-update', () => {
         auth: new AuthStore(join(dir, 'k')),
         err: () => {},
         stateDir: join(dir, 'state'),
+        updateKey: KEY,
       };
       expect(await main(['update'], { ...base, argv1: target })).toBe(0);
       expect(t.text()).toContain(`${VERSION} → 9.9.0`);

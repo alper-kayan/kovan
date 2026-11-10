@@ -89,7 +89,7 @@ describe('transcript', () => {
     const text = t.render(60, { reasoning: false, spin: 0 }).map(stripAnsi).join('\n');
     expect(text).toContain('Merhaba dünya');
     expect(text).toContain('okuyor a.ts');
-    expect(text).toContain('durduruldu');
+    expect(text).toContain('stopped');
     expect(text).not.toContain('⠋ okuyor');
   });
 });
@@ -162,14 +162,14 @@ describe('TuiApp', () => {
     expect(rows[0]).toContain('m/x');
     expect(rows.join('\n')).toContain('█▄▀');
     expect(rows.join('\n')).toContain('╭');
-    expect(rows.join('\n')).toContain('● hazır');
+    expect(rows.join('\n')).toContain('● ready');
     expect(rows.every((r) => strWidth(r) <= 80)).toBe(true);
     io.send('\u0004'); // ctrl+d on an empty box leaves
     await tick();
     expect(io.tornDown).toBe(true);
   });
 
-  it('sends what he typed, shows the answer, and keeps the screen the right size', async () => {
+  it('sends what you typed, shows the answer, and keeps the screen the right size', async () => {
     const io = fakeIO(80, 24);
     const ref: { app?: TuiApp } = {};
     const h = host({
@@ -230,7 +230,7 @@ describe('TuiApp', () => {
     expect(screen(app).join('\n')).toContain('› /review ');
   });
 
-  it('asks permission in a dialog and passes his answer back', async () => {
+  it('asks permission in a dialog and passes your answer back', async () => {
     const io = fakeIO();
     const app = new TuiApp(io, host());
     void app.run();
@@ -240,11 +240,11 @@ describe('TuiApp', () => {
       ac.signal,
     );
     await tick();
-    expect(screen(app).join('\n')).toContain('izin ister');
-    io.send('t');
+    expect(screen(app).join('\n')).toContain('asks permission');
+    io.send('a');
     expect(await answer).toBe('always');
     await tick();
-    expect(screen(app).join('\n')).not.toContain('izin ister');
+    expect(screen(app).join('\n')).not.toContain('asks permission');
   });
 
   it('a withdrawn question (the notch answered) closes the dialog with no answer', async () => {
@@ -270,7 +270,7 @@ describe('TuiApp', () => {
     io.send('uzun iş');
     io.send('\r');
     await tick();
-    expect(screen(app).join('\n')).toContain('çalışıyor');
+    expect(screen(app).join('\n')).toContain('working');
     io.send('\u001b');
     await tick(60);
     expect(stop).toHaveBeenCalled();
@@ -326,10 +326,10 @@ describe('effort slider', () => {
     io.send('\r');
     await tick();
     const text = screen(app).join('\n');
-    expect(text).toContain('Daha hızlı');
-    expect(text).toContain('Daha akıllı');
+    expect(text).toContain('Faster');
+    expect(text).toContain('Smarter');
     expect(text).toContain('▲');
-    expect(text).toContain('varsayılan efor');
+    expect(text).toContain('default effort');
     io.send('\u001b[C'); // right
     io.send('\r');
     await tick();

@@ -13,7 +13,7 @@ import { combineNotches, createFounderNotch, founderConfig } from './founder-not
  * "kovan", a live row per tool call ("Edit Invoice.swift"), a card when it asks permission, "finished" when a turn ends.
  *
  * A permission request is the one blocking call: the connection stays open until Coucou answers `{"permissionDecision": "allow" | "always" | "deny" | "ask"}`.
- * It never costs him anything when Coucou is not there: a socket that is missing, refuses, or does not answer in 300 ms is treated as "no notch", and the
+ * It never costs you anything when Coucou is not there: a socket that is missing, refuses, or does not answer in 300 ms is treated as "no notch", and the
  * terminal asks as it always did.
  *
  * `KOVAN_NO_NOTCH=1` turns it off; `KOVAN_NOTCH_SOCKET=<path>` points at a different socket.

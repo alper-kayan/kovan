@@ -21,7 +21,7 @@ export function codexEnv(dataDir: string, id: string | null): Record<string, str
   return id ? { CODEX_HOME: join(dataDir, 'agent-accounts', id) } : {};
 }
 
-/** `/bin/zsh -lc "ls"` → `ls`, as he would type it. */
+/** `/bin/zsh -lc "ls"` → `ls`, as you would type it. */
 export function bareCommand(command: string): string {
   const m = /^\S*\/(?:ba|z)?sh -l?c (.*)$/s.exec(command);
   if (!m) return command;
@@ -164,7 +164,7 @@ export class CodexLines {
           completionTokens: u['output_tokens'] ?? 0,
           cachedTokens: u['cached_input_tokens'] ?? 0,
           reasoningTokens: u['reasoning_output_tokens'] ?? 0,
-          // Codex bills his own OpenAI account and reports tokens only.
+          // Codex bills your own OpenAI account and reports tokens only.
           cost: null,
         },
       } as AgentEvent);
@@ -173,7 +173,7 @@ export class CodexLines {
     }
     if (type === 'turn.failed') {
       const e = line['error'] as { message?: string } | undefined;
-      this.finish('error', e?.message ?? this.lastError ?? 'Codex hata verdi');
+      this.finish('error', e?.message ?? this.lastError ?? 'Codex reported an error');
     }
   }
 
@@ -223,7 +223,7 @@ export class CodexRunner {
   }
 
   async send(prompt: string, o: CodexTurn): Promise<string | null> {
-    if (this.child) throw new Error('Codex zaten çalışıyor');
+    if (this.child) throw new Error('Codex is already running');
     const note =
       o.mode === 'plan'
         ? 'Plan mode: investigate and reply with a step-by-step plan. Do not change files or run commands that change anything.\n\n'
@@ -281,7 +281,7 @@ export class CodexRunner {
     else if (code !== 0)
       lines.finish(
         'error',
-        err.trim().split('\n').slice(-3).join(' ') || `codex ${code} koduyla çıktı`,
+        err.trim().split('\n').slice(-3).join(' ') || `codex exited with code ${code}`,
       );
     else lines.finish('done');
     return lines.threadId ?? o.threadId;

@@ -91,20 +91,20 @@ export async function login(d: LoginDeps): Promise<Auth> {
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    throw new LoginError(`Kovan sunucusuna ulaşılamadı: ${server}`);
+    throw new LoginError(`Can't reach the Kovan server: ${server}`);
   }
-  if (!start.ok) throw new LoginError(`giriş başlatılamadı (HTTP ${start.status})`);
+  if (!start.ok) throw new LoginError(`Couldn't start signing in (HTTP ${start.status})`);
   const { loginId, url, expiresInSeconds } = (await start.json()) as {
     loginId: string;
     url: string;
     expiresInSeconds: number;
   };
 
-  d.out(`Tarayıcıda girişi onayla:\n  ${url}`);
+  d.out(`Confirm the sign-in in your browser:\n  ${url}`);
   try {
     d.open(url);
   } catch {
-    /* the address is printed; he can open it himself */
+    /* the address is printed; it can be opened by hand */
   }
 
   const deadline = Date.now() + expiresInSeconds * 1000;
@@ -123,14 +123,14 @@ export async function login(d: LoginDeps): Promise<Auth> {
         body: JSON.stringify({ loginId, secret }),
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new LoginError('giriş süresi doldu, tekrar dene');
+      if (!res.ok) throw new LoginError('The sign-in expired; try again.');
       result = (await res.json()) as typeof result;
     } catch (error) {
       if (error instanceof LoginError) throw error;
       continue; // a blip while waiting; keep polling
     }
     if (result.status === 'pending') continue;
-    if (result.status === 'failed') throw new LoginError(result.error ?? 'giriş başarısız');
+    if (result.status === 'failed') throw new LoginError(result.error ?? 'Signing in failed.');
     if (result.status === 'complete' && result.token)
       return {
         server,
@@ -139,9 +139,9 @@ export async function login(d: LoginDeps): Promise<Auth> {
         user: result.user ? { id: result.user.id, name: result.user.name } : null,
         at: new Date().toISOString(),
       };
-    throw new LoginError('sunucu beklenmeyen bir yanıt verdi');
+    throw new LoginError('The server sent an unexpected answer.');
   }
-  throw new LoginError('giriş süresi doldu, tekrar dene');
+  throw new LoginError('The sign-in expired; try again.');
 }
 
 /** Who this token is, or why it no longer is anyone. */
@@ -156,10 +156,11 @@ export async function whoami(
       signal: AbortSignal.timeout(15_000),
     });
   } catch {
-    throw new LoginError(`Kovan sunucusuna ulaşılamadı: ${auth.server}`);
+    throw new LoginError(`Can't reach the Kovan server: ${auth.server}`);
   }
-  if (res.status === 401) throw new LoginError("oturum geçersiz: 'kovan login' ile yeniden gir");
-  if (!res.ok) throw new LoginError(`kimlik okunamadı (HTTP ${res.status})`);
+  if (res.status === 401)
+    throw new LoginError("Your session has ended. Sign in again with 'kovan login'.");
+  if (!res.ok) throw new LoginError(`Couldn't read who you are (HTTP ${res.status})`);
   return ((await res.json()) as { user: { id: string; name: string; email?: string } }).user;
 }
 
@@ -178,7 +179,7 @@ export async function logout(auth: Auth, fetchImpl: typeof fetch): Promise<void>
 
 /**
  * Kovan's managed model usage: the server's OpenAI-compatible endpoint, signed in with the session token. It is billed to the account
- * (provider cost + 5%), so the screen says so, and it is only used when nothing of his own is configured.
+ * (provider cost + 5%), so the screen says so, and it is only used when nothing of your own is configured.
  */
 export function managedProvider(auth: Auth, model?: string | null): Provider {
   return {
@@ -186,7 +187,7 @@ export function managedProvider(auth: Auth, model?: string | null): Provider {
     apiKey: auth.token,
     model: model ?? 'openrouter/auto',
     dialect: 'openrouter',
-    label: 'Kovan hesabı (yönetilen kullanım, hesabına yazılır)',
+    label: 'Kovan account (managed usage, billed to your account)',
     managed: true,
   };
 }

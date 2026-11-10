@@ -11,7 +11,7 @@ import { padEnd, strWidth, truncate } from './text.js';
  *   ┌ header: name, model, folder, mode, cost
  *   │ the conversation (or the start screen), newest at the bottom when it overflows
  *   │ slash suggestions (when typing /…)
- *   ├ the box he types in (or a dialog: permission, picker, help)
+ *   ├ the box you type in (or a dialog: permission, picker, help)
  *   └ status: what it is doing, tokens, the keys that matter
  */
 export interface ListItem {
@@ -61,12 +61,12 @@ export interface Frame {
 const LOGO = ['█▄▀ █▀█ █ █ ▄▀█ █▄ █', '█ █ █▄█ ▀▄▀ █▀█ █ ▀█'];
 
 export const APPROVAL_CHOICES = [
-  { key: 'e', label: 'evet', value: 'allow' },
-  { key: 'h', label: 'hayır', value: 'deny' },
-  { key: 't', label: 'bu oturumda hep', value: 'always' },
+  { key: 'y', label: 'yes', value: 'allow' },
+  { key: 'n', label: 'no', value: 'deny' },
+  { key: 'a', label: 'always this session', value: 'always' },
 ] as const;
 
-export const KEY_HINTS = 'tab mod · / komutlar · ctrl+p palet · esc durdur · ctrl+c çık';
+export const KEY_HINTS = 'tab mode · / commands · ctrl+p palette · esc stop · ctrl+c quit';
 
 /** A bordered box with a title on the top edge; every row is exactly `width` columns. */
 export function box(
@@ -112,7 +112,7 @@ function startScreen(v: View, room: number): string[] {
       `${paint(S.accent, '/')} ${paint(S.dim, "komutlar ve skill'ler")}    ${paint(S.accent, 'tab')} ${paint(S.dim, 'mod')}    ${paint(S.accent, 'ctrl+p')} ${paint(S.dim, 'palet')}`,
     ),
     center(
-      `${paint(S.accent, '\\')}${paint(S.dim, '+enter ya da ')}${paint(S.accent, 'alt+enter')} ${paint(S.dim, 'yeni satır')}    ${paint(S.accent, 'ctrl+c')} ${paint(S.dim, 'çık')}`,
+      `${paint(S.accent, '\\')}${paint(S.dim, '+enter or ')}${paint(S.accent, 'alt+enter')} ${paint(S.dim, 'new line')}    ${paint(S.accent, 'ctrl+c')} ${paint(S.dim, 'quit')}`,
     ),
   ];
   const top = Math.max(0, Math.floor((room - lines.length) / 3));
@@ -146,8 +146,8 @@ function inputBox(v: View): { rows: string[]; cursor: { row: number; col: number
   const shown = wrapped.slice(start, start + MAX);
 
   const placeholder = v.running
-    ? 'çalışıyor… esc ile durdur'
-    : 'bir şey yaz · / komutlar · \\+enter yeni satır';
+    ? 'working… esc to stop'
+    : 'type something · / commands · \\+enter new line';
   const rows = shown.map((w, i) => {
     const glyph = w.first ? paint(v.running ? S.dim : S.accentBold, '› ') : '  ';
     const text = ed.empty && i === 0 ? paint(S.dim, placeholder) : w.text;
@@ -170,9 +170,9 @@ function dialogRows(d: Dialog, v: View): string[] {
         ? paint(S.inverse + S.accent, ` ${label} `)
         : paint(S.dim, ` ${label} `);
     }).join('  ');
-    const note = d.notch ? [paint(S.dim, "notch'tan da cevaplanabilir")] : [];
+    const note = d.notch ? [paint(S.dim, 'can also be answered from the notch')] : [];
     return box(
-      'izin ister',
+      'asks permission',
       [
         paint(S.bold, truncate(d.title, v.width - 6)),
         ...detail.map((l) => paint(S.dim, l)),
@@ -186,7 +186,7 @@ function dialogRows(d: Dialog, v: View): string[] {
     );
   }
   if (d.kind === 'slider') {
-    // Daha hızlı ←→ Daha akıllı: one mark under the chosen level, labels spread evenly.
+    // Faster ←→ Smarter: one mark under the chosen level, labels spread evenly.
     const inner = Math.max(20, v.width - 6);
     const n = d.levels.length;
     const slot = Math.floor(inner / n);
@@ -198,8 +198,8 @@ function dialogRows(d: Dialog, v: View): string[] {
     const marker = d.levels.map((_, i) => cell(i === d.index ? '▲' : '', S.accentBold)).join('');
     const track = paint(S.gray, '─'.repeat(slot * n));
     const labels = d.levels.map((l, i) => cell(l, i === d.index ? S.accentBold : S.dim)).join('');
-    const head = `${paint(S.dim, 'Daha hızlı')}${' '.repeat(Math.max(1, slot * n - strWidth('Daha hızlı') - strWidth('Daha akıllı')))}${paint(S.dim, 'Daha akıllı')}`;
-    const note = d.index === d.defaultIndex ? 'Bu model için varsayılan efor.' : '';
+    const head = `${paint(S.dim, 'Faster')}${' '.repeat(Math.max(1, slot * n - strWidth('Faster') - strWidth('Smarter')))}${paint(S.dim, 'Smarter')}`;
+    const note = d.index === d.defaultIndex ? "This model's default effort." : '';
     return box(
       d.title,
       [
@@ -208,14 +208,14 @@ function dialogRows(d: Dialog, v: View): string[] {
         track,
         labels,
         paint(S.dim, note),
-        paint(S.dim, '←/→ ayarla · enter onayla · esc vazgeç'),
+        paint(S.dim, '←/→ adjust · enter confirm · esc cancel'),
       ],
       v.width,
     );
   }
   if (d.kind === 'help')
     return box(
-      'yardım',
+      'help',
       d.lines.map((l) => truncate(l, v.width - 4)),
       v.width,
     );
@@ -228,13 +228,13 @@ function dialogRows(d: Dialog, v: View): string[] {
       ? paint(S.inverse, ` ${padEnd(stripToWidth(line, v.width - 8), v.width - 8)} `)
       : `  ${truncate(line, v.width - 8)}`;
   });
-  const filter = `${paint(S.accent, '› ')}${d.filter}${paint(S.dim, d.filter ? '' : 'filtrele…')}`;
+  const filter = `${paint(S.accent, '› ')}${d.filter}${paint(S.dim, d.filter ? '' : 'filter…')}`;
   return box(
     d.title,
     [
       filter,
       ...(rows.length ? rows : [paint(S.dim, d.empty)]),
-      paint(S.dim, '↑↓ seç · enter tamam · esc vazgeç'),
+      paint(S.dim, '↑↓ choose · enter ok · esc cancel'),
     ],
     v.width,
   );
@@ -263,8 +263,8 @@ function suggestionRows(v: View): string[] {
 
 function statusRow(v: View): string {
   const state = v.running
-    ? paint(S.accent, `${SPINNER[v.spin % SPINNER.length]} çalışıyor`)
-    : paint(S.green, '● hazır');
+    ? paint(S.accent, `${SPINNER[v.spin % SPINNER.length]} working`)
+    : paint(S.green, '● ready');
   const left = ` ${state}${paint(S.dim, `  ${v.status.tokens}`)}${v.status.note ? `  ${paint(S.yellow, v.status.note)}` : ''}`;
   const right = `${paint(S.dim, KEY_HINTS)} `;
   const gap = v.width - strWidth(left) - strWidth(right);
@@ -289,7 +289,7 @@ export function buildFrame(v: View): Frame {
     const end = all.length - scroll;
     body = all.slice(Math.max(0, end - area), end);
     if (scroll > 0 && body.length)
-      body[body.length - 1] = paint(S.yellow, ` ↓ ${scroll} satır aşağıda · pagedown ya da end`);
+      body[body.length - 1] = paint(S.yellow, ` ↓ ${scroll} more lines below · pagedown or end`);
   }
   const blank = Array<string>(Math.max(0, area - body.length)).fill('');
   const rows = [...head, ...body.slice(0, area), ...blank, ...sugg, ...bottom, status].map((r) =>

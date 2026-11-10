@@ -16,19 +16,16 @@ describe('claude accounts', () => {
         { id: '../evil', harness: 'claude-code', name: 'bad' },
       ]),
     );
-    expect(claudeAccounts(dir)).toEqual([
-      { id: 'ab12', name: 'alper' },
-      { id: null, name: 'varsayılan' },
-    ]);
+    expect(claudeAccounts(dir)).toEqual([{ id: 'ab12', name: 'alper' }]);
     expect(claudeEnv(dir, 'ab12')).toEqual({
       CLAUDE_CONFIG_DIR: join(dir, 'agent-accounts', 'ab12'),
     });
     expect(claudeEnv(dir, null)).toEqual({});
   });
-  it('no accounts file is just the default', () => {
+  it('no accounts file is no accounts: the CLI’s own sign-in is never offered', () => {
     const dir = mkdtempSync(join(tmpdir(), 'kv-'));
     mkdirSync(dir, { recursive: true });
-    expect(claudeAccounts(dir)).toEqual([{ id: null, name: 'varsayılan' }]);
+    expect(claudeAccounts(dir)).toEqual([]);
   });
 });
 
@@ -137,10 +134,7 @@ describe('codex stream', () => {
       join(dir, 'agent-accounts.json'),
       JSON.stringify([{ id: 'x1', harness: 'codex', name: 'iş' }]),
     );
-    expect(claudeAccounts(dir, 'codex')).toEqual([
-      { id: 'x1', name: 'iş' },
-      { id: null, name: 'varsayılan' },
-    ]);
+    expect(claudeAccounts(dir, 'codex')).toEqual([{ id: 'x1', name: 'iş' }]);
   });
 });
 
@@ -183,11 +177,11 @@ describe('desktop providers and their keys', () => {
     );
     expect(decryptSafeStorage(seal('merhaba', 's'), 's')).toBe('merhaba');
     expect(await providerKey(dir, 'deepinfra', async () => 'hunter2')).toBe('sk-test');
-    await expect(providerKey(dir, 'other', async () => 'hunter2')).rejects.toThrow(/kayıtlı değil/);
+    await expect(providerKey(dir, 'other', async () => 'hunter2')).rejects.toThrow(/no key saved/);
     await expect(providerKey(dir, 'deepinfra', async () => 'wrong')).rejects.toThrow();
     await expect(
       providerKey(mkdtempSync(join(tmpdir(), 'kv-')), 'x', async () => 'a'),
-    ).rejects.toThrow(/kayıtlı anahtar yok/);
+    ).rejects.toThrow(/no saved keys/);
   });
 });
 

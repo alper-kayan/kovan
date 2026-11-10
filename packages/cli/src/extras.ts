@@ -4,15 +4,15 @@ import { parseFrontmatter, type SkillPlaces } from '@kovan/harness';
 import { desktopDataDir } from './paths.js';
 
 /**
- * What Claude Code reads that `kovan` reads too, in the same formats, so what he already wrote for Claude works here:
+ * What Claude Code reads that `kovan` reads too, in the same formats, so what you already wrote for Claude works here:
  *
  *  - skills: `SKILL.md` folders. The repository's `.kovan/skills` and `.claude/skills`, the desktop app's own skill folder (the same one
  *    its Settings manage), and Claude's `~/.claude/skills`. The harness lists them to the model and loads one on demand (`use_skill`, or
- *    `/skill-name` typed by him).
- *  - his own notes: `~/.kovan/KOVAN.md` and Claude's `~/.claude/CLAUDE.md`, on top of the repository's KOVAN.md / AGENTS.md / CLAUDE.md the
+ *    `/skill-name` typed by you).
+ *  - your own notes: `~/.kovan/KOVAN.md` and Claude's `~/.claude/CLAUDE.md`, on top of the repository's KOVAN.md / AGENTS.md / CLAUDE.md the
  *    harness already reads (and the rules kept in subfolders, read as the agent reaches them).
  *  - custom slash commands: `.kovan/commands/<name>.md` and `.claude/commands/<name>.md` in the repository, and `~/.claude/commands`. The file is the prompt;
- *    `$ARGUMENTS` and `$1`…`$9` are replaced by what he typed after the name.
+ *    `$ARGUMENTS` and `$1`…`$9` are replaced by what you typed after the name.
  *
  * `KOVAN_NO_CLAUDE=1` leaves everything of Claude's alone (skills, notes, commands).
  *
@@ -36,7 +36,7 @@ export function skillPlaces(root: string, d: ExtrasDeps): SkillPlaces {
 
 const NOTES_BUDGET = 8_000;
 
-/** His own standing instructions, as one block for the system prompt; empty when there are none. */
+/** Your own standing instructions, as one block for the system prompt; empty when there are none. */
 export async function userNotes(d: ExtrasDeps): Promise<string> {
   const files: [string, string][] = [[join(d.home, '.kovan', 'KOVAN.md'), '~/.kovan/KOVAN.md']];
   if (claudeOn(d.env)) files.push([join(d.home, '.claude', 'CLAUDE.md'), '~/.claude/CLAUDE.md']);
@@ -57,7 +57,7 @@ export interface CustomCommand {
 
 const NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/i;
 
-/** The command file for `/name`, repository first, then his own. */
+/** The command file for `/name`, repository first, then your own. */
 export async function findCommand(
   name: string,
   root: string,
@@ -84,7 +84,7 @@ export async function findCommand(
   return null;
 }
 
-/** `$ARGUMENTS` is everything he typed after the name; `$1`…`$9` are its words. With no placeholder, the arguments follow the text. */
+/** `$ARGUMENTS` is everything you typed after the name; `$1`…`$9` are its words. With no placeholder, the arguments follow the text. */
 export function expandCommand(body: string, args: string): string {
   const words = args.split(/\s+/).filter(Boolean);
   let used = false;
