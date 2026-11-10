@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compactEvents, foldEvents, type ConversationEvent } from './agent.js';
+import { compactEvents, foldEvents, withAccount, type ConversationEvent } from './agent.js';
 
 const events: ConversationEvent[] = [
   { type: 'user', text: 'fix it', attachments: [], at: 1 },
@@ -140,5 +140,22 @@ describe('compactEvents', () => {
     expect(compacted.filter((e) => e.type === 'text')).toEqual([
       { type: 'text', text: 'All good.' },
     ]);
+  });
+});
+
+describe('withAccount', () => {
+  it('runs Claude Code and Codex only as an account the person added', () => {
+    const claude = { harness: 'claude-code' as const, model: 'default' };
+    // No account named: the first one added, or nothing at all (never the CLI's own sign-in).
+    expect(withAccount(claude, 'ab12')).toEqual({ ...claude, account: 'ab12' });
+    expect(withAccount(claude, undefined)).toBeNull();
+    expect(withAccount({ harness: 'codex', model: 'default' }, undefined)).toBeNull();
+    // One named stays that one; Kovan's own agent has no account.
+    expect(withAccount({ ...claude, account: 'cd34' }, 'ab12')).toEqual({
+      ...claude,
+      account: 'cd34',
+    });
+    const kovan = { harness: 'kovan' as const, model: 'kovan/jevrouter' };
+    expect(withAccount(kovan, undefined)).toBe(kovan);
   });
 });

@@ -37,7 +37,7 @@ export const SettingsSchema = z.object({
       z.object({
         harness: z.enum(['kovan', 'claude-code', 'codex']),
         model: z.string().min(1).max(200),
-        /** One of the person's other Claude or OpenAI accounts; missing: the CLI's own sign-in. */
+        /** One of the person's Claude or OpenAI accounts; missing: the first one added for that agent. */
         account: z.string().min(1).max(64).optional(),
       }),
     )

@@ -62,7 +62,7 @@ import { startSubagent } from '../services/sync';
 import { api } from '../services/api';
 import type { OverlapWarning, SkillInfo } from '../../../shared/api';
 import { newTerminal } from '../services/terminal';
-import { getState, notify, reportError, useStore } from '../store';
+import { getState, notify, reportError, setState, showView, useStore } from '../store';
 import { updateSettings } from '../services/settings';
 import { Markdown } from './Markdown';
 import { ModelPicker } from './ModelPicker';
@@ -829,7 +829,6 @@ export function Composer() {
   const externalAgents = useStore((s) => s.externalAgents);
   const accounts = useStore((s) => s.agentAccounts);
   const account = conversation?.account;
-  const accountName = account ? accounts.find((a) => a.id === account)?.name : undefined;
   const agentLimits = useStore((s) => s.agentLimits);
   const input = useRef<HTMLTextAreaElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -843,6 +842,14 @@ export function Composer() {
   const info = useMemo(() => models.find((m) => m.id === modelId), [models, modelId]);
   const running = conversation?.running ?? false;
   const harness = conversation?.harness ?? (conversation ? 'kovan' : settings.agentHarness);
+  // No account named runs as the first one added for that agent, the same rule the app runs it by.
+  const accountName =
+    harness === 'kovan'
+      ? undefined
+      : (account
+          ? accounts.find((a) => a.id === account)
+          : accounts.find((a) => a.harness === harness)
+        )?.name;
   const isExternal = harness !== 'kovan';
   // Auto: JevRouter picks the agent from the first prompt, then the conversation keeps it.
   const autoOn = conversation ? conversation.auto === true : settings.agentAuto;
@@ -1164,71 +1171,96 @@ export function Composer() {
               </button>
               {(['kovan', 'claude-code', 'codex'] as Harness[]).map((h) => {
                 const cli = h === 'kovan' ? null : externalAgents.find((x) => x.id === h);
-                const limit = limitNow(
-                  agentLimits.find((l) => l.account === h) ?? NO_LIMIT,
-                  Date.now(),
-                );
-                const usage = limit.status === 'ok' ? null : limitLabel(limit, Date.now());
-                const usageOf = (id: string) => {
+                const usageOf = (key: string) => {
                   const l = limitNow(
-                    agentLimits.find((x) => x.account === `${h}#${id}`) ?? NO_LIMIT,
+                    agentLimits.find((x) => x.account === key) ?? NO_LIMIT,
                     Date.now(),
                   );
                   return l.status === 'ok' ? null : limitLabel(l, Date.now());
                 };
-                return [
-                  <button
-                    key={h}
-                    className={`menu-item ${h === harness && !autoOn ? 'on' : ''}`}
-                    disabled={h !== 'kovan' && !cli?.supported}
-                    title={cli?.reason ?? ''}
-                    onClick={() => {
-                      setHarness(h);
-                      setHarnessMenu(false);
-                    }}
-                  >
-                    <span>
-                      <span className="menu-title">
-                        {HARNESS_NAMES[h]}
-                        {cli?.version ? ` · ${versionNumber(cli.version)}` : ''}
-                      </span>
-                      <span className={`menu-hint ${usage ? `limit-${limit.status}` : ''}`}>
-                        {usage
-                          ? usage
-                          : h === 'kovan'
-                            ? "Kovan's agent · any model via OpenRouter"
-                            : cli?.supported
-                              ? `Your ${h === 'codex' ? 'OpenAI' : 'Claude'} account · coordinated over MCP`
-                              : (cli?.reason ?? 'Checking…')}
-                      </span>
-                    </span>
-                    {h === harness && !autoOn && !(h !== 'kovan' && account) && <Check size={13} />}
-                  </button>,
-                  // The person's other accounts of this agent, each one a choice of its own.
-                  ...accounts
-                    .filter((a) => a.harness === h)
-                    .map((a) => (
-                      <button
-                        key={`${h}:${a.id}`}
-                        className={`menu-item ${h === harness && !autoOn && account === a.id ? 'on' : ''}`}
-                        disabled={!cli?.supported}
-                        onClick={() => {
-                          setHarness(h, a.id);
-                          setHarnessMenu(false);
-                        }}
-                      >
-                        <span>
-                          <span className="menu-title">
-                            {HARNESS_NAMES[h]} ({a.name})
-                          </span>
-                          <span className="menu-hint">
-                            {usageOf(a.id) ?? 'Another account (Settings → Agents → Accounts)'}
-                          </span>
+                if (h === 'kovan') {
+                  const limit = limitNow(
+                    agentLimits.find((l) => l.account === 'kovan') ?? NO_LIMIT,
+                    Date.now(),
+                  );
+                  const usage = limit.status === 'ok' ? null : limitLabel(limit, Date.now());
+                  return (
+                    <button
+                      key={h}
+                      className={`menu-item ${h === harness && !autoOn ? 'on' : ''}`}
+                      onClick={() => {
+                        setHarness(h);
+                        setHarnessMenu(false);
+                      }}
+                    >
+                      <span>
+                        <span className="menu-title">{HARNESS_NAMES[h]}</span>
+                        <span className={`menu-hint ${usage ? `limit-${limit.status}` : ''}`}>
+                          {usage ?? "Kovan's agent · any model via OpenRouter"}
                         </span>
-                        {h === harness && !autoOn && account === a.id && <Check size={13} />}
-                      </button>
-                    )),
-                ];
+                      </span>
+                      {h === harness && !autoOn && <Check size={13} />}
+                    </button>
+                  );
+                }
+                const mine = accounts.filter((a) => a.harness === h);
+                // Claude Code and Codex run only as an account added in Settings, never as the
+                // sign-in the CLI already has on this computer.
+                if (mine.length === 0)
+                  return (
+                    <button
+                      key={h}
+                      className="menu-item"
+                      title={cli?.reason ?? ''}
+                      onClick={() => {
+                        setHarnessMenu(false);
+                        setState({ settingsSection: 'agents' });
+                        showView('settings');
+                      }}
+                    >
+                      <span>
+                        <span className="menu-title">
+                          {HARNESS_NAMES[h]}
+                          {cli?.version ? ` · ${versionNumber(cli.version)}` : ''}
+                        </span>
+                        <span className="menu-hint">
+                          {cli?.supported
+                            ? 'Add an account in Settings → Agents → Accounts'
+                            : (cli?.reason ?? 'Checking…')}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                return mine.map((a) => {
+                  const on =
+                    h === harness && !autoOn && (account === a.id || (!account && a === mine[0]));
+                  return (
+                    <button
+                      key={`${h}:${a.id}`}
+                      className={`menu-item ${on ? 'on' : ''}`}
+                      disabled={!cli?.supported}
+                      title={cli?.reason ?? ''}
+                      onClick={() => {
+                        setHarness(h, a.id);
+                        setHarnessMenu(false);
+                      }}
+                    >
+                      <span>
+                        <span className="menu-title">
+                          {HARNESS_NAMES[h]} ({a.name})
+                          {cli?.version ? ` · ${versionNumber(cli.version)}` : ''}
+                        </span>
+                        <span className="menu-hint">
+                          {usageOf(`${h}#${a.id}`) ??
+                            (cli?.supported
+                              ? `Your ${h === 'codex' ? 'OpenAI' : 'Claude'} account · coordinated over MCP`
+                              : (cli?.reason ?? 'Checking…'))}
+                        </span>
+                      </span>
+                      {on && <Check size={13} />}
+                    </button>
+                  );
+                });
               })}
             </FloatingMenu>
           )}

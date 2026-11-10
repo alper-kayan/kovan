@@ -547,10 +547,12 @@ async function createWindow(folder: string | null = null): Promise<BrowserWindow
         ? ctx.workspace.isRepo
         : Boolean(statSync(join(root, '.git'), { throwIfNoEntry: false })),
     accountEnv: async (harness, account) => {
-      if (!account) return {};
+      if (!account) return null;
       const env = await agentAccounts.env(harness, account);
       return Object.keys(env).length ? env : null;
     },
+    firstAccount: async (harness) =>
+      (await agentAccounts.list()).find((a) => a.harness === harness)?.id,
     agentBinary: async (harness) =>
       (await externalAgents()).find((a) => a.id === harness && a.supported)?.path ?? null,
     pathEnv: userPath,
@@ -735,7 +737,17 @@ void app.whenReady().then(async () => {
     agentProgram: async (agent, root, as) => {
       const cli = (await externalAgents()).find((a) => a.id === agent && a.supported);
       if (!cli?.path) throw new Error(`${HARNESS_NAMES[agent]} is not installed on this machine.`);
-      const accountEnv = await agentAccounts.env(agent, as?.account);
+      // Only as an account the person added: the CLI's own sign-in on this computer is never used.
+      const account =
+        as?.account ??
+        (as?.login ? undefined : (await agentAccounts.list()).find((a) => a.harness === agent)?.id);
+      if (!account)
+        throw new Error(
+          `Add a ${HARNESS_NAMES[agent]} account first, in Settings → Agents → Accounts.`,
+        );
+      const accountEnv = await agentAccounts.env(agent, account);
+      if (!Object.keys(accountEnv).length)
+        throw new Error(`That ${HARNESS_NAMES[agent]} account isn't on this machine any more.`);
       // Signing an account in: the CLI's own sign-in, in that account's folder.
       if (as?.login)
         return {

@@ -33,6 +33,8 @@ Kovan looks for agent CLIs on your machine and lists them in **Settings → Agen
 
 Each person connects their own CLI with their own login, so different people in one session can use different providers. Kovan does not change your global configuration: it passes its settings to each run it starts.
 
+Kovan runs Claude Code and Codex only as accounts you add yourself, in **Settings → Agents → Accounts**. It does not use the sign-in the CLI already has on your computer. Each account you add signs in once in a terminal inside Kovan and keeps its own sign-in, so you can add a work and a personal account side by side. Until you add one, Claude Code and Codex can't run a conversation; the agent menu points you to Accounts.
+
 There are two ways to run a CLI:
 
 - **In the chat surface.** Output from Claude Code and Codex is shown with the same rows as Kovan's own agent, and later turns continue the same conversation.

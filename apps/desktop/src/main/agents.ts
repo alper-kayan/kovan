@@ -54,6 +54,7 @@ import {
   HARNESS_NAMES,
   optionLabel,
   parseCustomModelId,
+  withAccount,
 } from '../shared/agent.js';
 import {
   accountOf,
@@ -234,13 +235,18 @@ export interface AgentHost {
   /** Where an agent CLI lives on this machine, if it does. */
   agentBinary(harness: ExternalHarness): Promise<string | null>;
   /**
-   * What the CLI's process needs to run as one of the person's other accounts (its folder);
-   * empty for the default sign-in. Null when that account is gone from this machine.
+   * What the CLI's process needs to run as one of the person's accounts (its folder). Null when
+   * that account is gone from this machine.
    */
   accountEnv?(
     harness: ExternalHarness,
     account: string | undefined,
   ): Promise<Record<string, string> | null>;
+  /**
+   * The first account the person added for this agent. Claude Code and Codex only run as an
+   * account added in Settings → Agents → Accounts, never as the CLI's own sign-in.
+   */
+  firstAccount?(harness: ExternalHarness): Promise<string | undefined>;
   pathEnv(): Promise<string>;
   /** Writes the MCP config that connects a Kovan-launched agent back to Kovan. */
   mcpConfig(conversationId: string, root: string): Promise<string>;
@@ -601,7 +607,8 @@ export class AgentManager {
         ? [...settings.agentOrder, defaultOption(asked)]
         : settings.agentOrder;
     const candidates = await Promise.all(
-      order.map(async (option) => {
+      order.map(async (step) => {
+        const option = (await this.withAccount(step)) ?? step;
         const account = accountOf(option);
         return {
           option,
@@ -989,7 +996,12 @@ export class AgentManager {
         throw new Error(
           `${HARNESS_NAMES[harness]} is not installed on this machine. Install it, then pick it again.`,
         );
-      const env = (await this.host.accountEnv?.(harness, s.account)) ?? (s.account ? null : {});
+      s.account ??= await this.host.firstAccount?.(harness);
+      if (!s.account)
+        throw new Error(
+          `Add a ${HARNESS_NAMES[harness]} account first, in Settings → Agents → Accounts. Kovan only runs ${HARNESS_NAMES[harness]} as an account you added there.`,
+        );
+      const env = await this.host.accountEnv?.(harness, s.account);
       if (!env)
         throw new Error(
           `That ${HARNESS_NAMES[harness]} account isn't on this machine any more. Pick another in the agent menu, or add it again in Settings → Agents.`,
@@ -1255,12 +1267,22 @@ export class AgentManager {
     this.onAgentEvent(live, { type: 'notice', tone, text });
   }
 
+  /**
+   * Claude Code and Codex run only as an account the person added: a step that names none takes
+   * the first one added for that agent. Null when there is none.
+   */
+  private async withAccount(option: AgentOption): Promise<AgentOption | null> {
+    if (option.harness === 'kovan' || option.account) return option;
+    return withAccount(option, await this.host.firstAccount?.(option.harness));
+  }
+
   /** Whether a step of the order can take a turn now: installed (or keyed), not out of usage. */
-  private async usable(option: AgentOption): Promise<boolean> {
+  private async usable(step: AgentOption): Promise<boolean> {
+    const option = await this.withAccount(step);
+    if (!option) return false;
     if (!(await this.host.limits.open(accountOf(option)))) return false;
     if (option.harness !== 'kovan') {
-      if (option.account && !(await this.host.accountEnv?.(option.harness, option.account)))
-        return false;
+      if (!(await this.host.accountEnv?.(option.harness, option.account))) return false;
       return (await this.host.agentBinary(option.harness)) !== null;
     }
     const custom = parseCustomModelId(option.model);
@@ -1286,7 +1308,8 @@ export class AgentManager {
 
     const usable = new Map<AgentOption, boolean>();
     for (const o of settings.agentOrder) usable.set(o, await this.usable(o));
-    const to = nextOption(settings.agentOrder, from, (o) => usable.get(o) === true);
+    const step = nextOption(settings.agentOrder, from, (o) => usable.get(o) === true);
+    const to = step && ((await this.withAccount(step)) ?? step);
     if (!to) {
       if (!s.session)
         this.notice(

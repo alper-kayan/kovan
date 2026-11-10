@@ -2262,19 +2262,13 @@ function AccountsGroup() {
   return (
     <Group title="Accounts">
       <p className="setting-desc" style={{ margin: '0 0 8px' }}>
-        Add your other Claude or OpenAI accounts. Each signs in once in a terminal here and keeps
-        its own sign-in on this machine; rank it in your order below, and when one account reaches
-        its limit the conversation goes on with the next.
+        Claude Code and Codex run only as the accounts you add here; the sign-in they already have
+        on this computer isn't used. Each account signs in once in a terminal here and keeps its own
+        sign-in on this machine; rank it in your order below, and when one account reaches its limit
+        the conversation goes on with the next.
       </p>
       {(['claude-code', 'codex'] as ExternalHarness[]).map((h) => (
         <Fragment key={h}>
-          <Row
-            title={`${HARNESS_NAMES[h]} · Default`}
-            desc={`The account ${h === 'codex' ? 'codex' : 'claude'} is signed in with on this machine.`}
-          >
-            <AccountStatus harness={h} account={null} />
-            <LimitLine account={h} />
-          </Row>
           {accounts
             .filter((a) => a.harness === h)
             .map((a) => (
@@ -2356,7 +2350,11 @@ function OrderGroup() {
   const accounts = useStore((st) => st.agentAccounts);
   const order = s.agentOrder;
   const accountName = (o: AgentOption) =>
-    o.account ? (accounts.find((a) => a.id === o.account)?.name ?? 'removed account') : undefined;
+    o.account
+      ? (accounts.find((a) => a.id === o.account)?.name ?? 'removed account')
+      : o.harness !== 'kovan'
+        ? 'first account added'
+        : undefined;
 
   useEffect(() => {
     if (models.length === 0) void loadModels();
@@ -2374,6 +2372,8 @@ function OrderGroup() {
   const skipped = (o: AgentOption): string | null => {
     if (o.harness !== 'kovan') {
       if (o.account && !accounts.some((a) => a.id === o.account)) return 'Account removed: skipped';
+      if (!o.account && !accounts.some((a) => a.harness === o.harness))
+        return 'No account added: skipped';
       return agents.find((a) => a.id === o.harness)?.supported ? null : 'Not installed: skipped';
     }
     if (parseCustomModelId(o.model))
@@ -2393,6 +2393,8 @@ function OrderGroup() {
   const draftKnown =
     draft.harness !== 'kovan' || draftModel === JEV_MODEL_ID || Boolean(modelOf(draftModel));
   const draftTaken = order.some((o) => sameOption(o, { ...draft, model: draftModel }));
+  const draftNoAccount =
+    draft.harness !== 'kovan' && !accounts.some((a) => a.harness === draft.harness);
   return (
     <Group title="Your order">
       <p className="setting-desc" style={{ margin: '0 0 8px' }}>
@@ -2503,7 +2505,7 @@ function OrderGroup() {
                 value={draft.account ?? ''}
                 onChange={(e) => setDraft({ ...draft, account: e.target.value || undefined })}
               >
-                <option value="">Default account</option>
+                <option value="">First account added</option>
                 {accounts
                   .filter((a) => a.harness === draft.harness)
                   .map((a) => (
@@ -2517,9 +2519,15 @@ function OrderGroup() {
         )}
         <button
           className="btn"
-          disabled={!draftKnown || draftTaken || order.length >= MAX_ORDER}
+          disabled={!draftKnown || draftTaken || draftNoAccount || order.length >= MAX_ORDER}
           title={
-            draftTaken ? 'Already in your order' : draftKnown ? '' : 'Pick a model from the catalog'
+            draftNoAccount
+              ? `Add a ${HARNESS_NAMES[draft.harness]} account first, under Accounts`
+              : draftTaken
+                ? 'Already in your order'
+                : draftKnown
+                  ? ''
+                  : 'Pick a model from the catalog'
           }
           onClick={() =>
             save([

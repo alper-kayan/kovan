@@ -6,10 +6,10 @@ import { readJson, writeJson } from '@kovan/runner';
 import type { AgentAccount, ExternalHarness } from '../shared/agent.js';
 
 /**
- * The person's other Claude Code and Codex accounts on this machine. Each keeps its sign-in in a
- * folder of its own under Kovan's data, which the CLI is pointed at when it runs for that account
- * (CLAUDE_CONFIG_DIR, CODEX_HOME). The CLI's usual sign-in (~/.claude, ~/.codex) is the default
- * account: it isn't listed and nothing here touches it.
+ * The person's Claude Code and Codex accounts on this machine, each added by hand in Settings.
+ * Each keeps its sign-in in a folder of its own under Kovan's data, which the CLI is pointed at
+ * when it runs for that account (CLAUDE_CONFIG_DIR, CODEX_HOME). The CLI's usual sign-in
+ * (~/.claude, ~/.codex) is never used: nothing here reads or touches it.
  */
 export class AgentAccounts {
   private accounts: AgentAccount[] | null = null;
@@ -59,7 +59,7 @@ export class AgentAccounts {
 
   /**
    * What the CLI's process needs to run as the account: its folder in the variable the CLI
-   * reads. Nothing for the default account, or one that no longer exists.
+   * reads. Nothing for an account that no longer exists.
    */
   async env(
     harness: ExternalHarness,

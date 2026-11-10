@@ -79,14 +79,14 @@ export interface AgentOption {
   model: string;
   /**
    * Which of the person's Claude or OpenAI accounts runs it (an id from Settings → Agents →
-   * Accounts); missing: the one the CLI is signed in with on this machine.
+   * Accounts); missing: the first one added for that agent.
    */
   account?: string | undefined;
 }
 
 /**
- * Another Claude Code or Codex account on this machine: its own sign-in, kept in its own folder
- * (CLAUDE_CONFIG_DIR, CODEX_HOME). The CLI's usual sign-in is the default and isn't listed.
+ * A Claude Code or Codex account the person added on this machine: its own sign-in, kept in its
+ * own folder (CLAUDE_CONFIG_DIR, CODEX_HOME). The CLI's usual sign-in is never used.
  */
 export interface AgentAccount {
   id: string;
@@ -105,7 +105,7 @@ export interface ConversationConfig {
   model: string;
   effort: Effort | null;
   mode: PermissionMode;
-  /** For Claude Code and Codex: which of the person's accounts it runs as; missing: the default. */
+  /** For Claude Code and Codex: which of the person's accounts it runs as; missing: the first added. */
   account?: string | undefined;
 }
 
@@ -480,6 +480,16 @@ export function optionLabel(option: AgentOption, modelName?: string, accountName
   if (option.model === 'default') return agent;
   const known = CLI_MODELS[option.harness].find((m) => m.id === option.model);
   return `${agent} · ${known?.label ?? option.model}`;
+}
+
+/**
+ * Claude Code and Codex run only as an account the person added, never as the sign-in the CLI
+ * already has on this computer: a step that names no account takes `first`, the first one added
+ * for that agent. Null when there is none.
+ */
+export function withAccount(option: AgentOption, first: string | undefined): AgentOption | null {
+  if (option.harness === 'kovan' || option.account) return option;
+  return first ? { ...option, account: first } : null;
 }
 
 export const sameOption = (a: AgentOption, b: AgentOption): boolean =>
