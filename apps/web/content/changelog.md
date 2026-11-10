@@ -1,5 +1,11 @@
 <!-- One "## <version> · <date>" heading per release, newest first. -->
 
+## 0.1.9 · 2026-11-10
+
+### Agents
+
+- In **Settings → Agents → Accounts**, a signed-in account no longer offers **Sign in**, and a long email no longer runs into the buttons. Each account shows its usage under its status, or that it shows after the account's first turn.
+
 ## 0.1.8 · 2026-11-10
 
 ### Agents
