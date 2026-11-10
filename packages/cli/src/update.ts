@@ -156,7 +156,7 @@ export async function checkAndUpdate(d: UpdateDeps): Promise<UpdateResult> {
   if (!publicKey)
     return {
       status: 'failed',
-      why: `${manifest.version} is out, but this build has no update key to check it with; install it from the repository`,
+      why: `${manifest.version} is out, but this copy was built without the release key, so it can't check it. Install the signed one: curl -fsSL https://kovan.alperkayan.dev/install.sh | sh (Windows: irm https://kovan.alperkayan.dev/install.ps1 | iex)`,
     };
   const signature = await fetchSignature(d.server, d.fetchImpl);
   if (!signature || !verifyManifest(text, signature, publicKey))

@@ -60,12 +60,17 @@ chmod 755 "$tmp/kovan.mjs"
 [ -f "$DIR/kovan.mjs" ] && mv -f "$DIR/kovan.mjs" "$DIR/kovan.mjs.old"
 mv -f "$tmp/kovan.mjs" "$DIR/kovan.mjs"
 
-# A small launcher, so the program runs from its own folder and can replace itself when it updates.
-cat >"$BIN/kovan" <<'LAUNCHER'
+# A small launcher, so the program runs from its own folder and can replace itself when it updates. A `kovan`
+# command of your own that already starts something else (a wrapper around it, say) is left as it is.
+if [ -e "$BIN/kovan" ] && ! grep -q '.kovan/cli/kovan.mjs"' "$BIN/kovan" 2>/dev/null; then
+  say "Kept your own $BIN/kovan; the updated program is at $DIR/kovan.mjs."
+else
+  cat >"$BIN/kovan" <<'LAUNCHER'
 #!/bin/sh
 exec node "$HOME/.kovan/cli/kovan.mjs" "$@"
 LAUNCHER
-chmod 755 "$BIN/kovan"
+  chmod 755 "$BIN/kovan"
+fi
 
 say "kovan $version is installed."
 case ":$PATH:" in

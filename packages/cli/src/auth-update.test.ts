@@ -594,7 +594,10 @@ describe('self-update', () => {
       const target = join(dir, 'kovan.mjs');
       writeFileSync(target, 'eski');
       const r = await checkAndUpdate(deps(srv.url, target, { publicKey: '' }));
-      expect(r).toMatchObject({ status: 'failed', why: expect.stringMatching(/no update key/) });
+      expect(r).toMatchObject({
+        status: 'failed',
+        why: expect.stringMatching(/without the release key.*install\.sh/),
+      });
       expect(readFileSync(target, 'utf8')).toBe('eski');
       expect(srv.seen.some((q) => q.url.endsWith('/kovan.mjs'))).toBe(false);
     } finally {

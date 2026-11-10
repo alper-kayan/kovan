@@ -69,8 +69,14 @@ console.log(m.version);
     Move-Item -Force (Join-Path $tmp 'kovan.mjs') $target
 
     # A small launcher, so the program runs from its own folder and can replace itself when it updates.
+    # A kovan.cmd of your own that already starts something else (a wrapper around it, say) is left as it is.
     $launcher = "@echo off`r`nnode `"%USERPROFILE%\.kovan\cli\kovan.mjs`" %*`r`n"
-    Set-Content -Path (Join-Path $bin 'kovan.cmd') -Value $launcher -Encoding ASCII -NoNewline
+    $cmd = Join-Path $bin 'kovan.cmd'
+    if ((Test-Path $cmd) -and -not (Select-String -Path $cmd -SimpleMatch '.kovan\cli\kovan.mjs' -Quiet)) {
+      Write-Host "Kept your own $cmd; the updated program is at $target."
+    } else {
+      Set-Content -Path $cmd -Value $launcher -Encoding ASCII -NoNewline
+    }
   } finally {
     Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
   }

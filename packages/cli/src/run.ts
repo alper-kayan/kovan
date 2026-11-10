@@ -49,7 +49,7 @@ import type { TranscriptEvent } from './tui/transcript.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.4.4';
+export const VERSION = '0.4.5';
 
 export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
 
