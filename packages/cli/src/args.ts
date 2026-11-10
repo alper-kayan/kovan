@@ -11,6 +11,8 @@ export interface Args {
   /** For `sessions export <id>`. */
   sessionId: string | null;
   continueLast: boolean;
+  /** `-r <name|id>`: continue that conversation, in whichever folder it was held. */
+  resume: string | null;
   model: string | null;
   mode: PermissionMode | null;
   effort: Effort | null;
@@ -54,6 +56,7 @@ export function parseArgs(argv: readonly string[]): Args {
     task: '',
     sessionId: null,
     continueLast: false,
+    resume: null,
     model: null,
     mode: null,
     effort: null,
@@ -107,6 +110,13 @@ export function parseArgs(argv: readonly string[]): Args {
       case '--model': {
         const v = value(i, arg);
         if (v) a.model = v;
+        i++;
+        break;
+      }
+      case '-r':
+      case '--resume': {
+        const v = value(i, arg);
+        if (v) a.resume = v;
         i++;
         break;
       }

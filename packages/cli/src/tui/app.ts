@@ -46,7 +46,12 @@ export interface TuiHost {
   palette(): Promise<ListItem[]>;
   sessions(): ListItem[];
   /** Switches to a saved conversation and returns what was said in it, or null when it cannot be loaded. */
-  resume(id: string): TranscriptEvent[] | null;
+  /** A chat of this folder opens here; one held in another folder says where, so it can be opened there. */
+  resume(id: string): { events: TranscriptEvent[] } | { elsewhere: string; id: string } | null;
+  /** Names the chat; says what happened. */
+  rename(name: string): string;
+  /** What the chat is called now. */
+  title(): string;
   newChat(): void;
   history: string[];
   initialEvents: TranscriptEvent[];
@@ -79,6 +84,7 @@ const BUILTINS: ListItem[] = [
   { label: '/effort', hint: 'thinking effort (low … max)', value: '/effort ' },
   { label: '/models', hint: 'choose the model', value: '/models' },
   { label: '/resume', hint: 'continue an earlier chat', value: '/resume' },
+  { label: '/rename', hint: 'name this chat', value: '/rename ' },
   { label: '/sessions', hint: 'earlier chats', value: '/sessions' },
   { label: '/clear', hint: 'new chat', value: '/clear' },
   { label: '/cost', hint: 'tokens and cost', value: '/cost' },
@@ -90,7 +96,8 @@ const HELP = [
   'enter send · \\+enter or alt+enter new line · ↑↓ history / line',
   'tab change mode (allow → plan → request → full) · esc stop the running turn',
   'pageup / pagedown scroll the chat · end jump to the bottom · ctrl+l redraw',
-  '/resume goes back to an earlier chat · ctrl+p command palette · typing / suggests commands, skills and custom commands',
+  '/resume goes back to an earlier chat (type to filter) · /rename <name> names this one · kovan -r <name> opens it from the shell',
+  'ctrl+p command palette · typing / suggests commands, skills and custom commands',
   'ctrl+a / ctrl+e start / end of line · ctrl+w delete word · ctrl+u / ctrl+k delete line',
   'ctrl+c stops the running turn; pressed twice when idle it quits · ctrl+d quits when the input is empty',
   '',
@@ -564,13 +571,24 @@ export class TuiApp {
         return true;
       case '/resume':
       case '/sessions':
-        this.openList('chats', this.host.sessions(), 'no chats in this folder', (id) => {
-          const events = this.host.resume(id);
-          if (!events) return this.flash("couldn't load the chat");
-          this.transcript = Transcript.from(events);
+        this.openList('chats · type to filter', this.host.sessions(), 'no chats yet', (id) => {
+          const r = this.host.resume(id);
+          if (!r) return this.flash("couldn't load the chat");
+          if ('elsewhere' in r) {
+            this.transcript.notice(
+              `That chat was held in ${r.elsewhere}. To continue it there: kovan -r ${r.id.slice(0, 8)}`,
+              'warn',
+            );
+            return this.schedule();
+          }
+          this.transcript = Transcript.from(r.events);
           this.scroll = 0;
-          this.flash('chat opened');
+          this.flash(`continuing: ${this.host.title()}`);
         });
+        return true;
+      case '/rename':
+        if (!arg) this.flash(`name: ${this.host.title()} · /rename <name> changes it`, 4000);
+        else this.flash(this.host.rename(arg), 4000);
         return true;
       case '/skills':
         this.openList(

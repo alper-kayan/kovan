@@ -26,6 +26,7 @@ Before anything is installed, the script checks that the release is signed with 
 kovan                      # a conversation with the agent, in this folder
 kovan "fix the failing test"  # one message: it does the work and exits
 kovan -c                   # continue the last conversation in this folder
+kovan -r "Auth work"       # continue a conversation by its name (or id), from any folder
 kovan sessions             # conversations kept on this machine
 kovan config               # which server and model it talks to
 ```
@@ -33,6 +34,13 @@ kovan config               # which server and model it talks to
 In a conversation, type `/` for the commands, skills and custom commands, and `/help` for the keys. `Tab` changes the permission mode, `Esc` stops a running turn.
 
 Conversations are kept the same way the desktop app keeps its own, so a conversation you start in the terminal shows in the app's chat list for that folder.
+
+## Name a conversation and come back to it
+
+- `/rename <name>` names the conversation you are in. The name is kept, and the desktop app's chat list shows it too. Until you name it, a conversation is called after its first message.
+- `/resume` lists every conversation on this machine: this folder's first, then the others with the folder they were held in. Type to filter the list by name. A conversation from this folder opens right there; one from another folder tells you the command to continue it there.
+- `kovan -r <name or id>` continues a conversation from anywhere, in the folder it was held in. A word of the name is enough when only one conversation fits; when several do, `kovan` lists them instead of guessing.
+- `kovan sessions` lists them all with their ids, folders and dates.
 
 ## Which model it uses
 

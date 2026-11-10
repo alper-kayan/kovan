@@ -49,13 +49,14 @@ import type { TranscriptEvent } from './tui/transcript.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.4.3';
+export const VERSION = '0.4.4';
 
 export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
 
   kovan                       chat with the agent in this folder
   kovan "fix the tests"       one message: it does the work and exits
   kovan -c                    continue the last chat in this folder
+  kovan -r <name|id>          continue a chat by its name or id, in its own folder
   kovan login [--server <url>]  sign in to a Kovan account (confirmed in the browser)
   kovan logout | whoami       sign out | who you are signed in as
   kovan update                update itself
@@ -300,7 +301,29 @@ function updateNow(deps: Deps, server: string, force: boolean): Promise<UpdateRe
 async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const t = deps.terminal;
   const out = (s: string) => t.write(`${s}\n`);
-  const { root, isRepo } = workspaceRoot(resolve(args.cwd ?? deps.cwd));
+  // `kovan -r <name|id>`: that conversation, and the folder it was held in, wherever you are now.
+  let found: { id: string; root: string } | null = null;
+  if (args.resume) {
+    const here = workspaceRoot(resolve(args.cwd ?? deps.cwd)).root;
+    const { match, candidates } = deps.store.find(args.resume, here);
+    if (!match) {
+      deps.err(
+        candidates.length
+          ? `Several chats fit "${args.resume}"; give more of the name, or the id:\n${candidates
+              .slice(0, 10)
+              .map((c) => `  ${c.id.slice(0, 8)}  ${clip(c.title, 50).padEnd(50)}  ${c.root}`)
+              .join('\n')}`
+          : `No chat called "${args.resume}". 'kovan sessions' lists them all.`,
+      );
+      return 1;
+    }
+    if (!existsSync(match.root)) {
+      deps.err(`That chat's folder isn't here any more: ${match.root}`);
+      return 1;
+    }
+    found = { id: match.id, root: match.root };
+  }
+  const { root, isRepo } = workspaceRoot(found?.root ?? resolve(args.cwd ?? deps.cwd));
   let auth = deps.auth.load();
 
   // Looking for a newer version never holds the prompt up: it runs beside it and speaks at the end.
@@ -397,7 +420,10 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
 
   let conv: StoredConversation | null = null;
   let resumed = false;
-  if (args.continueLast) {
+  if (found) {
+    conv = deps.store.load(found.root, found.id);
+    resumed = conv !== null;
+  } else if (args.continueLast) {
     const latest = deps.store.latestFor(root);
     const saved = latest ? deps.store.load(root, latest.id) : null;
     if (saved) {
@@ -606,6 +632,17 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     const m = model === 'default' ? list[0] : list.find((x) => x.id === model);
     const levels = m?.levels ?? fallback;
     return { levels, default: m?.defaultLevel ?? 'medium' };
+  };
+
+  /** `/rename`: what the chat is called, here and in the desktop app's list; the first message no longer names it. */
+  const rename = (name: string): string => {
+    conv!.title = clip(name.replace(/\s+/g, ' ').trim(), 80);
+    try {
+      deps.store.save(conv!);
+      return `Named: ${conv!.title}`;
+    } catch (e) {
+      return `Couldn't save the name: ${e instanceof Error ? e.message : String(e)}`;
+    }
   };
 
   const turn = async (text: string) => {
@@ -866,23 +903,33 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
           value: `/${k.name} `,
         }));
       },
-      sessions: () =>
-        deps.store.list(root).map((c) => ({
-          label: clip(c.title, 60),
-          hint: new Date(c.updatedAt).toLocaleString(),
-          value: c.id,
-        })),
+      // Every chat of Kovan's own agent on this machine: this folder's first, then the others with where they were held.
+      sessions: () => {
+        const all = deps.store.list().filter((c) => c.harness === 'kovan');
+        const when = (c: { updatedAt: number }) => new Date(c.updatedAt).toLocaleString();
+        return [...all.filter((c) => c.root === root), ...all.filter((c) => c.root !== root)].map(
+          (c) => ({
+            label: clip(c.title, 60),
+            hint: c.root === root ? when(c) : `${basename(c.root)} · ${when(c)}`,
+            value: c.id,
+          }),
+        );
+      },
       resume: (id) => {
-        const saved = deps.store.load(root, id);
+        const saved = deps.store.loadById(id);
         if (!saved) return null;
+        // Its files are in another folder: the agent would work in the wrong one, so say how to open it there.
+        if (saved.root !== root) return { elsewhere: saved.root, id: saved.id };
         conv = saved;
         agent.messages.splice(
           1,
           agent.messages.length,
           ...saved.messages.filter((m) => m.role !== 'system'),
         );
-        return saved.events as TranscriptEvent[];
+        return { events: saved.events as TranscriptEvent[] };
       },
+      rename,
+      title: () => conv!.title,
       newChat: () => {
         agent.messages.splice(1);
         conv = deps.store.create(root, { model: provider.model, effort, mode });
@@ -929,6 +976,12 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     if (line === '/context') {
       out(contextText ? clip(contextText, 600) : 'No extra context was given to this chat.');
+      continue;
+    }
+    if (/^\/rename(\s|$)/.test(line)) {
+      const name = line.slice(7).trim();
+      if (!name) out(`name: ${conv.title}  (/rename <name> changes it)`);
+      else out(rename(name));
       continue;
     }
     if (line === '/clear') {

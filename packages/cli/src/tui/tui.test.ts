@@ -136,6 +136,8 @@ function host(over: Partial<TuiHost> = {}): TuiHost {
     palette: async () => [{ label: '/review', hint: 'kodu gözden geçir', value: '/review ' }],
     sessions: () => [],
     resume: () => null,
+    rename: (n: string) => `Named: ${n}`,
+    title: () => 'New chat',
     newChat: () => {},
     history: [],
     initialEvents: [],
@@ -231,6 +233,55 @@ describe('TuiApp', () => {
     expect(narrow).toContain('Update installed');
     expect(strWidth(narrow)).toBeLessThanOrEqual(60);
     narrowIO.send('\u0004');
+    await tick();
+  });
+
+  it('/resume lists every chat, this folder’s first; one from another folder says how to open it there', async () => {
+    const io = fakeIO(100, 24);
+    const app = new TuiApp(
+      io,
+      host({
+        sessions: () => [
+          { label: 'Here', hint: 'today', value: 'h1' },
+          { label: 'Auth work', hint: 'shop · yesterday', value: 'abcdef1234' },
+        ],
+        resume: (id) => (id === 'abcdef1234' ? { elsewhere: '/work/shop', id } : { events: [] }),
+      }),
+    );
+    void app.run();
+    await tick();
+    io.send('/resume\r');
+    await tick();
+    expect(screen(app).join('\n')).toContain('Auth work');
+    io.send('auth'); // typing filters the list
+    await tick();
+    expect(screen(app).join('\n')).not.toContain('Here');
+    io.send('\r');
+    await tick();
+    expect(screen(app).join('\n')).toContain('kovan -r abcdef12');
+    io.send('\u0004');
+    await tick();
+  });
+
+  it('/rename names the chat', async () => {
+    const io = fakeIO(100, 24);
+    const named: string[] = [];
+    const app = new TuiApp(
+      io,
+      host({
+        rename: (n) => {
+          named.push(n);
+          return `Named: ${n}`;
+        },
+      }),
+    );
+    void app.run();
+    await tick();
+    io.send('/rename Auth work\r');
+    await tick();
+    expect(named).toEqual(['Auth work']);
+    expect(screen(app).join('\n')).toContain('Named: Auth work');
+    io.send('\u0004');
     await tick();
   });
 

@@ -7,13 +7,14 @@ skills, `KOVAN.md` rules), with a prompt in front of it. No new agent, no third-
 kovan                       a conversation with the agent, in this folder
 kovan "fix the failing test"  one message: it does the work and exits
 kovan -c                    pick up the last session in this folder
+kovan -r <name|id>          pick up a session by its name or id, in the folder it was held in
 kovan sessions [--json]     sessions kept on this machine (~/.kovan/sessions, readable only by you)
 kovan sessions export <id>  what a surrounding tool may remember of one: first ask, how it ended, files changed
 kovan config                which server and model it talks to (never the key)
 ```
 
 `--mode plan|request|allow|full` (default `allow`: edits freely, asks before commands), `-m <model>`, `--effort`, `--context-file <file>`
-(extra instructions appended to the system prompt), `--reasoning`, `--cwd`. In the conversation: `/mode /model /models /clear /cost /context /help /exit`.
+(extra instructions appended to the system prompt), `--reasoning`, `--cwd`. In the conversation: `/mode /model /models /resume /rename /clear /cost /context /help /exit` (`/rename <name>` names it; `/resume` lists every session, this folder's first).
 Ctrl+C stops a running turn; at the prompt it leaves.
 
 ## Install

@@ -144,6 +144,29 @@ export class ConversationStore {
     return out.sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  /**
+   * A conversation of Kovan's own agent by what you call it: its id (or at least its first four characters), its name, or a word of
+   * its name. This folder's come first, then the newest. A word that fits several is not guessed: they come back as candidates.
+   */
+  find(
+    query: string,
+    root: string,
+  ): { match: ConversationSummary | null; candidates: ConversationSummary[] } {
+    const q = query.trim().toLowerCase();
+    if (!q) return { match: null, candidates: [] };
+    const here = (c: ConversationSummary) => (c.root === root ? 0 : 1);
+    const all = this.list()
+      .filter((c) => c.harness === 'kovan')
+      .sort((a, b) => here(a) - here(b) || b.updatedAt - a.updatedAt);
+    const exact = all.find((c) => c.id.toLowerCase() === q || c.title.toLowerCase() === q);
+    if (exact) return { match: exact, candidates: [] };
+    const byId = q.length >= 4 ? all.filter((c) => c.id.toLowerCase().startsWith(q)) : [];
+    if (byId.length === 1) return { match: byId[0]!, candidates: [] };
+    const byWord = all.filter((c) => c.title.toLowerCase().includes(q));
+    if (byWord.length === 1 && byId.length === 0) return { match: byWord[0]!, candidates: [] };
+    return { match: null, candidates: byId.length ? byId : byWord };
+  }
+
   /** The newest conversation of Kovan's own agent in this folder: Claude Code's and Codex's are not ours to continue. */
   latestFor(root: string): ConversationSummary | null {
     return this.list(root).find((c) => c.harness === 'kovan') ?? null;

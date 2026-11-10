@@ -527,6 +527,52 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
     expect(c.events.filter((e) => e.type === 'user')).toHaveLength(2);
   });
 
+  it('/rename names the chat, and kovan -r opens it by that name from any folder, in its own folder', async () => {
+    // A chat named in the plain prompt.
+    const first = scripted([[text('baktım'), done()]]);
+    const named = run([], terminal(['auth akışına bak', '/rename Auth work', '/exit'], false), {
+      model: first,
+    });
+    expect(await named.done).toBe(0);
+    const [meta] = named.store.list();
+    expect(meta).toMatchObject({ title: 'Auth work', root: dir });
+
+    // From somewhere else entirely, by a word of its name: it continues there, with what was said.
+    const elsewhere = await mkdtemp(join(tmpdir(), 'kv-elsewhere-'));
+    const model = scripted([[text('devam'), done()]]);
+    const again = run(['-r', 'auth', 've şimdi testleri'], terminal([]), { model, cwd: elsewhere });
+    expect(await again.done).toBe(0);
+    expect(again.store.list().map((c) => c.id)).toEqual([meta!.id]); // no new chat was made
+    const sent = JSON.stringify(model.requests.at(-1)!.messages);
+    expect(sent).toContain('auth akışına bak');
+    expect(sent).toContain('ve şimdi testleri');
+    await rm(elsewhere, { recursive: true, force: true });
+  });
+
+  it('kovan -r says when nothing fits, and lists the ones that all fit instead of guessing', async () => {
+    const store = new ConversationStore(join(dir, 'data'));
+    for (const title of ['Auth login', 'Auth tokens']) {
+      const c = store.create(dir, { model: 'm', effort: null, mode: 'allow' });
+      c.title = title;
+      store.save(c);
+    }
+    const none = run(['-r', 'billing'], terminal([]), { store });
+    expect(await none.done).toBe(1);
+    expect(none.errors.join('\n')).toMatch(/No chat called "billing".*kovan sessions/);
+    const both = run(['-r', 'auth'], terminal([]), { store });
+    expect(await both.done).toBe(1);
+    const listed = both.errors.join('\n');
+    expect(listed).toMatch(/Several chats fit "auth"/);
+    expect(listed).toContain('Auth login');
+    expect(listed).toContain('Auth tokens');
+    // The exact name, or its id, picks one.
+    const exact = run(['-r', 'auth tokens', 'x'], terminal([]), {
+      store,
+      model: scripted([[text('ok'), done()]]),
+    });
+    expect(await exact.done).toBe(0);
+  });
+
   it('-c with nothing to continue says so and starts fresh', async () => {
     const r = run(['-c', 'selam'], terminal([]), { model: scripted([[text('x'), done()]]) });
     expect(await r.done).toBe(0);
