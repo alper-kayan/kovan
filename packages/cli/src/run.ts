@@ -6,6 +6,7 @@ import {
   buildSystemPrompt,
   discoverSkills,
   parseSkillCommand,
+  type AgentEvent,
   type ApprovalRequest,
   type ModelStreamer,
   type PermissionMode,
@@ -30,7 +31,15 @@ import {
 import { expandCommand, findCommand, skillPlaces, userNotes } from './extras.js';
 import { CONFIG_FILE, loadProvider, type Provider, type ProviderResult } from './config.js';
 import { NOOP_NOTCH, createNotch, notchEventsFor, hookTool, type Notch } from './notch.js';
-import { cliDir } from './paths.js';
+import { cliDir, desktopDataDir } from './paths.js';
+import {
+  claudeAccounts,
+  claudeEnv,
+  CLAUDE_MODELS,
+  ClaudeRunner,
+  findClaude,
+  type ClaudeAccount,
+} from './claude.js';
 import { Renderer } from './render.js';
 import { TuiApp, type TuiHost, type TuiIO } from './tui/app.js';
 import type { TranscriptEvent } from './tui/transcript.js';
@@ -502,6 +511,16 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
 
   const toolNames = new Map<string, string>();
   const lastText = { value: '' };
+  const onEvent = (e: AgentEvent) => {
+    if (e.type === 'turn_end') {
+      lastReason = e.reason;
+      conv!.cost += e.cost;
+    }
+    if (keepEvent(e)) conv!.events.push(e);
+    if (tui) tui.ui.event(e as TranscriptEvent);
+    else renderer.event(e);
+    for (const n of notchEventsFor(e, toolNames, lastText)) notch.event(n.name, n.fields);
+  };
   const agent = new Agent(
     {
       model: streamer,
@@ -518,25 +537,42 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         return info ? estimateCost(info, usage) : null;
       },
       skills: () => discoverSkills(skillPlaces(root, ex)),
-      onEvent: (e) => {
-        if (e.type === 'turn_end') {
-          lastReason = e.reason;
-          conv!.cost += e.cost;
-        }
-        if (keepEvent(e)) conv!.events.push(e);
-        if (tui) tui.ui.event(e as TranscriptEvent);
-        else renderer.event(e);
-        for (const n of notchEventsFor(e, toolNames, lastText)) notch.event(n.name, n.fields);
-      },
+      onEvent: (e) => onEvent(e),
     },
     history,
   );
+
+  // Claude Code as an engine: the accounts the desktop app already has, nothing to set up.
+  const dataDir = desktopDataDir(deps.env, process.platform, ex.home);
+  const claudeBin = deps.model ? null : findClaude(deps.env, ex.home);
+  const claudeRunner = new ClaudeRunner();
+  let claude: { account: ClaudeAccount; model: string } | null = null;
+  let claudeSession: string | null = null;
+  {
+    // `-m claude:<account>:<model>` starts on Claude Code (an empty account is the CLI's own sign-in).
+    const m = /^claude:([^:]*):(.+)$/.exec(args.model ?? '');
+    const account = m ? claudeAccounts(dataDir).find((x) => (x.id ?? '') === m[1]) : undefined;
+    if (m && account && claudeBin) claude = { account, model: m[2]! };
+  }
+  const claudeLabel = (c: { account: ClaudeAccount; model: string }) =>
+    `Claude Code · ${c.account.name}${c.model === 'default' ? '' : ` · ${c.model}`}`;
 
   const turn = async (text: string) => {
     lastReason = null;
     conv!.events.push({ type: 'user', text, attachments: [], at: Date.now() });
     notch.event('UserPromptSubmit', { prompt: text });
-    await agent.send(text);
+    if (claude && claudeBin) {
+      claudeSession = await claudeRunner.send(text, {
+        binary: claudeBin,
+        root,
+        model: claude.model,
+        mode,
+        sessionId: claudeSession,
+        env: claudeEnv(dataDir, claude.account.id),
+        baseEnv: deps.env,
+        onEvent,
+      });
+    } else await agent.send(text);
     conv!.messages = [...agent.messages];
     conv!.updatedAt = Date.now();
     conv!.model = provider.model;
@@ -592,8 +628,8 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   if (deps.screen && t.isTTY && !args.plain && deps.env['TERM'] !== 'dumb') {
     const host: TuiHost = {
       header: () => ({
-        model: provider.model,
-        provider: provider.label,
+        model: claude ? claudeLabel(claude) : provider.model,
+        provider: claude ? 'Claude hesabı (Kovan masaüstündeki hesap)' : provider.label,
         folder: root.replace(ex.home, '~'),
         managed: provider.managed,
       }),
@@ -603,27 +639,44 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         agent.configure({ mode });
       },
       setModel: (id) => {
+        const m = /^claude:([^:]*):(.+)$/.exec(id);
+        if (m) {
+          const account = claudeAccounts(dataDir).find((a) => (a.id ?? '') === m[1]);
+          if (account) {
+            if (!claude || claude.account.id !== account.id) claudeSession = null;
+            claude = { account, model: m[2]! };
+            return;
+          }
+        }
+        claude = null;
         provider = { ...provider, model: id };
         agent.configure({ modelId: id });
         conv!.model = id;
       },
       models: async () => {
+        let modelError = 'hesabında model yok';
         // The account's own list, asked for fresh: what he can use, not a guess.
         if (client) {
           try {
             catalog = await client.listModels(AbortSignal.timeout(10_000));
           } catch (e) {
-            if (!catalog.length)
-              return {
-                items: [],
-                error: `liste alınamadı: ${e instanceof Error ? e.message : String(e)}`,
-              };
+            modelError = `liste alınamadı: ${e instanceof Error ? e.message : String(e)}`;
           }
         }
-        return { items: catalog.map((c) => ({ label: c.id, value: c.id })) };
+        const claudeItems = claudeBin
+          ? claudeAccounts(dataDir).flatMap((a) =>
+              CLAUDE_MODELS.map((m) => ({
+                label: `Claude Code · ${a.name}${m === 'default' ? '' : ` · ${m}`}`,
+                hint: 'hesabındaki Claude, ek kurulum yok',
+                value: `claude:${a.id ?? ''}:${m}`,
+              })),
+            )
+          : [];
+        const items = [...claudeItems, ...catalog.map((c) => ({ label: c.id, value: c.id }))];
+        return items.length ? { items } : { items, error: modelError };
       },
       turn,
-      stop: () => agent.stop(),
+      stop: () => (claude ? claudeRunner.stop() : agent.stop()),
       slash,
       palette: async () => {
         const set = await discoverSkills(skillPlaces(root, ex)).catch(() => null);
