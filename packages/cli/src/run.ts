@@ -283,7 +283,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const t = deps.terminal;
   const out = (s: string) => t.write(`${s}\n`);
   const { root, isRepo } = workspaceRoot(resolve(args.cwd ?? deps.cwd));
-  const auth = deps.auth.load();
+  let auth = deps.auth.load();
 
   // Looking for a newer version never holds the prompt up: it runs beside it and speaks at the end.
   const update: Promise<UpdateResult> | null =
@@ -303,6 +303,31 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     if (note) out(note);
     return code;
   };
+
+  // No account, no terminal: signing in comes first, in the same window, and the chat opens right after.
+  const interactive = Boolean(deps.screen && t.isTTY && !args.plain && deps.env['TERM'] !== 'dumb');
+  if (!deps.model && !auth && deps.env['KOVAN_PROVIDER'] !== 'own' && !args.task) {
+    if (!interactive) {
+      deps.err("girişli değilsin. 'kovan login' ile Kovan hesabına gir.");
+      return 1;
+    }
+    out("Kovan'a giriş gerekli. Tarayıcıda onaylayınca terminal açılır.");
+    try {
+      auth = await login({
+        server,
+        machineId: deps.auth.machineId(),
+        fetchImpl: deps.fetchImpl ?? fetch,
+        open: deps.open ?? (() => {}),
+        out,
+        sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+      });
+      deps.auth.save(auth);
+      out(`giriş yapıldı: ${auth.user?.name ?? '—'}`);
+    } catch (e) {
+      deps.err(e instanceof LoginError ? e.message : String(e));
+      return 1;
+    }
+  }
 
   let provider: Provider;
   if (deps.model) {
@@ -363,9 +388,10 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
 
   let streamer: ModelStreamer;
   let catalog: ModelInfo[] = deps.catalog ?? [];
+  let client: OpenRouterClient | null = null;
   if (deps.model) streamer = deps.model;
   else {
-    const client = new OpenRouterClient({
+    client = new OpenRouterClient({
       apiKey: provider.apiKey,
       baseUrl: provider.baseUrl,
       dialect: provider.dialect,
@@ -581,7 +607,21 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         agent.configure({ modelId: id });
         conv!.model = id;
       },
-      models: () => catalog.map((c) => ({ label: c.id, value: c.id })),
+      models: async () => {
+        // The account's own list, asked for fresh: what he can use, not a guess.
+        if (client) {
+          try {
+            catalog = await client.listModels(AbortSignal.timeout(10_000));
+          } catch (e) {
+            if (!catalog.length)
+              return {
+                items: [],
+                error: `liste alınamadı: ${e instanceof Error ? e.message : String(e)}`,
+              };
+          }
+        }
+        return { items: catalog.map((c) => ({ label: c.id, value: c.id })) };
+      },
       turn,
       stop: () => agent.stop(),
       slash,

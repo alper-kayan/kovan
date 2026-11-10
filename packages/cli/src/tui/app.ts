@@ -31,7 +31,7 @@ export interface TuiHost {
   mode(): PermissionMode;
   setMode(m: PermissionMode): void;
   setModel(id: string): void;
-  models(): ListItem[];
+  models(): Promise<{ items: ListItem[]; error?: string }>;
   /** Runs one turn and resolves when the agent is done with it. `shown` is what he typed (a custom command may send more text than that). */
   turn(send: string): Promise<void>;
   stop(): void;
@@ -485,16 +485,20 @@ export class TuiApp {
         if (cmd === '/model' && arg) {
           this.host.setModel(arg);
           this.flash(`model: ${arg}`);
-        } else
-          this.openList(
-            'model',
-            this.host.models(),
-            'model listesi alınamadı; /model <ad> yaz',
-            (v) => {
-              this.host.setModel(v);
-              this.flash(`model: ${v}`);
-            },
-          );
+        } else {
+          this.openList('model', [], 'hesabındaki modeller alınıyor…', (v) => {
+            this.host.setModel(v);
+            this.flash(`model: ${v}`);
+          });
+          const d = this.dialog;
+          void this.host.models().then((m) => {
+            if (d && d.kind === 'list' && this.dialog === d) {
+              d.items = m.items;
+              d.empty = m.error ?? 'hesabında model yok';
+              this.schedule();
+            }
+          });
+        }
         return true;
       case '/resume':
       case '/sessions':

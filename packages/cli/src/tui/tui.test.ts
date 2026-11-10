@@ -121,10 +121,12 @@ function host(over: Partial<TuiHost> = {}): TuiHost {
     mode: () => mode,
     setMode: (m) => (mode = m),
     setModel: () => {},
-    models: () => [
-      { label: 'a/one', value: 'a/one' },
-      { label: 'b/two', value: 'b/two' },
-    ],
+    models: async () => ({
+      items: [
+        { label: 'a/one', value: 'a/one' },
+        { label: 'b/two', value: 'b/two' },
+      ],
+    }),
     turn: async () => {},
     stop: () => {},
     slash: async () => null,
