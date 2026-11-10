@@ -256,6 +256,8 @@ export interface ClaudeTurn {
   mode: PermissionMode;
   /** Claude Code's own session, so the next turn continues the same conversation. */
   sessionId: string | null;
+  /** Reasoning effort; Claude Code takes low … max, so none and minimal are left to its default. */
+  effort?: string | null;
   env: Record<string, string>;
   baseEnv: Record<string, string | undefined>;
   onEvent: (e: AgentEvent) => void;
@@ -290,6 +292,9 @@ export class ClaudeRunner {
       '--permission-mode',
       CLAUDE_PERMISSION[o.mode],
       ...(o.model && o.model !== 'default' ? ['--model', o.model] : []),
+      ...(o.effort && ['low', 'medium', 'high', 'xhigh', 'max'].includes(o.effort)
+        ? ['--effort', o.effort]
+        : []),
       ...(o.sessionId ? ['--resume', o.sessionId] : ['--session-id', session]),
       '--',
       prompt,

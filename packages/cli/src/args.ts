@@ -28,7 +28,15 @@ export interface Args {
 }
 
 export const MODES: readonly PermissionMode[] = ['plan', 'request', 'allow', 'full'];
-const EFFORTS: readonly Effort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+export const EFFORTS: readonly Effort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+];
 const COMMANDS = new Set([
   'sessions',
   'config',

@@ -202,6 +202,8 @@ export interface CodexTurn {
   mode: PermissionMode;
   /** Codex's own thread, so the next turn continues the same conversation. */
   threadId: string | null;
+  /** Reasoning effort; Codex knows minimal … high, so xhigh and max are high. */
+  effort?: string | null;
   env: Record<string, string>;
   baseEnv: Record<string, string | undefined>;
   onEvent: (e: AgentEvent) => void;
@@ -234,6 +236,12 @@ export class CodexRunner {
       '-c',
       `sandbox_mode=${JSON.stringify(CODEX_SANDBOX[o.mode])}`,
       ...(o.model && o.model !== 'default' ? ['-m', o.model] : []),
+      ...(o.effort && o.effort !== 'none'
+        ? [
+            '-c',
+            `model_reasoning_effort=${JSON.stringify(['xhigh', 'max'].includes(o.effort) ? 'high' : o.effort)}`,
+          ]
+        : []),
       note + prompt,
     ];
     const lines = new CodexLines(randomUUID(), o.root, o.model, o.onEvent);

@@ -17,7 +17,7 @@ import {
   type ChatMessage,
   type ModelInfo,
 } from '@kovan/model-gateway';
-import { MODES, parseArgs, type Args } from './args.js';
+import { EFFORTS, MODES, parseArgs, type Args } from './args.js';
 import {
   DEFAULT_SERVER,
   LoginError,
@@ -391,7 +391,8 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     } else deps.err('bu klasörde devam edilecek sohbet yok; yenisi başlıyor.');
   }
   let mode: PermissionMode = args.mode ?? (resumed ? conv!.mode : 'allow');
-  conv ??= deps.store.create(root, { model: provider.model, effort: args.effort, mode });
+  let effort = args.effort;
+  conv ??= deps.store.create(root, { model: provider.model, effort, mode });
   // The system prompt is rebuilt each time (a changed KOVAN.md applies); what was said before it is kept.
   const history: ChatMessage[] = resumed
     ? [{ role: 'system', content: system }, ...conv.messages.filter((m) => m.role !== 'system')]
@@ -527,7 +528,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     {
       model: streamer,
       modelId: provider.model,
-      effort: args.effort,
+      effort,
       mode,
       root,
       isRepo,
@@ -579,6 +580,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         model: codex.model,
         mode,
         threadId: codexThread,
+        effort,
         env: codexEnv(dataDir, codex.account.id),
         baseEnv: deps.env,
         onEvent,
@@ -589,6 +591,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         root,
         model: claude.model,
         mode,
+        effort,
         sessionId: claudeSession,
         env: claudeEnv(dataDir, claude.account.id),
         baseEnv: deps.env,
@@ -664,6 +667,12 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         managed: provider.managed,
       }),
       mode: () => mode,
+      effort: () => effort ?? 'varsayılan',
+      setEffort: (e) => {
+        effort = e as typeof effort;
+        agent.configure({ effort });
+      },
+      efforts: () => [...EFFORTS],
       setMode: (m) => {
         mode = m;
         agent.configure({ mode });
@@ -760,7 +769,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       },
       newChat: () => {
         agent.messages.splice(1);
-        conv = deps.store.create(root, { model: provider.model, effort: args.effort, mode });
+        conv = deps.store.create(root, { model: provider.model, effort, mode });
       },
       history: conv.events.flatMap((e) => (e.type === 'user' ? [e.text] : [])),
       initialEvents: resumed ? (conv.events as TranscriptEvent[]) : [],
@@ -804,7 +813,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     if (line === '/clear') {
       agent.messages.splice(1);
-      conv = deps.store.create(root, { model: provider.model, effort: args.effort, mode });
+      conv = deps.store.create(root, { model: provider.model, effort, mode });
       out('temizlendi: yeni sohbet.');
       continue;
     }

@@ -120,6 +120,9 @@ function host(over: Partial<TuiHost> = {}): TuiHost {
     header: () => ({ model: 'm/x', provider: 'test', folder: '~/proje', managed: false }),
     mode: () => mode,
     setMode: (m) => (mode = m),
+    effort: () => 'medium',
+    setEffort: () => {},
+    efforts: () => ['low', 'medium', 'high'],
     setModel: () => {},
     models: async () => ({
       items: [

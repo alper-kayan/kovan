@@ -30,6 +30,9 @@ export interface TuiHost {
   header(): { model: string; provider: string; folder: string; managed: boolean };
   mode(): PermissionMode;
   setMode(m: PermissionMode): void;
+  effort(): string;
+  setEffort(e: string): void;
+  efforts(): string[];
   setModel(id: string): void;
   models(): Promise<{ items: ListItem[]; error?: string }>;
   /** Runs one turn and resolves when the agent is done with it. `shown` is what he typed (a custom command may send more text than that). */
@@ -63,6 +66,7 @@ const MODE_CYCLE: PermissionMode[] = ['allow', 'plan', 'request', 'full'];
 const BUILTINS: ListItem[] = [
   { label: '/help', hint: 'tuşlar ve komutlar', value: '/help' },
   { label: '/mode', hint: 'plan · request · allow · full', value: '/mode ' },
+  { label: '/effort', hint: 'düşünme eforu (low … max)', value: '/effort ' },
   { label: '/models', hint: 'modeli seç', value: '/models' },
   { label: '/resume', hint: 'önceki sohbete devam et', value: '/resume' },
   { label: '/sessions', hint: 'önceki sohbetlere dön', value: '/sessions' },
@@ -480,6 +484,27 @@ export class TuiApp {
           );
         return true;
       }
+      case '/effort': {
+        const e = this.host.efforts().find((x) => x === arg);
+        if (e) {
+          this.host.setEffort(e);
+          this.flash(`efor: ${e}`);
+        } else
+          this.openList(
+            'efor',
+            this.host.efforts().map((x) => ({
+              label: x,
+              hint: x === this.host.effort() ? 'şimdiki' : '',
+              value: x,
+            })),
+            '',
+            (v) => {
+              this.host.setEffort(v);
+              this.flash(`efor: ${v}`);
+            },
+          );
+        return true;
+      }
       case '/model':
       case '/models':
         if (cmd === '/model' && arg) {
@@ -568,6 +593,7 @@ export class TuiApp {
         provider: h.provider,
         folder: h.folder,
         mode: this.host.mode(),
+        effort: this.host.effort(),
         cost: t.cost,
       },
       transcript: this.transcript.render(cols, { reasoning: this.host.reasoning, spin: this.spin }),
