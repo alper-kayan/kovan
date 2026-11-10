@@ -86,4 +86,4 @@ Your conversations stay in the desktop app's data folder, and your sign-in in `~
 
 - Claude Code and Codex are found as `claude.exe` (the native build) or as npm's `claude.cmd` / `codex.cmd`; an npm command is started through its script with Node, never through `cmd.exe`, so nothing in your prompt is read as a shell command.
 - Commands the agent runs go through PowerShell.
-- Keys of providers you added in the desktop app can only be read on macOS for now; on Windows, set the provider with `KOVAN_BASE_URL`, `KOVAN_API_KEY` and `KOVAN_MODEL`.
+- Providers you added in the desktop app work here too: their keys are unlocked by Windows for your user account (DPAPI), the same way the desktop app reads them.

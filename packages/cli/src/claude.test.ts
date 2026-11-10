@@ -138,7 +138,7 @@ describe('codex stream', () => {
   });
 });
 
-import { createCipheriv, pbkdf2Sync } from 'node:crypto';
+import { createCipheriv, pbkdf2Sync, randomBytes } from 'node:crypto';
 import { decryptSafeStorage, desktopProviders, providerKey } from './desktopKeys.js';
 
 describe('desktop providers and their keys', () => {
@@ -176,18 +176,49 @@ describe('desktop providers and their keys', () => {
       seal(JSON.stringify({ deepinfra: 'sk-test' }), 'hunter2'),
     );
     expect(decryptSafeStorage(seal('merhaba', 's'), 's')).toBe('merhaba');
-    expect(await providerKey(dir, 'deepinfra', async () => 'hunter2', 'darwin')).toBe('sk-test');
-    await expect(providerKey(dir, 'other', async () => 'hunter2', 'darwin')).rejects.toThrow(
-      /no key saved/,
+    expect(await providerKey(dir, 'deepinfra', 'darwin', { keychain: async () => 'hunter2' })).toBe(
+      'sk-test',
     );
-    await expect(providerKey(dir, 'deepinfra', async () => 'wrong', 'darwin')).rejects.toThrow();
     await expect(
-      providerKey(mkdtempSync(join(tmpdir(), 'kv-')), 'x', async () => 'a', 'darwin'),
+      providerKey(dir, 'other', 'darwin', { keychain: async () => 'hunter2' }),
+    ).rejects.toThrow(/no key saved/);
+    await expect(
+      providerKey(dir, 'deepinfra', 'darwin', { keychain: async () => 'wrong' }),
+    ).rejects.toThrow();
+    await expect(
+      providerKey(mkdtempSync(join(tmpdir(), 'kv-')), 'x', 'darwin', { keychain: async () => 'a' }),
     ).rejects.toThrow(/no saved keys/);
-    // Elsewhere the keychain isn't there to ask: it says how to use the provider instead.
-    await expect(providerKey(dir, 'deepinfra', async () => 'hunter2', 'win32')).rejects.toThrow(
-      /only be read on macOS.*KOVAN_BASE_URL/,
+    // Where there is neither keychain nor DPAPI it says how to use the provider instead.
+    await expect(providerKey(dir, 'deepinfra', 'linux')).rejects.toThrow(
+      /macOS and Windows.*KOVAN_BASE_URL/,
     );
+  });
+
+  it('opens them on Windows too: the AES key from Local State, unsealed by DPAPI, then AES-256-GCM', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kv-win-'));
+    const aes = randomBytes(32);
+    // What Chromium writes: "DPAPI" + the DPAPI blob of the key (here a stand-in that DPAPI below undoes).
+    const sealedKey = Buffer.concat([Buffer.from('DPAPI'), Buffer.from('sealed:'), aes]);
+    writeFileSync(
+      join(dir, 'Local State'),
+      JSON.stringify({ os_crypt: { encrypted_key: sealedKey.toString('base64') } }),
+    );
+    const nonce = randomBytes(12);
+    const c = createCipheriv('aes-256-gcm', aes, nonce);
+    const body = Buffer.concat([c.update(JSON.stringify({ deepinfra: 'sk-win' })), c.final()]);
+    writeFileSync(
+      join(dir, 'custom-provider-keys.bin'),
+      Buffer.concat([Buffer.from('v10'), nonce, body, c.getAuthTag()]),
+    );
+    const unprotect = async (b: Buffer) => {
+      expect(b.subarray(0, 7).toString()).toBe('sealed:'); // the "DPAPI" prefix is not part of the blob
+      return b.subarray(7);
+    };
+    expect(await providerKey(dir, 'deepinfra', 'win32', { unprotect })).toBe('sk-win');
+    // Another user's DPAPI gives another key: GCM refuses it rather than returning garbage.
+    await expect(
+      providerKey(dir, 'deepinfra', 'win32', { unprotect: async () => randomBytes(32) }),
+    ).rejects.toThrow();
   });
 });
 
