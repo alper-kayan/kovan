@@ -47,13 +47,19 @@
         <div class="cli-text">
           <h2 id="terminal-title">In the terminal</h2>
           <p>
-            <span class="mono">kovan</span> is Kovan's coding agent on its own, for macOS and Linux.
-            It needs Node.js 22 or newer, installs for you alone (no sudo), checks the download's
-            signature and keeps itself up to date.
+            <span class="mono">kovan</span> is Kovan's coding agent on its own, for macOS, Linux and
+            Windows. It needs Node.js 22 or newer, installs for you alone (no admin rights), checks
+            the download's signature and keeps itself up to date.
           </p>
         </div>
+        <p class="cli-os">macOS and Linux</p>
         <div class="cli-cmd">
           <code data-cli-command>curl -fsSL https://kovan.alperkayan.dev/install.sh | sh</code>
+          <button class="btn cli-copy" type="button" data-cli-copy>Copy</button>
+        </div>
+        <p class="cli-os">Windows (PowerShell)</p>
+        <div class="cli-cmd">
+          <code data-cli-command>irm https://kovan.alperkayan.dev/install.ps1 | iex</code>
           <button class="btn cli-copy" type="button" data-cli-copy>Copy</button>
         </div>
         <p class="cli-more">

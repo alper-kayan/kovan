@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import type { AgentEvent, PermissionMode } from '@kovan/harness';
+import { launch } from './claude.js';
 
 /**
  * Codex as an engine, the way the desktop app runs it: `codex exec --json`, one process per turn, as one of the app's Codex accounts (each in
@@ -246,7 +247,8 @@ export class CodexRunner {
     ];
     const lines = new CodexLines(randomUUID(), o.root, o.model, o.onEvent);
     this.stopped = false;
-    const child = spawn(o.binary, args, {
+    const run = launch(o.binary, args);
+    const child = spawn(run.file, run.args, {
       cwd: o.root,
       env: { ...o.baseEnv, ...o.env } as NodeJS.ProcessEnv,
       stdio: ['ignore', 'pipe', 'pipe'],

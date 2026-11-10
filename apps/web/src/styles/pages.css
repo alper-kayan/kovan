@@ -504,6 +504,8 @@ th[aria-sort='descending'] .sort::after {
 
 .cli {
   display: grid;
+  /* A column that may shrink: the long command scrolls inside its box instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 14px;
   margin-top: 28px;
   padding: 26px 24px 24px;
@@ -555,6 +557,13 @@ th[aria-sort='descending'] .sort::after {
 
 .cli-copy {
   flex: none;
+}
+
+.cli-os {
+  margin-bottom: -6px;
+  font: 500 12px/1.4 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
 }
 
 .cli-more .link {

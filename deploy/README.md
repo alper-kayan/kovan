@@ -266,8 +266,9 @@ rsync -a latest-mac.yml root@<host>:/srv/kovan/releases/
 ### The terminal agent (kovan CLI)
 
 `kovan` ships as one file, `kovan.mjs`, served from `/srv/kovan/releases/cli/` (so at `/updates/cli/`).
-People install it with `curl -fsSL https://kovan.alperkayan.dev/install.sh | sh` (the script is
-`apps/web/public/install.sh`, part of the website); installed copies look for `cli/latest.json`
+People install it with `curl -fsSL https://kovan.alperkayan.dev/install.sh | sh`, or on Windows
+`irm https://kovan.alperkayan.dev/install.ps1 | iex` (the scripts are `apps/web/public/install.sh`
+and `install.ps1`, part of the website); installed copies look for `cli/latest.json`
 every twelve hours and only take one signed with the update key. To publish a version, raise
 `version` in `packages/cli/package.json` and `VERSION` in `packages/cli/src/run.ts`, then:
 
@@ -280,8 +281,8 @@ cp packages/cli/dist-bundle/latest.json packages/cli/dist-bundle/latest.json.sig
 rsync -a --chmod=D755,F644 /tmp/cli/ root@<host>:/srv/kovan/releases/cli/   # the manifest last
 ```
 
-The public key is also written into `install.sh`; if the update key is ever replaced, change it
-there too.
+The public key is also written into `install.sh` and `install.ps1`; if the update key is ever
+replaced, change it there too.
 
 ## Mobile app
 

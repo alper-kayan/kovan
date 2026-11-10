@@ -49,7 +49,8 @@ function openBrowser(url: string): void {
     process.platform === 'darwin'
       ? ['open', [url]]
       : process.platform === 'win32'
-        ? ['cmd', ['/c', 'start', '', url]]
+        ? // Not `cmd /c start`: cmd would read the & in the address as its own.
+          ['rundll32', ['url.dll,FileProtocolHandler', url]]
         : ['xdg-open', [url]];
   spawn(cmd as string, args as string[], { stdio: 'ignore', detached: true })
     .on('error', () => {})

@@ -1,14 +1,22 @@
 # Terminal agent
 
-`kovan` is Kovan's coding agent in the terminal: the same agent loop as the desktop app, with a prompt in front of it. It runs on macOS and Linux and needs Node.js 22 or newer.
+`kovan` is Kovan's coding agent in the terminal: the same agent loop as the desktop app, with a prompt in front of it. It runs on macOS, Linux and Windows and needs Node.js 22 or newer.
 
 ## Install
+
+On macOS and Linux:
 
 ```sh
 curl -fsSL https://kovan.alperkayan.dev/install.sh | sh
 ```
 
-The script installs for you alone, without `sudo`. The program goes to `~/.kovan/cli/` and a `kovan` command to `~/.local/bin`. If that folder isn't on your `PATH` yet, the script prints the line to add to `~/.zshrc` or `~/.bashrc`.
+On Windows, in PowerShell:
+
+```powershell
+irm https://kovan.alperkayan.dev/install.ps1 | iex
+```
+
+Both install for you alone, without admin rights. The program goes to `~/.kovan/cli/` and a `kovan` command next to it: to `~/.local/bin` on macOS and Linux (if that folder isn't on your `PATH` yet, the script prints the line to add to `~/.zshrc` or `~/.bashrc`), and to `%USERPROFILE%\.kovan\bin` on Windows, which is added to your user `PATH`.
 
 Before anything is installed, the script checks that the release is signed with Kovan's release key and that the file matches the release's hash. A download that fails either check is not installed.
 
@@ -64,8 +72,18 @@ What you already wrote for Claude Code works here, in the same formats:
 
 ## Remove it
 
+On macOS and Linux:
+
 ```sh
 rm -rf ~/.kovan/cli ~/.local/bin/kovan
 ```
 
+On Windows, delete `%USERPROFILE%\.kovan\cli` and `%USERPROFILE%\.kovan\bin`, and take `%USERPROFILE%\.kovan\bin` out of your user `PATH` (**Settings → System → About → Advanced system settings → Environment Variables**).
+
 Your conversations stay in the desktop app's data folder, and your sign-in in `~/.kovan/auth.json` (remove it with `kovan logout` first if you want it gone too).
+
+## Windows notes
+
+- Claude Code and Codex are found as `claude.exe` (the native build) or as npm's `claude.cmd` / `codex.cmd`; an npm command is started through its script with Node, never through `cmd.exe`, so nothing in your prompt is read as a shell command.
+- Commands the agent runs go through PowerShell.
+- Keys of providers you added in the desktop app can only be read on macOS for now; on Windows, set the provider with `KOVAN_BASE_URL`, `KOVAN_API_KEY` and `KOVAN_MODEL`.

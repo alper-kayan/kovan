@@ -81,7 +81,16 @@ const opts = (over: Partial<Parameters<typeof createNotch>[0]> = {}) => ({
 
 // ── the client ───────────────────────────────────────────────────────────────
 
-describe('events', () => {
+/** A command that writes `text` to `file` the same way on every system (PowerShell's `>` writes UTF-16). */
+const writeCmd = (text: string, file: string) =>
+  process.platform === 'win32'
+    ? `Set-Content -Encoding ascii ${file} ${text}`
+    : `echo ${text} > ${file}`;
+
+// Coucou is a macOS app on a Unix socket: its own tests run where it can exist.
+const onUnix = process.platform !== 'win32';
+
+describe.runIf(onUnix)('events', () => {
   it('are Claude Code hook JSON tagged coucou_agent=kovan, in order, with what the notch needs to jump back to the terminal', async () => {
     const c = await fakeCoucou();
     try {
@@ -167,7 +176,7 @@ describe('events', () => {
   });
 });
 
-describe('permission', () => {
+describe.runIf(onUnix)('permission', () => {
   const ask = { tool_name: 'Bash', tool_input: { command: 'rm -rf build' } };
 
   it.each(['allow', 'always', 'deny', 'ask'] as const)(
@@ -379,61 +388,69 @@ function run(
 }
 
 describe('kovan in the notch', () => {
-  it('a session shows up, and each tool call and the end of the turn after it', async () => {
-    writeFileSync(join(base, 'a.txt'), 'merhaba\n');
-    const c = await fakeCoucou();
-    try {
-      const m = scripted([
-        [call('c1', 'read_file', { path: 'a.txt' }), done],
-        [{ type: 'text', text: 'Dosyada merhaba yazıyor.' }, done],
-      ]);
-      expect(await run(['a.txt ne yazıyor'], m, terminal({ tty: false }))).toBe(0);
-      await wait(() => c.names().includes('SessionEnd'));
-      expect(c.names()).toEqual([
-        'SessionStart',
-        'UserPromptSubmit',
-        'PreToolUse',
-        'PostToolUse',
-        'Stop',
-        'SessionEnd',
-      ]);
-      expect(c.received[1]).toMatchObject({ prompt: 'a.txt ne yazıyor' });
-      expect(c.received[2]).toMatchObject({
-        tool_name: 'Read',
-        tool_input: { file_path: 'a.txt' },
-      });
-      expect(c.received[4]).toMatchObject({ last_assistant_message: 'Dosyada merhaba yazıyor.' });
-      // One conversation, one id, from start to end, and it is the id the desktop app lists it under.
-      const ids = new Set(c.received.map((r) => r['session_id']));
-      expect(ids.size).toBe(1);
-      expect([...ids][0]).toBe(new ConversationStore(join(base, 'conv')).list()[0]!.id);
-    } finally {
-      c.close();
-    }
-  });
+  it.runIf(onUnix)(
+    'a session shows up, and each tool call and the end of the turn after it',
+    async () => {
+      writeFileSync(join(base, 'a.txt'), 'merhaba\n');
+      const c = await fakeCoucou();
+      try {
+        const m = scripted([
+          [call('c1', 'read_file', { path: 'a.txt' }), done],
+          [{ type: 'text', text: 'Dosyada merhaba yazıyor.' }, done],
+        ]);
+        expect(await run(['a.txt ne yazıyor'], m, terminal({ tty: false }))).toBe(0);
+        await wait(() => c.names().includes('SessionEnd'));
+        expect(c.names()).toEqual([
+          'SessionStart',
+          'UserPromptSubmit',
+          'PreToolUse',
+          'PostToolUse',
+          'Stop',
+          'SessionEnd',
+        ]);
+        expect(c.received[1]).toMatchObject({ prompt: 'a.txt ne yazıyor' });
+        expect(c.received[2]).toMatchObject({
+          tool_name: 'Read',
+          tool_input: { file_path: 'a.txt' },
+        });
+        expect(c.received[4]).toMatchObject({ last_assistant_message: 'Dosyada merhaba yazıyor.' });
+        // One conversation, one id, from start to end, and it is the id the desktop app lists it under.
+        const ids = new Set(c.received.map((r) => r['session_id']));
+        expect(ids.size).toBe(1);
+        expect([...ids][0]).toBe(new ConversationStore(join(base, 'conv')).list()[0]!.id);
+      } finally {
+        c.close();
+      }
+    },
+  );
 
   const shell = () =>
     scripted([
-      [call('c1', 'run_shell', { command: 'echo merhaba > out.txt' }), done],
+      [call('c1', 'run_shell', { command: writeCmd('merhaba', 'out.txt') }), done],
       [{ type: 'text', text: 'bitti' }, done],
     ]);
 
-  it('with nobody at the terminal, the notch can approve a command (your lock screen and phone too)', async () => {
-    const c = await fakeCoucou((p) => (p.hook_event_name === 'PermissionRequest' ? 'allow' : null));
-    try {
-      expect(await run(['komutu çalıştır'], shell(), terminal({ tty: false }))).toBe(0);
-      expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
-      const ask = c.received.find((r) => r.hook_event_name === 'PermissionRequest')!;
-      expect(ask).toMatchObject({
-        tool_name: 'Bash',
-        tool_input: { command: 'echo merhaba > out.txt' },
-      });
-    } finally {
-      c.close();
-    }
-  });
+  it.runIf(onUnix)(
+    'with nobody at the terminal, the notch can approve a command (your lock screen and phone too)',
+    async () => {
+      const c = await fakeCoucou((p) =>
+        p.hook_event_name === 'PermissionRequest' ? 'allow' : null,
+      );
+      try {
+        expect(await run(['komutu çalıştır'], shell(), terminal({ tty: false }))).toBe(0);
+        expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
+        const ask = c.received.find((r) => r.hook_event_name === 'PermissionRequest')!;
+        expect(ask).toMatchObject({
+          tool_name: 'Bash',
+          tool_input: { command: writeCmd('merhaba', 'out.txt') },
+        });
+      } finally {
+        c.close();
+      }
+    },
+  );
 
-  it('and the notch can refuse it', async () => {
+  it.runIf(onUnix)('and the notch can refuse it', async () => {
     const c = await fakeCoucou(() => 'deny');
     try {
       const term = terminal({ tty: false });
@@ -445,51 +462,60 @@ describe('kovan in the notch', () => {
     }
   });
 
-  it('a notch that does not answer is not a yes: with nobody at the terminal it refuses and says how to allow', async () => {
-    const c = await fakeCoucou(() => 'ask');
-    try {
-      const term = terminal({ tty: false });
-      await run(['komutu çalıştır'], shell(), term);
-      expect(existsSync(join(base, 'out.txt'))).toBe(false);
-      expect(term.text()).toMatch(/--mode full/);
-    } finally {
-      c.close();
-    }
-  });
+  it.runIf(onUnix)(
+    'a notch that does not answer is not a yes: with nobody at the terminal it refuses and says how to allow',
+    async () => {
+      const c = await fakeCoucou(() => 'ask');
+      try {
+        const term = terminal({ tty: false });
+        await run(['komutu çalıştır'], shell(), term);
+        expect(existsSync(join(base, 'out.txt'))).toBe(false);
+        expect(term.text()).toMatch(/--mode full/);
+      } finally {
+        c.close();
+      }
+    },
+  );
 
-  it('at a terminal both ask at once: the notch’s yes runs it and withdraws the terminal’s question', async () => {
-    const c = await fakeCoucou(() => 'allow');
-    try {
-      const term = terminal({
-        tty: true,
-        answer: (p) => (p.includes('allow?') ? 'never' : null),
-      });
-      expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
-      expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
-      expect(term.prompts.find((p) => p.prompt.includes('allow?'))!.aborted).toBe(true);
-      expect(term.text()).toContain('notch: approved');
-    } finally {
-      c.close();
-    }
-  });
+  it.runIf(onUnix)(
+    'at a terminal both ask at once: the notch’s yes runs it and withdraws the terminal’s question',
+    async () => {
+      const c = await fakeCoucou(() => 'allow');
+      try {
+        const term = terminal({
+          tty: true,
+          answer: (p) => (p.includes('allow?') ? 'never' : null),
+        });
+        expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
+        expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
+        expect(term.prompts.find((p) => p.prompt.includes('allow?'))!.aborted).toBe(true);
+        expect(term.text()).toContain('notch: approved');
+      } finally {
+        c.close();
+      }
+    },
+  );
 
-  it('…and the terminal’s answer, when it comes first, withdraws the notch’s card', async () => {
-    const c = await fakeCoucou(() => 'hang');
-    try {
-      const term = terminal({
-        tty: true,
-        delayMs: 150,
-        answer: (p) => (p.includes('allow?') ? 'y' : null),
-      });
-      expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
-      expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
-      await wait(() => c.permissionClosed() >= 1);
-    } finally {
-      c.close();
-    }
-  });
+  it.runIf(onUnix)(
+    '…and the terminal’s answer, when it comes first, withdraws the notch’s card',
+    async () => {
+      const c = await fakeCoucou(() => 'hang');
+      try {
+        const term = terminal({
+          tty: true,
+          delayMs: 150,
+          answer: (p) => (p.includes('allow?') ? 'y' : null),
+        });
+        expect(await run(['komutu çalıştır'], shell(), term)).toBe(0);
+        expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
+        await wait(() => c.permissionClosed() >= 1);
+      } finally {
+        c.close();
+      }
+    },
+  );
 
-  it('a notch that says "ask" leaves it to the terminal', async () => {
+  it.runIf(onUnix)('a notch that says "ask" leaves it to the terminal', async () => {
     const c = await fakeCoucou(() => 'ask');
     try {
       const term = terminal({ tty: true, answer: (p) => (p.includes('allow?') ? 'n' : null) });
@@ -500,22 +526,25 @@ describe('kovan in the notch', () => {
     }
   });
 
-  it('"always" from the notch allows that tool for the rest of the session', async () => {
-    const c = await fakeCoucou(() => 'always');
-    try {
-      const m = scripted([
-        [call('c1', 'run_shell', { command: 'echo bir > o1.txt' }), done],
-        [call('c2', 'run_shell', { command: 'echo iki > o2.txt' }), done],
-        [{ type: 'text', text: 'tamam' }, done],
-      ]);
-      await run(['iki komut'], m, terminal({ tty: false }));
-      expect(existsSync(join(base, 'o1.txt'))).toBe(true);
-      expect(existsSync(join(base, 'o2.txt'))).toBe(true);
-      expect(c.received.filter((r) => r.hook_event_name === 'PermissionRequest')).toHaveLength(1);
-    } finally {
-      c.close();
-    }
-  });
+  it.runIf(onUnix)(
+    '"always" from the notch allows that tool for the rest of the session',
+    async () => {
+      const c = await fakeCoucou(() => 'always');
+      try {
+        const m = scripted([
+          [call('c1', 'run_shell', { command: 'echo bir > o1.txt' }), done],
+          [call('c2', 'run_shell', { command: writeCmd('iki', 'o2.txt') }), done],
+          [{ type: 'text', text: 'tamam' }, done],
+        ]);
+        await run(['iki komut'], m, terminal({ tty: false }));
+        expect(existsSync(join(base, 'o1.txt'))).toBe(true);
+        expect(existsSync(join(base, 'o2.txt'))).toBe(true);
+        expect(c.received.filter((r) => r.hook_event_name === 'PermissionRequest')).toHaveLength(1);
+      } finally {
+        c.close();
+      }
+    },
+  );
 
   it('without Coucou, the terminal works exactly as before', async () => {
     const term = terminal({ tty: true, answer: (p) => (p.includes('allow?') ? 'y' : null) });
@@ -523,7 +552,7 @@ describe('kovan in the notch', () => {
     expect(readFileSync(join(base, 'out.txt'), 'utf8').trim()).toBe('merhaba');
   });
 
-  it('KOVAN_NO_NOTCH=1 keeps a running Coucou out of it', async () => {
+  it.runIf(onUnix)('KOVAN_NO_NOTCH=1 keeps a running Coucou out of it', async () => {
     const c = await fakeCoucou(() => 'allow');
     try {
       await run(

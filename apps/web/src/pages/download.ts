@@ -17,18 +17,19 @@ void detectPlatform().then((platform) => {
   card.parentElement?.prepend(card);
 });
 
-// The terminal install command, copied with one click.
-const copy = document.querySelector<HTMLButtonElement>('[data-cli-copy]');
-const command = document.querySelector<HTMLElement>('[data-cli-command]');
-copy?.addEventListener('click', () => {
-  void navigator.clipboard.writeText(command?.textContent ?? '').then(
-    () => {
-      copy.textContent = 'Copied';
-      setTimeout(() => (copy.textContent = 'Copy'), 1600);
-    },
-    () => {
-      // No clipboard (an insecure page, or denied): select the text so it can be copied by hand.
-      if (command) getSelection()?.selectAllChildren(command);
-    },
-  );
-});
+// The terminal install commands, each copied with one click.
+for (const copy of document.querySelectorAll<HTMLButtonElement>('[data-cli-copy]')) {
+  const command = copy.parentElement?.querySelector<HTMLElement>('[data-cli-command]');
+  copy.addEventListener('click', () => {
+    void navigator.clipboard.writeText(command?.textContent ?? '').then(
+      () => {
+        copy.textContent = 'Copied';
+        setTimeout(() => (copy.textContent = 'Copy'), 1600);
+      },
+      () => {
+        // No clipboard (an insecure page, or denied): select the text so it can be copied by hand.
+        if (command) getSelection()?.selectAllChildren(command);
+      },
+    );
+  });
+}

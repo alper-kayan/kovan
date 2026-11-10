@@ -207,7 +207,8 @@ describe('the sign-in on disk', () => {
     const store = new AuthStore(join(dir, 'k'));
     expect(store.load()).toBeNull();
     store.save({ server: 'https://s', token: TOKEN, machineId: 'm', user: null, at: 'x' });
-    expect(statSync(join(dir, 'k', 'auth.json')).mode & 0o777).toBe(0o600);
+    if (process.platform !== 'win32')
+      expect(statSync(join(dir, 'k', 'auth.json')).mode & 0o777).toBe(0o600);
     expect(store.load()?.token).toBe(TOKEN);
     expect(store.clear()).toBe(true);
     expect(store.load()).toBeNull();
@@ -529,7 +530,7 @@ describe('self-update', () => {
       expect(r).toEqual({ status: 'updated', from: '0.2.0', to: '9.9.0' });
       expect(readFileSync(target)).toEqual(NEW);
       expect(readFileSync(`${target}.old`, 'utf8')).toBe('eski sürüm');
-      expect(statSync(target).mode & 0o111).not.toBe(0); // runnable
+      if (process.platform !== 'win32') expect(statSync(target).mode & 0o111).not.toBe(0); // runnable
       expect(existsSync(`${target}.new`)).toBe(false);
     } finally {
       srv.close();

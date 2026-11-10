@@ -19,10 +19,11 @@ Ctrl+C stops a running turn; at the prompt it leaves.
 ## Install
 
 ```sh
-curl -fsSL https://kovan.alperkayan.dev/install.sh | sh
+curl -fsSL https://kovan.alperkayan.dev/install.sh | sh      # macOS and Linux
+irm https://kovan.alperkayan.dev/install.ps1 | iex           # Windows, in PowerShell
 ```
 
-macOS and Linux, Node.js 22 or newer. It goes to `~/.kovan/cli/kovan.mjs` with a `kovan` command in `~/.local/bin`, checked against
+Node.js 22 or newer. On Windows the `kovan` command goes to `%USERPROFILE%\.kovan\bin`, added to the user PATH. It goes to `~/.kovan/cli/kovan.mjs` with a `kovan` command in `~/.local/bin`, checked against
 the release key before it is installed, and keeps itself up to date (see Updates below). Remove it with
 `rm -rf ~/.kovan/cli ~/.local/bin/kovan`.
 

@@ -132,7 +132,7 @@ describe('skills', () => {
     put(join(home, '.claude', 'skills', 'bozuk', 'SKILL.md'), 'frontmatter yok burada');
     const term = terminal(['/skills', '/exit']);
     await run([], model(), term);
-    expect(term.text()).toMatch(/skipped: ~\/\.claude\/skills\/bozuk\/SKILL\.md/);
+    expect(term.text()).toMatch(/skipped: ~[\\/]\.claude[\\/]skills[\\/]bozuk[\\/]SKILL\.md/);
   });
 
   it('`/skills` lists them with where they came from; with none it says where to put one', async () => {

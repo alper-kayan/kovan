@@ -107,6 +107,12 @@ function run(
 
 // ── arguments ────────────────────────────────────────────────────────────────
 
+/** A command that writes `text` to `file` the same way on every system (PowerShell's `>` writes UTF-16). */
+const writeCmd = (text: string, file: string) =>
+  process.platform === 'win32'
+    ? `Set-Content -Encoding ascii ${file} ${text}`
+    : `echo ${text} > ${file}`;
+
 describe('arguments', () => {
   it('words are one message; flags are flags', () => {
     expect(parseArgs(['testleri', 'düzelt', '--mode', 'full', '-m', 'x/y'])).toMatchObject({
@@ -309,7 +315,7 @@ describe('one message', () => {
 
 describe('asking before it acts', () => {
   const editPlan = () => [
-    [call('c1', 'run_shell', { command: 'echo merhaba > out.txt' }), done()],
+    [call('c1', 'run_shell', { command: writeCmd('merhaba', 'out.txt') }), done()],
     [text('bitti'), done()],
   ];
 
@@ -318,7 +324,7 @@ describe('asking before it acts', () => {
     const r = run(['komutu çalıştır'], term, { model: scripted(editPlan()) });
     expect(await r.done).toBe(0);
     expect(term.prompts.some((p) => p.includes('allow?'))).toBe(true);
-    expect(term.text()).toContain('echo merhaba');
+    expect(term.text()).toContain(writeCmd('merhaba', 'out.txt'));
     expect((await readFile(join(dir, 'out.txt'), 'utf8')).trim()).toBe('merhaba');
   });
 
@@ -332,7 +338,7 @@ describe('asking before it acts', () => {
   it('"t" allows that tool for the rest of the session: it asks once', async () => {
     const model = scripted([
       [call('c1', 'run_shell', { command: 'echo bir > o1.txt' }), done()],
-      [call('c2', 'run_shell', { command: 'echo iki > o2.txt' }), done()],
+      [call('c2', 'run_shell', { command: writeCmd('iki', 'o2.txt') }), done()],
       [text('tamam'), done()],
     ]);
     const term = terminal(['a']);
@@ -380,7 +386,7 @@ describe('the prompt', () => {
     expect(model.requests).toHaveLength(2);
     expect(term.text()).toContain('birinci');
     expect(term.text()).toContain('ikinci');
-    expect(term.text()).toContain('mod: plan');
+    expect(term.text()).toContain('mode: plan');
     expect(term.text()).toMatch(/\d+→\d+ tokens/);
   });
 
@@ -464,7 +470,8 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
     await r1.done;
     const [meta] = r1.store.list();
     expect(meta).toMatchObject({ title: 'ilk soru', root: dir, harness: 'kovan' });
-    expect(statSync(file(meta!.id)).mode & 0o777).toBe(0o600);
+    // Windows has no such modes; elsewhere only the user may read it.
+    if (process.platform !== 'win32') expect(statSync(file(meta!.id)).mode & 0o777).toBe(0o600);
 
     const c = JSON.parse(await readFile(file(meta!.id), 'utf8')) as StoredConversation;
     expect(c).toMatchObject({

@@ -49,7 +49,7 @@ import type { TranscriptEvent } from './tui/transcript.js';
 import { digestOf, keepEvent, type ConversationStore, type StoredConversation } from './store.js';
 import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
-export const VERSION = '0.4.0';
+export const VERSION = '0.4.2';
 
 export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
 
@@ -869,7 +869,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       sessions: () =>
         deps.store.list(root).map((c) => ({
           label: clip(c.title, 60),
-          hint: new Date(c.updatedAt).toLocaleString('tr-TR'),
+          hint: new Date(c.updatedAt).toLocaleString(),
           value: c.id,
         })),
       resume: (id) => {
@@ -905,7 +905,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     return finish(code);
   }
 
-  out(`kovan · ${provider.model} · ${provider.label} · mod: ${mode} · ${root}`);
+  out(`kovan · ${provider.model} · ${provider.label} · mode: ${mode} · ${root}`);
   out(
     resumed
       ? `continuing: ${conv.title}`
@@ -939,11 +939,11 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     if (/^\/mode(\s|$)/.test(line)) {
       const m = line.slice(5).trim();
-      if (!m) out(`mod: ${mode} (${MODES.join(', ')})`);
+      if (!m) out(`mode: ${mode} (${MODES.join(', ')})`);
       else if ((MODES as readonly string[]).includes(m)) {
         mode = m as PermissionMode;
         agent.configure({ mode });
-        out(`mod: ${mode}`);
+        out(`mode: ${mode}`);
       } else out(`unknown mode '${m}' (${MODES.join(', ')})`);
       continue;
     }

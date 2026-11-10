@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import fastifyStatic from '@fastify/static';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -144,6 +145,17 @@ export async function registerSiteRoutes(app: FastifyInstance, ctx: AppContext):
 
   const site = config.WEB_DIR ? resolve(config.WEB_DIR) : '';
   if (site && existsSync(site)) {
+    // The terminal installers are piped into a shell (`curl … | sh`, `irm … | iex`): plain text, so
+    // PowerShell reads the script as a string and not as bytes.
+    for (const script of ['install.sh', 'install.ps1'])
+      app.get(`/${script}`, async (_req, reply) => {
+        const file = join(site, script);
+        if (!existsSync(file)) return reply.callNotFound();
+        return reply
+          .type('text/plain; charset=utf-8')
+          .header('cache-control', 'no-cache')
+          .send(await readFile(file, 'utf8'));
+      });
     await app.register(fastifyStatic, {
       root: site,
       prefix: '/',

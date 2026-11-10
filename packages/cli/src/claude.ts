@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { basename, delimiter, dirname, join } from 'node:path';
 import type { AgentEvent, PermissionMode } from '@kovan/harness';
 
 /**
@@ -54,20 +54,53 @@ export function findBinary(
   name: string,
   env: Record<string, string | undefined>,
   home: string,
+  platform: string = process.platform,
 ): string | null {
+  const windows = platform === 'win32';
   const dirs = [
-    ...(env['PATH'] ?? '').split(delimiter),
+    ...(env['PATH'] ?? env['Path'] ?? '').split(windows ? ';' : delimiter),
     join(home, '.local', 'bin'),
     join(home, '.claude', 'local'),
     join(home, '.bun', 'bin'),
-    '/opt/homebrew/bin',
-    '/usr/local/bin',
+    ...(windows
+      ? [join(env['APPDATA'] ?? join(home, 'AppData', 'Roaming'), 'npm')]
+      : ['/opt/homebrew/bin', '/usr/local/bin']),
   ].filter(Boolean);
-  for (const d of dirs) {
-    const f = join(d, name);
-    if (existsSync(f)) return f;
-  }
+  // Windows installs commands as claude.exe (the native build) or claude.cmd (npm's shim).
+  const names = windows ? [`${name}.exe`, `${name}.cmd`, `${name}.bat`] : [name];
+  for (const d of dirs)
+    for (const n of names) {
+      const f = join(d, n);
+      if (existsSync(f)) return f;
+    }
   return null;
+}
+
+/**
+ * How to start an agent CLI. On Windows npm installs a command as a `.cmd` shim, which Node won't start without a shell, and a
+ * shell would read `&`, `%` and quotes in the prompt as its own. The shim only runs `node <script> %*`, so the script is started
+ * with this Node directly; everything else (a real `.exe`, any command on macOS and Linux) starts as it is.
+ */
+export function launch(
+  binary: string,
+  args: string[],
+  platform: string = process.platform,
+  read: (file: string) => string = (f) => readFileSync(f, 'utf8'),
+): { file: string; args: string[] } {
+  if (platform !== 'win32' || !/\.(cmd|bat)$/i.test(binary)) return { file: binary, args };
+  let shim = '';
+  try {
+    shim = read(binary);
+  } catch {
+    // unreadable: said below
+  }
+  // npm: "%dp0%\node_modules\pkg\cli.js"; pnpm and older npm: "%~dp0\node_modules\pkg\cli.js".
+  const script = /"%~?dp0%?\\?([^"]+?\.[cm]?js)"/i.exec(shim)?.[1];
+  if (!script)
+    throw new Error(
+      `Can't start ${basename(binary)}: it isn't an npm command that runs a script. Install the native build instead.`,
+    );
+  return { file: process.execPath, args: [join(dirname(binary), script), ...args] };
 }
 
 export const CLAUDE_PERMISSION: Record<PermissionMode, string> = {
@@ -301,7 +334,8 @@ export class ClaudeRunner {
     ];
     const lines = new ClaudeLines(randomUUID(), o.root, o.onEvent);
     this.stopped = false;
-    const child = spawn(o.binary, args, {
+    const run = launch(o.binary, args);
+    const child = spawn(run.file, run.args, {
       cwd: o.root,
       env: { ...o.baseEnv, ...o.env } as NodeJS.ProcessEnv,
       stdio: ['ignore', 'pipe', 'pipe'],

@@ -313,7 +313,7 @@ export class TuiApp {
     const i = MODE_CYCLE.indexOf(this.host.mode());
     const next = MODE_CYCLE[(i + dir + MODE_CYCLE.length) % MODE_CYCLE.length]!;
     this.host.setMode(next);
-    this.flash(`mod: ${next}`);
+    this.flash(`mode: ${next}`);
   }
 
   /** Slash suggestions: only while typing the command name itself, on a single line. */
@@ -493,10 +493,10 @@ export class TuiApp {
         const m = (['plan', 'request', 'allow', 'full'] as const).find((x) => x === arg);
         if (m) {
           this.host.setMode(m);
-          this.flash(`mod: ${m}`);
+          this.flash(`mode: ${m}`);
         } else
           this.openList(
-            'mod',
+            'mode',
             ['plan', 'request', 'allow', 'full'].map((m2) => ({
               label: m2,
               hint: MODE_HINT[m2] ?? '',
@@ -505,7 +505,7 @@ export class TuiApp {
             '',
             (v) => {
               this.host.setMode(v as PermissionMode);
-              this.flash(`mod: ${v}`);
+              this.flash(`mode: ${v}`);
             },
           );
         return true;

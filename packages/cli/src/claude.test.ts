@@ -176,12 +176,64 @@ describe('desktop providers and their keys', () => {
       seal(JSON.stringify({ deepinfra: 'sk-test' }), 'hunter2'),
     );
     expect(decryptSafeStorage(seal('merhaba', 's'), 's')).toBe('merhaba');
-    expect(await providerKey(dir, 'deepinfra', async () => 'hunter2')).toBe('sk-test');
-    await expect(providerKey(dir, 'other', async () => 'hunter2')).rejects.toThrow(/no key saved/);
-    await expect(providerKey(dir, 'deepinfra', async () => 'wrong')).rejects.toThrow();
+    expect(await providerKey(dir, 'deepinfra', async () => 'hunter2', 'darwin')).toBe('sk-test');
+    await expect(providerKey(dir, 'other', async () => 'hunter2', 'darwin')).rejects.toThrow(
+      /no key saved/,
+    );
+    await expect(providerKey(dir, 'deepinfra', async () => 'wrong', 'darwin')).rejects.toThrow();
     await expect(
-      providerKey(mkdtempSync(join(tmpdir(), 'kv-')), 'x', async () => 'a'),
+      providerKey(mkdtempSync(join(tmpdir(), 'kv-')), 'x', async () => 'a', 'darwin'),
     ).rejects.toThrow(/no saved keys/);
+    // Elsewhere the keychain isn't there to ask: it says how to use the provider instead.
+    await expect(providerKey(dir, 'deepinfra', async () => 'hunter2', 'win32')).rejects.toThrow(
+      /only be read on macOS.*KOVAN_BASE_URL/,
+    );
+  });
+});
+
+import { findBinary, launch } from './claude.js';
+
+describe('agent CLIs on Windows', () => {
+  it('finds claude.exe or npm’s claude.cmd, in PATH or npm’s own folder', () => {
+    const home = mkdtempSync(join(tmpdir(), 'kv-win-'));
+    const npm = join(home, 'AppData', 'Roaming', 'npm');
+    mkdirSync(npm, { recursive: true });
+    writeFileSync(join(npm, 'codex.cmd'), '');
+    writeFileSync(join(npm, 'codex'), ''); // npm's sh shim for Git Bash: not something Windows can start
+    expect(findBinary('codex', {}, home, 'win32')).toBe(join(npm, 'codex.cmd'));
+    const bin = join(home, '.local', 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'claude.exe'), '');
+    expect(findBinary('claude', { PATH: '' }, home, 'win32')).toBe(join(bin, 'claude.exe'));
+    expect(findBinary('claude', {}, home, 'darwin')).toBeNull(); // no extension-less claude there
+  });
+
+  it('starts an npm shim’s script with this Node, so the prompt never passes through cmd.exe', () => {
+    const shim = [
+      '@ECHO off',
+      'IF EXIST "%dp0%\\node.exe" (',
+      '  SET "_prog=%dp0%\\node.exe"',
+      ')',
+      'endLocal & goto #_undefined_# 2>NUL || title %COMSPEC% & "%_prog%"  "%dp0%\\node_modules\\@openai\\codex\\bin\\codex.js" %*',
+    ].join('\r\n');
+    const dir = join('C:', 'Users', 'a', 'AppData', 'Roaming', 'npm');
+    const run = launch(join(dir, 'codex.cmd'), ['exec', 'a & b %PATH% "q"'], 'win32', () => shim);
+    expect(run.file).toBe(process.execPath);
+    expect(run.args).toEqual([
+      join(dir, 'node_modules\\@openai\\codex\\bin\\codex.js'),
+      'exec',
+      'a & b %PATH% "q"',
+    ]);
+    // An .exe, and anything on macOS or Linux, starts as it is.
+    expect(launch('C:\\x\\claude.exe', ['-p'], 'win32')).toEqual({
+      file: 'C:\\x\\claude.exe',
+      args: ['-p'],
+    });
+    expect(launch('/usr/local/bin/claude', ['-p'], 'darwin')).toEqual({
+      file: '/usr/local/bin/claude',
+      args: ['-p'],
+    });
+    expect(() => launch('C:\\x\\odd.cmd', [], 'win32', () => 'echo hi')).toThrow(/native build/);
   });
 });
 

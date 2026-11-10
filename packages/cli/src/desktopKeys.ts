@@ -73,7 +73,12 @@ export async function providerKey(
   dataDir: string,
   id: string,
   secret: () => Promise<string> = keychainSecret,
+  platform: string = process.platform,
 ): Promise<string> {
+  if (platform !== 'darwin')
+    throw new Error(
+      'Keys of providers added in the desktop app can only be read on macOS for now. Use the provider here with KOVAN_BASE_URL, KOVAN_API_KEY and KOVAN_MODEL.',
+    );
   let raw: Buffer;
   try {
     raw = readFileSync(join(dataDir, 'custom-provider-keys.bin'));

@@ -112,7 +112,7 @@ function startScreen(v: View, room: number): string[] {
     ...v.startLines.map((l) => center(l)),
     '',
     center(
-      `${paint(S.accent, '/')} ${paint(S.dim, "komutlar ve skill'ler")}    ${paint(S.accent, 'tab')} ${paint(S.dim, 'mod')}    ${paint(S.accent, 'ctrl+p')} ${paint(S.dim, 'palet')}`,
+      `${paint(S.accent, '/')} ${paint(S.dim, 'commands and skills')}    ${paint(S.accent, 'tab')} ${paint(S.dim, 'mode')}    ${paint(S.accent, 'ctrl+p')} ${paint(S.dim, 'palette')}`,
     ),
     center(
       `${paint(S.accent, '\\')}${paint(S.dim, '+enter or ')}${paint(S.accent, 'alt+enter')} ${paint(S.dim, 'new line')}    ${paint(S.accent, 'ctrl+c')} ${paint(S.dim, 'quit')}`,
@@ -156,7 +156,7 @@ function inputBox(v: View): { rows: string[]; cursor: { row: number; col: number
     const text = ed.empty && i === 0 ? paint(S.dim, placeholder) : w.text;
     return glyph + text;
   });
-  const modeLabel = `${paint(MODE_STYLE[v.header.mode] ?? S.dim, v.header.mode)}${paint(S.dim, ` · efor: ${v.header.effort}`)}`;
+  const modeLabel = `${paint(MODE_STYLE[v.header.mode] ?? S.dim, v.header.mode)}${paint(S.dim, ` · effort: ${v.header.effort}`)}`;
   const boxed = box(modeLabel, rows, v.width, v.running ? S.gray : S.accent, '');
   return { rows: boxed, cursor: { row: 1 + (cursorRow - start), col: 2 + 2 + cursorCol } };
 }
