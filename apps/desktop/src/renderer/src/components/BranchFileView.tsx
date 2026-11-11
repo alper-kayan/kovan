@@ -84,3 +84,65 @@ export function BranchFileView({ tab }: { tab: Extract<Tab, { kind: 'branch' }> 
     </div>
   );
 }
+
+/**
+ * A file an agent wrote out in its own copy of the repository that this checkout doesn't have yet: read-only, from what the
+ * agent wrote, following it while it is still being written. It arrives here with the agent's work (after its checks).
+ */
+export function DraftFileView({ tab }: { tab: Extract<Tab, { kind: 'draft' }> }) {
+  const host = useRef<HTMLDivElement>(null);
+  const settings = useStore((s) => s.settings);
+  const marks = useStore((s) => s.agentFiles[tab.path]);
+  const draft = [...(marks ?? [])].reverse().find((m) => m.text !== null) ?? null;
+  const text = draft?.text ?? null;
+  const editor = useRef<ReturnType<typeof monaco.editor.create> | null>(null);
+
+  useEffect(() => {
+    if (!host.current) return;
+    const model = monaco.editor.createModel(
+      '',
+      undefined,
+      monaco.Uri.parse(`kovan-draft:/${++counter}/${tab.path}`),
+    );
+    editor.current = monaco.editor.create(host.current, {
+      ...editorOptions(settings),
+      model,
+      readOnly: true,
+      automaticLayout: true,
+    });
+    return () => {
+      editor.current?.dispose();
+      editor.current = null;
+      model.dispose();
+    };
+  }, [tab.path, settings]);
+
+  useEffect(() => {
+    const model = editor.current?.getModel();
+    if (model && text !== null && model.getValue() !== text) model.setValue(text);
+  }, [text]);
+
+  return (
+    <div className="branch-file">
+      <div
+        className="branch-file-bar"
+        style={draft ? { ['--agent' as string]: draft.color } : undefined}
+      >
+        <span>
+          {draft ? (
+            <>
+              {draft.mine ? 'Your agent' : <b>{draft.name}</b>}&rsquo;s new file <b>{tab.path}</b>
+              {draft.sessionTitle ? <> in {draft.sessionTitle}</> : null}. Read-only: it isn&rsquo;t
+              in your copy yet and arrives with {draft.mine ? 'its' : `${draft.name}\u2019s`} work.
+            </>
+          ) : (
+            <>
+              <b>{tab.path}</b> isn&rsquo;t in your copy, and no agent is writing it any more.
+            </>
+          )}
+        </span>
+      </div>
+      {draft ? <div className="branch-file-code" ref={host} /> : <div className="editor-message" />}
+    </div>
+  );
+}

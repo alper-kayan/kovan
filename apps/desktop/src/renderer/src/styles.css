@@ -4930,6 +4930,35 @@ textarea.input {
   white-space: nowrap;
 }
 
+/* The agents that changed a file (or something under a folder), in their colors. */
+.tree-agents {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: 6px;
+  flex: none;
+}
+
+.tree-agent {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: #fff;
+  font: 600 8px/1 var(--font-ui);
+}
+
+/* A file an agent wrote in its own copy that isn't in this one yet. */
+.tree-row.tree-draft .tree-name {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.tree-deco.tree-new {
+  color: var(--ok-soft);
+  font-size: 10px;
+}
+
 .tree-editors {
   display: inline-flex;
   margin-left: 4px;

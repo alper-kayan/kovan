@@ -46,6 +46,19 @@ import type { LiveAgent } from './services/liveAgents';
 import type { AgentLimit } from '../../shared/limits';
 import { DEFAULT_SETTINGS, type Settings } from '../../shared/settings';
 
+/** One agent's mark on a file: who changed it and, when it wrote the whole file, what it wrote. */
+export interface AgentMark {
+  key: string;
+  name: string;
+  color: string;
+  /** This window's own agent (said as "your agent"). */
+  mine: boolean;
+  sessionTitle: string | null;
+  at: number;
+  /** The whole file, when the agent wrote it out (a new file or a rewrite); null for an edit. */
+  text: string | null;
+}
+
 export type Tab =
   | {
       id: string;
@@ -75,6 +88,13 @@ export type Tab =
       /** The machine whose work it is. */
       where: string;
       line?: number;
+    }
+  | {
+      id: string;
+      /** A file an agent wrote in its own copy that this checkout doesn't have yet: read-only. */
+      kind: 'draft';
+      path: string;
+      title: string;
     };
 
 /** Top-level screens, matching the sidebar. */
@@ -250,6 +270,8 @@ interface State {
   flow: Record<string, { handoffs: Handoff[]; outcomes: Outcome[] }>;
   /** Agents working in files right now: carets, typing and tab badges. */
   liveAgents: Record<string, LiveAgent>;
+  /** Files agents changed or created while this folder is open (any copy of it), for the file tree. */
+  agentFiles: Record<string, AgentMark[]>;
   /** Where each followed session's checkout is on this machine (null: none here). */
   liveRoots: Record<string, string | null>;
   /** A comment being written on code (from the editor or a diff). */
@@ -345,6 +367,7 @@ export const useStore = create<State>(() => ({
   memories: {},
   commentDraft: null,
   liveAgents: {},
+  agentFiles: {},
   liveRoots: {},
   activity: {},
   flow: {},

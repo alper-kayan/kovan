@@ -1,12 +1,13 @@
 import type { FileStatus } from '@kovan/git-engine';
 import { can, type Workspace } from '@kovan/shared';
 import type { DirEntry } from '../../../shared/api';
-import { openFile } from '../services/editor';
+import { openDraft, openFile } from '../services/editor';
 import { loadDir, toggleDir } from '../services/explorer';
 import { compareVersion, pickVersion, setSyncEnabled } from '../services/sync';
-import { getState, setState, useStore } from '../store';
-import { Avatar } from './ui';
+import { getState, setState, useStore, type AgentMark } from '../store';
+import { Avatar, initials } from './ui';
 import { ChevronDown, ChevronRight, GitCompare, RefreshCw } from 'lucide-react';
+import { useMemo } from 'react';
 
 /** Single-letter git decoration for a file, like an editor's explorer shows. */
 export function decoration(file: FileStatus): { letter: string; className: string } {
@@ -44,20 +45,69 @@ function useDecorations(): Decorations {
   return decorations;
 }
 
+/** The agents that changed this file, newest last; for a folder, those that changed anything under it. */
+function useMarks(entry: DirEntry): AgentMark[] {
+  const files = useStore((s) => s.agentFiles);
+  return useMemo(() => {
+    if (entry.kind === 'file') return files[entry.path] ?? [];
+    const prefix = `${entry.path}/`;
+    const byAgent = new Map<string, AgentMark>();
+    for (const [path, marks] of Object.entries(files))
+      if (path.startsWith(prefix)) for (const m of marks) byAgent.set(m.key, m);
+    return [...byAgent.values()];
+  }, [files, entry.kind, entry.path]);
+}
+
+/**
+ * The folder's entries on disk, and the files agents created under it that aren't in this copy yet (written in their own
+ * copy of the repository): those show too, marked new, so all agents' work is in one tree.
+ */
 function Entries({ dir, depth }: { dir: string; depth: number }) {
   const entries = useStore((s) => s.dirs[dir]);
-  if (!entries) return null;
+  const files = useStore((s) => s.agentFiles);
+  const all = useMemo(() => {
+    if (!entries) return null;
+    const known = new Set(entries.map((e) => e.path));
+    const prefix = dir ? `${dir}/` : '';
+    const extra = new Map<string, DirEntry>();
+    for (const path of Object.keys(files)) {
+      if (!path.startsWith(prefix)) continue;
+      const rest = path.slice(prefix.length);
+      const [first, ...more] = rest.split('/');
+      const child = `${prefix}${first}`;
+      if (!first || known.has(child) || extra.has(child)) continue;
+      extra.set(child, { name: first, path: child, kind: more.length ? 'dir' : 'file' });
+    }
+    return [...entries, ...[...extra.values()].map((e) => ({ ...e, draft: true }))];
+  }, [entries, files, dir]);
+  if (!all) return null;
   return (
     <>
-      {entries.map((entry) => (
+      {all.map((entry) => (
         <Row key={entry.path} entry={entry} depth={depth} />
       ))}
     </>
   );
 }
 
-function Row({ entry, depth }: { entry: DirEntry; depth: number }) {
+/** The agents' initials on a row, in their colors. */
+function AgentBadges({ marks }: { marks: AgentMark[] }) {
+  if (!marks.length) return null;
+  const names = [...new Set(marks.map((m) => (m.mine ? 'your agent' : m.name)))];
+  return (
+    <span className="tree-agents" title={`Changed by ${names.join(', ')}`}>
+      {marks.slice(-3).map((m) => (
+        <span key={m.key} className="tree-agent" style={{ background: m.color }}>
+          {initials(m.name)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function Row({ entry, depth }: { entry: DirEntry & { draft?: boolean }; depth: number }) {
   const expanded = useStore((s) => s.expanded[entry.path] === true);
+  const marks = useMarks(entry);
   const active = useStore((s) => s.activeTabId === `file:${entry.path}`);
   const { byPath, dirtyDirs } = useDecorations();
   const deco = byPath.get(entry.path);
@@ -70,15 +120,27 @@ function Row({ entry, depth }: { entry: DirEntry; depth: number }) {
   );
 
   const onClick = () =>
-    entry.kind === 'dir' ? void toggleDir(entry.path) : void openFile(entry.path);
+    entry.kind === 'dir'
+      ? entry.draft
+        ? setState((st) => ({
+            expanded: { ...st.expanded, [entry.path]: !st.expanded[entry.path] },
+          }))
+        : void toggleDir(entry.path)
+      : entry.draft
+        ? openDraft(entry.path)
+        : void openFile(entry.path);
 
   return (
     <>
       <div
-        className={`tree-row ${active ? 'active' : ''} ${deco?.className ?? ''} ${dirDirty ? 'git-dir-dirty' : ''}`}
+        className={`tree-row ${active ? 'active' : ''} ${deco?.className ?? ''} ${dirDirty ? 'git-dir-dirty' : ''} ${entry.draft ? 'tree-draft' : ''}`}
         style={{ paddingLeft: 8 + depth * 12 }}
         onClick={onClick}
-        title={entry.path}
+        title={
+          entry.draft
+            ? `${entry.path}: new, written by ${[...new Set(marks.map((m) => (m.mine ? 'your agent' : m.name)))].join(', ')} in another copy; not in yours yet`
+            : entry.path
+        }
       >
         <span className="tree-twisty">
           {entry.kind === 'dir' &&
@@ -100,6 +162,8 @@ function Row({ entry, depth }: { entry: DirEntry; depth: number }) {
             ))}
           </span>
         )}
+        <AgentBadges marks={marks} />
+        {entry.draft && entry.kind === 'file' && <span className="tree-deco tree-new">new</span>}
         {deco && <span className="tree-deco">{deco.letter}</span>}
         {dirDirty && <span className="tree-deco tree-dot">●</span>}
       </div>

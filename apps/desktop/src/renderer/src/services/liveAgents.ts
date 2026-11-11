@@ -42,8 +42,11 @@ export interface LiveAgent {
   pending: PendingEdit[];
 }
 
-/** How long a finished edit may wait to arrive here (checks, review and sync come first). */
-const PENDING_MS = 4 * 60_000;
+/**
+ * How long a finished edit may wait to arrive here (checks, review and sync come first). Long: all agents' work shows in the
+ * one file, so an edit made in another copy stays there until it lands.
+ */
+const PENDING_MS = 30 * 60_000;
 
 const READ_TOOLS = new Set(['read_file', 'Read']);
 const EDIT_TOOLS = new Set([
@@ -85,12 +88,40 @@ function dropLater(key: string, ms: number, toolId?: string): void {
   );
 }
 
-/** Repo-relative, whatever the agent used (Claude Code gives absolute paths). */
-function relativePath(path: unknown): string | null {
+/**
+ * Repo-relative, whatever the agent used (Claude Code gives absolute paths). A path in another copy of the repository (a
+ * session's or a swarm worker's worktree under Kovan's data, `…/worktrees/<repo>-<hash>[/sub-<id>]/…`) is the same file here.
+ */
+export function relativePath(path: unknown, root = getState().workspace?.root): string | null {
   if (typeof path !== 'string' || !path) return null;
-  const root = getState().workspace?.root;
   if (root && path.startsWith(`${root}/`)) return path.slice(root.length + 1);
+  const copy = /[\\/]worktrees[\\/][^\\/]+[\\/](?:sub-[0-9a-f]+[\\/])?(.+)$/.exec(path);
+  if (copy) return copy[1]!.replace(/\\/g, '/');
   return path.startsWith('/') ? null : path.replace(/^\.\//, '');
+}
+
+/** Notes that an agent changed (or wrote out) a file, for the file tree: one mark per agent per file, the newest. */
+function mark(agent: LiveAgent, path: string, text: string | null): void {
+  setState((s) => {
+    const marks = (s.agentFiles[path] ?? []).filter((m) => m.key !== agent.key);
+    return {
+      agentFiles: {
+        ...s.agentFiles,
+        [path]: [
+          ...marks,
+          {
+            key: agent.key,
+            name: agent.name,
+            color: agent.color,
+            mine: agent.mine,
+            sessionTitle: agent.sessionTitle,
+            at: Date.now(),
+            text,
+          },
+        ],
+      },
+    };
+  });
 }
 
 function firstString(args: Record<string, unknown>, keys: string[]): string | null {
@@ -183,6 +214,8 @@ export function observe(
     case 'tool_end': {
       if (!current || current.toolId !== event.id) return;
       if (current.phase === 'typing' && event.ok) {
+        // A whole file written out (no text replaced) is kept with the mark: a new file opens from it.
+        mark(current, current.path, current.anchor === null ? current.text : null);
         // In this checkout the edit is in the file now. Elsewhere (a swarm worker's own copy, a
         // teammate's machine) it arrives later: keep it until it does.
         const elsewhere = current.sessionId !== null && current.text;

@@ -85,6 +85,13 @@ export async function openFile(path: string, line?: number): Promise<void> {
     return;
   }
   try {
+    // A file only an agent has (written in its own copy): its draft, read-only, until it arrives here.
+    const draft = getState().agentFiles[path]?.some((m) => m.text !== null);
+    const onDisk = models.has(path) || !draft ? true : await fileExists(path);
+    if (!onDisk) {
+      openDraft(path);
+      return;
+    }
     const file = models.has(path) ? null : await api.invoke('fs:readFile', path);
     if (file && file.kind !== 'text') {
       activate({ id, kind: 'file', path, title: basename(path), dirty: false, content: file.kind });
@@ -96,6 +103,21 @@ export async function openFile(path: string, line?: number): Promise<void> {
   } catch (error) {
     reportError(error);
   }
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await api.invoke('fs:readFile', path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** An agent's new file that isn't in this checkout yet, read-only (see DraftFileView). */
+export function openDraft(path: string): void {
+  setState({ view: 'workspace', lastAppView: 'workspace' });
+  activate({ id: `draft:${path}`, kind: 'draft', path, title: `${basename(path)} (new)` });
 }
 
 /**

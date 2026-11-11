@@ -14,6 +14,7 @@ async function adopt(info: WorkspaceInfo): Promise<void> {
   resetTerminals();
   setState({
     workspace: info,
+    agentFiles: {},
     dirs: {},
     expanded: { '': true },
     gitStatus: null,

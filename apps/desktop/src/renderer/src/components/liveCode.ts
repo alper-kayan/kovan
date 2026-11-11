@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { monaco } from '../monaco';
-import { settle, showsHere, type LiveAgent } from '../services/liveAgents';
+import { settle, type LiveAgent } from '../services/liveAgents';
 import { TICK_MS, advance, itemsOf, keptPrefix, landedAt, worksIn } from './liveTyping';
 import { useStore } from '../store';
 
@@ -57,12 +57,9 @@ export function useLiveAgents(
   path: string | null,
 ): void {
   const all = useStore((s) => s.liveAgents);
-  const root = useStore((s) => s.workspace?.root);
-  const roots = useStore((s) => s.liveRoots);
-  const here = useMemo(
-    () => Object.values(all).filter((a) => worksIn(a, path) && showsHere(a, root, roots)),
-    [all, path, root, roots],
-  );
+  // Every agent working on this file shows in it, whichever copy of the repository it works in: its typing as it goes,
+  // and its finished edits until they arrive here.
+  const here = useMemo(() => Object.values(all).filter((a) => worksIn(a, path)), [all, path]);
   const items = useMemo(() => here.flatMap((a) => itemsOf(a, path)), [here, path]);
 
   // Typing: how much of each edit is shown, at a steady pace, also after its tool has ended.
