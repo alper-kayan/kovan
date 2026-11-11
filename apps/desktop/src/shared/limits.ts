@@ -206,7 +206,7 @@ export interface HandoffContext {
 /** What the agent taking over is told: the task so far, and what not to repeat. */
 export function handoffNote(c: HandoffContext): string {
   const parts = [
-    `You are taking over this task from ${c.from}, which stopped mid-way (${c.why}). The files in this checkout are as it left them. Check the current state first (git status, the files below), then continue where it stopped. Don't start over and don't redo finished work.`,
+    `You are taking over this task from ${c.from} (${c.why}). The files in this checkout are as it left them. Check the current state first (git status, the files below), then continue where it stopped. Don't start over and don't redo finished work.`,
     c.lastPrompts.length
       ? `What the person asked for, oldest first:\n${c.lastPrompts.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
       : '',

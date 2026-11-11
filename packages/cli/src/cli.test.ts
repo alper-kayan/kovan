@@ -655,6 +655,74 @@ describe('conversations, kept the way the desktop app keeps its own', () => {
     },
   );
 
+  it.runIf(process.platform !== 'win32')(
+    'switching a chat to another runner by hand hands it what came before, once',
+    async () => {
+      const bin = join(dir, 'fakebin');
+      const data = join(dir, 'data');
+      await mkdir(bin, { recursive: true });
+      await mkdir(data, { recursive: true });
+      await writeFile(
+        join(data, 'agent-accounts.json'),
+        JSON.stringify([
+          { id: 'acc1', harness: 'claude-code', name: 'Work' },
+          { id: 'acc2', harness: 'claude-code', name: 'Personal' },
+        ]),
+      );
+      const log = join(dir, 'claude-prompts.log');
+      await writeFile(
+        join(bin, 'claude'),
+        [
+          '#!/usr/bin/env node',
+          'const a = process.argv.slice(2);',
+          "const prompt = a[a.indexOf('--') + 1];",
+          "const who = require('path').basename(process.env.CLAUDE_CONFIG_DIR || 'none');",
+          `require('fs').appendFileSync(${JSON.stringify(log)}, '=== ' + who + '\\n' + prompt + '\\n');`,
+          'const at = (f) => (a.indexOf(f) >= 0 ? a[a.indexOf(f) + 1] : null);',
+          "const sid = at('--resume') || at('--session-id');",
+          "const out = (o) => process.stdout.write(JSON.stringify(o) + '\\n');",
+          "out({ type: 'system', subtype: 'init', session_id: sid, model: 'sonnet' });",
+          "out({ type: 'assistant', message: { content: [{ type: 'text', text: who + ' bakti' }] }, session_id: sid });",
+          "out({ type: 'result', subtype: 'success', is_error: false, result: 'ok', session_id: sid, total_cost_usd: 0 });",
+        ].join('\n'),
+        { mode: 0o755 },
+      );
+      const env = {
+        PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+        KOVAN_DATA_DIR: data,
+        KOVAN_BASE_URL: 'http://127.0.0.1:9/v1',
+        KOVAN_MODEL: 'x/y',
+      };
+      const r = run(
+        ['-m', 'claude:acc1:sonnet'],
+        terminal(
+          [
+            'auth hatasını bul',
+            '/model claude:acc2:sonnet',
+            'testini de yaz',
+            'README de',
+            '/exit',
+          ],
+          false,
+        ),
+        { env },
+      );
+      expect(await r.done).toBe(0);
+      const calls = (await readFile(log, 'utf8')).split('=== ').filter(Boolean);
+      expect(calls).toHaveLength(3);
+      expect(calls[0]).toMatch(/^acc1\nauth hatasını bul/);
+      // The new account's first turn knows what was asked and what Work said.
+      expect(calls[1]).toMatch(
+        /^acc2\nYou are taking over this conversation from Claude Code \(Work\)/,
+      );
+      expect(calls[1]).toContain('1. auth hatasını bul');
+      expect(calls[1]).toContain('acc1 bakti');
+      expect(calls[1]).toContain("The person's new message:\ntestini de yaz");
+      // Then it is an ordinary turn again.
+      expect(calls[2]).toBe('acc2\nREADME de\n');
+    },
+  );
+
   it('a chat whose Claude Code account is gone says so, and goes on with the model at hand', async () => {
     const store = new ConversationStore(join(dir, 'data'));
     const c = store.create(dir, { model: 'm/x', effort: null, mode: 'allow' });

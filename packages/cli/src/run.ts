@@ -650,6 +650,21 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
    * the desktop app's accounts (`claude:<account>:<model>`, `codex:…`). Resolves with why not, when it can't be used.
    */
   let modelChoice: string = args.model ?? provider.model;
+  /** Who ran the chat before a switch by hand; the next turn tells the new one what it missed. */
+  let handoffFrom: string | null = null;
+  const runner = () =>
+    claude
+      ? `Claude Code (${claude.account.name})`
+      : codex
+        ? `Codex (${codex.account.name})`
+        : `Kovan's agent (${provider.model})`;
+  const switchModel = async (id: string): Promise<string | void> => {
+    const before = runner();
+    const why = await chooseModel(id);
+    if (!why && runner() !== before && conv?.events.some((e) => e.type === 'user'))
+      handoffFrom ??= before;
+    return why;
+  };
   const chooseModel = async (id: string): Promise<string | void> => {
     const custom = /^@([a-z0-9-]+)\/(.+)$/.exec(id);
     if (custom) {
@@ -719,12 +734,51 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
 
   const restoreNote = resumed ? await restoreModel(conv) : null;
 
+  /** What a new runner of this chat needs to know: what was asked, the last answer, the files changed. */
+  const handoff = (from: string, next: string): string => {
+    const prompts = conv!.events
+      .flatMap((e) => (e.type === 'user' ? [e.text.slice(0, 2000)] : []))
+      .slice(-3);
+    const replies = conv!.events.flatMap((e) => (e.type === 'text' ? [e.text] : []));
+    const touched = new Set<string>();
+    for (const e of conv!.events)
+      if (e.type === 'tool_start' && /^(Edited|Wrote|Created)/.test(e.summary)) {
+        const p = (e.args as Record<string, unknown> | undefined)?.['path'];
+        if (typeof p === 'string') touched.add(p);
+      }
+    // The last answer: the text of the last turn, put back together from its pieces.
+    const lastTurn = conv!.events.findLastIndex((e) => e.type === 'turn_start');
+    const lastReply = conv!.events
+      .slice(Math.max(0, lastTurn))
+      .flatMap((e) => (e.type === 'text' ? [e.text] : []))
+      .join('')
+      .slice(0, 4000);
+    return [
+      `You are taking over this conversation from ${from} (the person moved it to you). The files in this folder are as it left them. Check the current state first, then continue; don't start over and don't redo finished work.`,
+      prompts.length
+        ? `What the person asked for, oldest first:\n${prompts.map((q, i) => `${i + 1}. ${q}`).join('\n')}`
+        : '',
+      replies.length && lastReply ? `The last thing ${from} said:\n${lastReply}` : '',
+      touched.size
+        ? `Files it changed:\n${[...touched]
+            .slice(0, 30)
+            .map((f) => `- ${f}`)
+            .join('\n')}`
+        : '',
+      `The person's new message:\n${next}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+  };
+
   const turn = async (text: string) => {
     lastReason = null;
+    const send = handoffFrom ? handoff(handoffFrom, text) : text;
+    handoffFrom = null;
     conv!.events.push({ type: 'user', text, attachments: [], at: Date.now() });
     notch.event('UserPromptSubmit', { prompt: text });
     if (codex && codexBin) {
-      codexThread = await codexRunner.send(text, {
+      codexThread = await codexRunner.send(send, {
         binary: codexBin,
         root,
         model: codex.model,
@@ -736,7 +790,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         onEvent,
       });
     } else if (claude && claudeBin) {
-      claudeSession = await claudeRunner.send(text, {
+      claudeSession = await claudeRunner.send(send, {
         binary: claudeBin,
         root,
         model: claude.model,
@@ -747,7 +801,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         baseEnv: deps.env,
         onEvent,
       });
-    } else await agent.send(text);
+    } else await agent.send(send);
     conv!.messages = [...agent.messages];
     conv!.updatedAt = Date.now();
     // What the desktop app can carry on with (Kovan's agent's model) and the terminal's own choice, which may be an engine.
@@ -848,7 +902,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         mode = m;
         agent.configure({ mode });
       },
-      setModel: chooseModel,
+      setModel: switchModel,
       models: async () => {
         let modelError = 'no models on this account';
         // The account's own list, asked for fresh: what you can use, not a guess.
@@ -1056,7 +1110,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       const id = line.slice(6).trim();
       if (!id) out(`model: ${modelChoice}`);
       else {
-        const why = await chooseModel(id);
+        const why = await switchModel(id);
         out(why ? `Couldn't switch: ${why}` : `model: ${id}`);
       }
       continue;

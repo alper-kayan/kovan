@@ -152,6 +152,11 @@ interface StoredConversation extends ConversationSummary, ConversationConfig {
   paidSwitchOk?: boolean;
   /** Auto already chose this conversation's agent; it keeps it. */
   autoPicked?: boolean;
+  /**
+   * Who ran the conversation before it moved to another agent (or another account of one), by hand or by Auto. The next
+   * turn tells the new one what was asked, said and changed, since it saw none of it. Cleared once that turn starts.
+   */
+  handoffFrom?: string;
 }
 
 interface Live {
@@ -578,6 +583,7 @@ export class AgentManager {
     const live = await this.load(root, id);
     const modeChanged = patch.mode !== undefined && patch.mode !== live.stored.mode;
     const before = live.stored.harness ?? 'kovan';
+    const modelBefore = live.stored.model;
     const accountBefore = live.stored.account;
     Object.assign(live.stored, patch);
     // Picking an agent by hand ends Auto; turning Auto on lets it choose at the next prompt.
@@ -590,7 +596,13 @@ export class AgentManager {
     const accountChanged = 'account' in patch && patch.account !== accountBefore;
     if (accountChanged) this.forgetCliSession(live.stored);
     if ((patch.harness && patch.harness !== before) || accountChanged) {
-      // Switching who runs the conversation starts that runner fresh.
+      // Switching who runs the conversation starts that runner fresh; its first turn is told what came before.
+      if (live.stored.events.some((e) => e.type === 'user'))
+        live.stored.handoffFrom ??= optionLabel({
+          harness: before,
+          model: modelBefore,
+          ...(accountBefore ? { account: accountBefore } : {}),
+        });
       live.agent = null;
       live.external?.stop();
       live.external = null;
@@ -622,7 +634,21 @@ export class AgentManager {
     if (this.isRunning(live)) throw new Error('The agent is still working. Stop it first or wait.');
     const paused = this.host.paused?.(root);
     if (paused) throw new Error(`This session is paused: ${paused}`);
-    const prompt = live.stored.auto ? await this.autoPick(live, text, attachments) : text;
+    let prompt = live.stored.auto ? await this.autoPick(live, text, attachments) : text;
+    // A new agent on this conversation saw none of it: its first prompt starts with what came before.
+    const from = live.stored.handoffFrom;
+    if (from && live.stored.events.some((e) => e.type === 'user')) {
+      const context = this.laneContext(live.stored.id, 'the person moved this conversation to you');
+      prompt = `${handoffNote({
+        from,
+        why: 'the person moved this conversation to you',
+        lastPrompts: context.lastPrompts,
+        lastReply: context.lastReply,
+        touchedFiles: context.touchedFiles,
+        unknownOutcomes: [],
+      })}\n\nThe person's new message:\n${prompt}`;
+    }
+    delete live.stored.handoffFrom;
     const start = await this.readyTurn(live, root, prompt, attachments);
     this.recordPrompt(live, text, attachments);
     this.onAgentEvent(live, { type: 'payer', payer: payerOf(live) });
@@ -711,6 +737,8 @@ export class AgentManager {
     const moved = choice.agent !== from || choice.model !== s.model || account !== s.account;
     if (moved || s.events.length === 0 || asked) {
       if (moved) {
+        if (s.events.some((e) => e.type === 'user'))
+          s.handoffFrom ??= optionLabel({ harness: from, model: s.model });
         live.agent = null;
         live.external?.stop();
         live.external = null;
