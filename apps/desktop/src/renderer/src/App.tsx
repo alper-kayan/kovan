@@ -5,7 +5,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { GettingStarted } from './components/GettingStarted';
 import { IssueDialog } from './components/IssueDialog';
-import { NavSidebar } from './components/NavSidebar';
+import { ActivityBar, SideBar } from './components/NavSidebar';
 import { Notices } from './components/Notices';
 import { MissionControlPage as SessionsPage } from './components/MissionControl';
 import { AgentsPage } from './components/Pages';
@@ -52,7 +52,8 @@ export function App() {
             <SettingsView />
           </ErrorBoundary>
         )}
-        {view !== 'settings' && !navCollapsed && <NavSidebar />}
+        {view !== 'settings' && <ActivityBar />}
+        {view !== 'settings' && !navCollapsed && <SideBar />}
         {view === 'sessions' && (
           <ErrorBoundary label="Sessions">
             <SessionsPage />

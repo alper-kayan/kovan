@@ -103,7 +103,8 @@ export interface QueuedPrompt {
 export type WorkspacePanel = 'comments';
 
 /** The right panel's tabs: the agent, the files, source control. */
-export type RightTab = 'agents' | 'explorer' | 'git';
+/** What the side bar next to the activity strip shows. */
+export type SideView = 'explorer' | 'git' | 'workspaces';
 
 export type SettingsSection =
   | 'general'
@@ -161,7 +162,7 @@ interface State {
 
   /** The right panel beside the editor (agent, explorer, source control). */
   agentOpen: boolean;
-  rightTab: RightTab;
+  sideView: SideView;
   explorerTab: 'files' | 'conflicts';
   gitTab: 'changes' | 'graph';
   /** How this window's session checkout syncs with teammates. */
@@ -288,7 +289,7 @@ export const useStore = create<State>(() => ({
   inviteOpen: false,
   verifyResendAt: 0,
   agentOpen: readLocal('kovan.agentOpen', true),
-  rightTab: readLocal<RightTab>('kovan.rightTab', 'agents'),
+  sideView: readLocal<SideView>('kovan.sideView', 'explorer'),
   explorerTab: 'files',
   gitTab: 'changes',
   sync: null,

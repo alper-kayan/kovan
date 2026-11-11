@@ -1,11 +1,11 @@
 import { findCommand, resolveKeybindings } from '../../shared/keybindings';
 import { api } from './services/api';
-import { setDraft, stopAgent } from './services/agent';
+import { setDraft, stopAgent, toggleAgentPanel } from './services/agent';
 import { closeActiveTab, saveActive } from './services/editor';
 import { refreshGitStatus } from './services/git';
 import { newTerminal, toggleTerminal } from './services/terminal';
 import { openWorkspaceDialog } from './services/workspace';
-import { getState, setState, showView, writeLocal, type RightTab } from './store';
+import { getState, setState, showView, writeLocal, type SideView } from './store';
 
 export interface Command {
   id: string;
@@ -17,15 +17,22 @@ export interface Command {
 
 const hasWorkspace = () => getState().workspace !== null;
 
-/** Shows a tab of the right panel, or hides the panel when that tab is already showing. */
-export function toggleRightTab(tab: RightTab): void {
-  const { view, agentOpen, rightTab } = getState();
-  const showing = view === 'workspace' && agentOpen && rightTab === tab;
-  setState({ agentOpen: !showing, rightTab: tab });
-  writeLocal('kovan.agentOpen', !showing);
-  writeLocal('kovan.rightTab', tab);
+/** Shows a view in the side bar, or hides the side bar when that view is already showing (as VS Code does). */
+export function toggleSide(view: SideView): void {
+  const { navCollapsed, sideView } = getState();
+  const showing = !navCollapsed && sideView === view;
+  setState({ navCollapsed: showing, sideView: view });
+  writeLocal('kovan.navCollapsed', showing);
+  writeLocal('kovan.sideView', view);
+  if (view === 'git' && !showing) void refreshGitStatus();
+}
+
+/** Shows or hides the agent panel on the right; showing it brings the editor forward. */
+function toggleAgent(): void {
+  const { view, agentOpen } = getState();
+  if (view !== 'workspace' && agentOpen) return showView('workspace');
+  toggleAgentPanel();
   showView('workspace');
-  if (tab === 'git' && !showing) void refreshGitStatus();
 }
 
 function toggleNav(): void {
@@ -72,13 +79,13 @@ export const COMMANDS: Command[] = [
     id: 'view.explorer',
     title: 'Toggle Explorer',
     when: hasWorkspace,
-    run: () => toggleRightTab('explorer'),
+    run: () => toggleSide('explorer'),
   },
   {
     id: 'view.git',
     title: 'Toggle Source Control',
     when: hasWorkspace,
-    run: () => toggleRightTab('git'),
+    run: () => toggleSide('git'),
   },
   { id: 'view.toggleSidebar', title: 'Toggle Sidebar', run: toggleNav },
   { id: 'view.toggleTerminal', title: 'Toggle Terminal', run: toggleTerminal },
@@ -86,7 +93,7 @@ export const COMMANDS: Command[] = [
     id: 'view.agent',
     title: 'Toggle Agent',
     when: hasWorkspace,
-    run: () => toggleRightTab('agents'),
+    run: toggleAgent,
   },
   {
     id: 'agent.stop',
@@ -102,7 +109,7 @@ export const COMMANDS: Command[] = [
     run: () => {
       const key = getState().conversation?.id ?? 'new';
       if (!getState().drafts[key]?.trim()) setDraft(key, 'Open a GitHub issue for: ');
-      setState({ agentOpen: true, rightTab: 'agents' });
+      setState({ agentOpen: true });
       showView('workspace');
       setTimeout(() => document.querySelector<HTMLTextAreaElement>('.composer-input')?.focus(), 50);
     },

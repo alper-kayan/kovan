@@ -1,8 +1,6 @@
 import {
   Bot,
-  FolderTree,
   GitBranch,
-  GitCompare,
   GitFork,
   MessageSquare,
   PanelLeft,
@@ -56,7 +54,6 @@ export function WorkspaceView() {
   const workspace = useStore((s) => s.workspace);
   const status = useStore((s) => s.gitStatus);
   const panel = useStore((s) => s.panel);
-  const rightTab = useStore((s) => s.rightTab);
   const terminalOpen = useStore((s) => s.terminalOpen);
   const agentOpen = useStore((s) => s.agentOpen);
   const agentRunning = useStore((s) => s.conversation?.running ?? false);
@@ -116,22 +113,6 @@ export function WorkspaceView() {
           </span>
         )}
         {team && <span className="ws-role">{team.role}</span>}
-        <button
-          className={`icon-btn ${agentOpen && rightTab === 'explorer' ? 'on' : ''}`}
-          title="Explorer"
-          onClick={() => runCommand('view.explorer')}
-        >
-          <FolderTree size={15} />
-        </button>
-        {workspace.isRepo && (
-          <button
-            className={`icon-btn ${agentOpen && rightTab === 'git' ? 'on' : ''}`}
-            title="Source Control"
-            onClick={() => runCommand('view.git')}
-          >
-            <GitCompare size={15} />
-          </button>
-        )}
         {team && (
           <button
             className={`icon-btn ${panel === 'comments' ? 'on' : ''}`}
@@ -142,7 +123,7 @@ export function WorkspaceView() {
           </button>
         )}
         <button
-          className={`icon-btn ${agentOpen && rightTab === 'agents' ? 'on' : ''} ${agentRunning ? 'busy' : ''}`}
+          className={`icon-btn ${agentOpen ? 'on' : ''} ${agentRunning ? 'busy' : ''}`}
           title="Agent"
           onClick={() => runCommand('view.agent')}
         >

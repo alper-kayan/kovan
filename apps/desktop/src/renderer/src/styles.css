@@ -741,6 +741,150 @@ textarea.input {
   color: var(--sbfg4);
 }
 
+/* The activity strip on the far left, as in VS Code: side-bar views, then the app's pages. */
+.activity {
+  width: 48px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 0 10px;
+  min-height: 0;
+  background: var(--sb);
+  border-right: 1px solid var(--sbline);
+  color: var(--sbfg3);
+}
+
+.activity-logo {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin-bottom: 6px;
+}
+
+.activity-item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--sbfg3);
+  cursor: pointer;
+}
+
+.activity-item:hover {
+  background: var(--sbh);
+  color: var(--sbfg);
+}
+
+.activity-item.on {
+  color: var(--sbfg);
+}
+
+/* The view that shows, marked on its left edge as VS Code does. */
+.activity-item.on::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--sbfg);
+}
+
+.activity-item.busy {
+  color: var(--ok-soft);
+  cursor: default;
+}
+
+.activity-item.update-ready {
+  color: var(--ok-soft);
+}
+
+.activity-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--u-blue);
+  color: #fff;
+  font: 600 10px/16px var(--font-mono);
+  text-align: center;
+}
+
+.activity-badge.warn {
+  background: var(--warn);
+  color: var(--bg);
+}
+
+.activity-sep {
+  width: 24px;
+  height: 1px;
+  margin: 6px 0;
+  background: var(--sbline);
+}
+
+/* The side bar next to the strip: files, source control or workspaces. */
+.side {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg2);
+  color: var(--sbfg1);
+}
+
+.side-title {
+  height: 36px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 6px 0 14px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--sbfg3);
+}
+
+.side-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Explorer and source control fill the side bar instead of being a fixed column of their own. */
+.side .side-panel {
+  width: auto;
+  flex: 1;
+  border-right: none;
+  background: transparent;
+}
+
+.side-workspaces {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-workspaces .nav-org {
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
 .nav-resizer {
   width: 6px;
   margin-left: -3px;
