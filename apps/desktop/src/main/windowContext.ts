@@ -17,6 +17,7 @@ export class WindowContext {
   /** Set right after construction; conversations with the native agent. */
   agents: AgentManager | null = null;
   private stopWatching: (() => void) | null = null;
+  private stopWatchingChats: (() => void) | null = null;
 
   constructor(
     readonly window: BrowserWindow,
@@ -72,6 +73,9 @@ export class WindowContext {
       this.send('fs:changed', event);
       if (event.paths.length > 0) this.hooks.files?.(root);
     });
+    // Chats written from elsewhere (the terminal agent) show up without reopening the folder.
+    this.stopWatchingChats =
+      this.agents?.watch(root, (ids) => this.send('agent:changed', ids)) ?? null;
     this.updateTitle();
     return this.workspace;
   }
@@ -86,6 +90,8 @@ export class WindowContext {
   close(): void {
     this.stopWatching?.();
     this.stopWatching = null;
+    this.stopWatchingChats?.();
+    this.stopWatchingChats = null;
     this.terminals.killAll();
     this.agents?.stopAll();
     if (this.workspace) this.hooks.closed?.(this.workspace.root);

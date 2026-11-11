@@ -15,6 +15,12 @@ import { newTerminal } from './terminal';
 
 export function initAgent(): void {
   api.on('agents:limits', (agentLimits) => setState({ agentLimits }));
+  // A chat written from the terminal: list again, and show the new turns of the open one when it sits idle here.
+  api.on('agent:changed', (ids) => {
+    void loadConversations(false);
+    const open = getState().conversation;
+    if (open && !open.running && ids.includes(open.id)) void openConversation(open.id);
+  });
   void api
     .invoke('agents:limits')
     .then((agentLimits) => setState({ agentLimits }))

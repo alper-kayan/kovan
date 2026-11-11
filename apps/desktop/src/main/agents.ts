@@ -35,6 +35,7 @@ import { safeStorage } from 'electron';
 import type { AskTrust, TrustQuestion } from './mcp.js';
 import { maskSecrets } from '@kovan/mcp-client';
 import { createHash, randomUUID } from 'node:crypto';
+import { mkdirSync, watch } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
@@ -440,6 +441,52 @@ export class AgentManager {
         });
     }
     return out.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  /**
+   * Watches this folder's conversations for writes from elsewhere: the `kovan` terminal agent keeps its chats here, in this format.
+   * A conversation written there while it sits idle here is let go from memory (so the next open reads the new turns, and a save
+   * here can't write over them), and `onChange` hears which ones changed, to list them again. This window's own saves leave the
+   * file as old as the copy in memory, so they don't count.
+   */
+  watch(root: string, onChange: (ids: string[]) => void): () => void {
+    const dir = this.dirFor(root);
+    try {
+      mkdirSync(dir, { recursive: true });
+    } catch {
+      return () => {};
+    }
+    const changed = new Set<string>();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const settle = async () => {
+      timer = null;
+      const ids = [...changed];
+      changed.clear();
+      for (const id of ids) {
+        const live = this.live.get(id);
+        if (!live || this.isRunning(live)) continue;
+        const disk = (await readJson(join(dir, `${id}.json`))) as StoredConversation | undefined;
+        if (!disk || disk.updatedAt > live.stored.updatedAt) this.live.delete(id);
+      }
+      onChange(ids);
+    };
+    let watcher: ReturnType<typeof watch>;
+    try {
+      watcher = watch(dir, (_event, name) => {
+        const file = name ? String(name) : '';
+        if (!file.endsWith('.json')) return;
+        changed.add(file.slice(0, -'.json'.length));
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(() => void settle(), 250);
+      });
+    } catch {
+      return () => {};
+    }
+    watcher.on('error', () => {});
+    return () => {
+      if (timer) clearTimeout(timer);
+      watcher.close();
+    };
   }
 
   private async load(root: string, id: string): Promise<Live> {

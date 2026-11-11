@@ -628,6 +628,8 @@ export interface EventContract {
   'brain:user': [user: User | null];
   'brain:message': [message: ServerMessage];
   'agent:event': [conversationId: string, event: ConversationEvent];
+  /** Conversations of the open folder written from elsewhere (the terminal agent). */
+  'agent:changed': [conversationIds: string[]];
   'agents:limits': [limits: AgentLimit[]];
   'arena:progress': [progress: ArenaProgress];
   'sync:state': [state: SyncState | null];
@@ -802,6 +804,7 @@ export const EVENT_CHANNELS = [
   'brain:user',
   'brain:message',
   'agent:event',
+  'agent:changed',
   'agents:limits',
   'arena:progress',
   'sync:state',

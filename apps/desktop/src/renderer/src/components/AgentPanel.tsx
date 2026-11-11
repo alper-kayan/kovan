@@ -1524,7 +1524,8 @@ export function AgentPanel() {
           <X size={15} />
         </button>
       </div>
-      {!configured ? (
+      {/* With no model to send to, an empty chat asks for one; a chat that has turns (one from the terminal, say) still shows them. */}
+      {!configured && items.length === 0 ? (
         <ProviderSetup />
       ) : (
         <>
@@ -1568,7 +1569,7 @@ export function AgentPanel() {
               </div>
             )}
           </div>
-          <Composer />
+          {configured ? <Composer /> : <ProviderSetup />}
         </>
       )}
     </aside>
