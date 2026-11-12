@@ -133,8 +133,12 @@ function counterpart(
       ? { href: en, alternates: alternateLinks(en, path) }
       : { href: fallback.en, alternates: '' };
   }
+  // An English page with a Turkish twin also carries the script that takes Turkish devices there.
   return hasPair(path)
-    ? { href: `/tr${path}`, alternates: alternateLinks(path, `/tr${path}`) }
+    ? {
+        href: `/tr${path}`,
+        alternates: `${alternateLinks(path, `/tr${path}`)}\n<script src="/lang.js" data-tr="/tr${path}"></script>`,
+      }
     : { href: fallback.tr, alternates: '' };
 }
 

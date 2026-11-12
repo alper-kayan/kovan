@@ -2,8 +2,7 @@ import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/jetbrains-mono';
 import '@fontsource-variable/manrope';
 import './styles/base.css';
-import { pickLocale } from '@kovan/shared/i18n';
-import { locale, t } from './lib/i18n';
+import { t } from './lib/i18n';
 
 /** Behaviour every page shares: the nav turning into a pill, and the mobile menu. */
 function initNav(): void {
@@ -51,19 +50,11 @@ function initNav(): void {
 }
 
 /**
- * The site in the device's language: a first visit to an English page whose device asks for
- * Turkish goes to the page's Turkish twin. Choosing a language with the nav or footer link is
- * remembered and wins over the device from then on, so nobody is sent back after choosing English.
+ * Choosing a language with the nav or footer link is remembered. public/lang.js, which sends
+ * Turkish devices to the Turkish pages before they are drawn, then leaves that person alone.
  */
 function initLanguage(): void {
   const KEY = 'kovan.lang';
-  const read = (): string | null => {
-    try {
-      return window.localStorage.getItem(KEY);
-    } catch {
-      return null;
-    }
-  };
   document.addEventListener('click', (event) => {
     const link = (event.target as Element | null)?.closest<HTMLAnchorElement>('a[hreflang]');
     const chosen = link?.getAttribute('hreflang');
@@ -74,16 +65,6 @@ function initLanguage(): void {
       // Storage may be off; the choice just isn't remembered.
     }
   });
-  if (locale !== 'en' || read()) return;
-  const twin = document.querySelector<HTMLAnchorElement>('a[hreflang="tr"][href]');
-  const wanted = pickLocale(
-    ...(navigator.languages?.length ? navigator.languages : [navigator.language]),
-  );
-  if (wanted !== 'tr' || !twin) return;
-  const target = new URL(twin.href, window.location.href);
-  if (target.origin !== window.location.origin || target.pathname === window.location.pathname)
-    return;
-  window.location.replace(target.pathname + target.search + window.location.hash);
 }
 
 initLanguage();

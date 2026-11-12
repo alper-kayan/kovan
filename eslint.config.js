@@ -29,6 +29,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  // The site's plain browser scripts (they run before the page is drawn, no bundler).
+  {
+    files: ['apps/web/public/**/*.js'],
+    languageOptions: { sourceType: 'script', globals: { ...globals.browser } },
+  },
   // CommonJS files (electron-builder's config and hooks) use require.
   { files: ['**/*.cjs'], rules: { '@typescript-eslint/no-require-imports': 'off' } },
   // Expo config plugins are CommonJS loaded by the Expo CLI.
