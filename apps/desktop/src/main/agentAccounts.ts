@@ -7,9 +7,11 @@ import type { AgentAccount, ExternalHarness } from '../shared/agent.js';
 
 /**
  * The person's Claude Code and Codex accounts on this machine, each added by hand in Settings.
- * Each keeps its sign-in in a folder of its own under Kovan's data, which the CLI is pointed at
- * when it runs for that account (CLAUDE_CONFIG_DIR, CODEX_HOME). The CLI's usual sign-in
- * (~/.claude, ~/.codex) is never used: nothing here reads or touches it.
+ * Most keep their sign-in in a folder of their own under Kovan's data, which the CLI is pointed
+ * at when it runs for that account (CLAUDE_CONFIG_DIR, CODEX_HOME). One per CLI may instead be
+ * "this computer's": the CLI then runs as it does in a terminal, with its usual sign-in and
+ * settings (~/.claude, ~/.codex). Kovan itself never reads or writes those folders, and never
+ * signs that one in or out: the person does, in their own terminal.
  */
 export class AgentAccounts {
   private accounts: AgentAccount[] | null = null;
@@ -25,19 +27,22 @@ export class AgentAccounts {
     return this.accounts;
   }
 
-  async add(harness: ExternalHarness, name: string): Promise<AgentAccount> {
+  async add(harness: ExternalHarness, name: string, home = false): Promise<AgentAccount> {
     const list = await this.list();
     const clean = name.trim().slice(0, 40);
     if (!clean) throw new Error('Give the account a name, like Work or Personal.');
     if (list.some((a) => a.harness === harness && a.name.toLowerCase() === clean.toLowerCase()))
       throw new Error(`There is already an account called ${clean}.`);
+    if (home && list.some((a) => a.harness === harness && a.home))
+      throw new Error("This computer's sign-in is already in the list.");
     const account: AgentAccount = {
       id: randomUUID().slice(0, 8),
       harness,
       name: clean,
       createdAt: Date.now(),
+      ...(home ? { home: true } : {}),
     };
-    await mkdir(this.dirOf(account.id), { recursive: true, mode: 0o700 });
+    if (!home) await mkdir(this.dirOf(account.id), { recursive: true, mode: 0o700 });
     this.accounts = [...list, account];
     await writeJson(this.file, this.accounts);
     return account;
@@ -68,6 +73,8 @@ export class AgentAccounts {
     if (!id) return {};
     const account = (await this.list()).find((a) => a.id === id && a.harness === harness);
     if (!account) return {};
+    // The CLI's own folder: nothing to point it at. The variable only says which account runs.
+    if (account.home) return { KOVAN_AGENT_ACCOUNT: account.id };
     return harness === 'claude-code'
       ? { CLAUDE_CONFIG_DIR: this.dirOf(id) }
       : { CODEX_HOME: this.dirOf(id) };

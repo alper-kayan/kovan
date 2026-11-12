@@ -1,4 +1,5 @@
 import { closeTerminal, newTerminal } from '../services/terminal';
+import { pressable } from './ui';
 import { setState, useStore } from '../store';
 import { ChevronDown, Plus, SquareTerminal, X } from 'lucide-react';
 import { TerminalView } from './TerminalView';
@@ -20,6 +21,9 @@ export function BottomPanel() {
             key={t.id}
             className={`panel-tab ${t.id === active ? 'active' : ''} ${t.exited ? 'exited' : ''}`}
             onClick={() => setState({ activeTerminal: t.id })}
+            {...pressable(() => setState({ activeTerminal: t.id }))}
+            role="tab"
+            aria-selected={t.id === active}
           >
             <SquareTerminal size={13} />
             <span>{t.title}</span>

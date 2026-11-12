@@ -288,10 +288,11 @@ export async function openSession(sessionId: string): Promise<void> {
     void loadSwarm(sessionId);
     void loadAiAgents(session.workspaceId);
     void reloadMembers(session.workspaceId);
-    if (followed !== sessionId) {
-      followed = sessionId;
-      await api.invoke('session:follow', sessionId);
-    }
+    // The room starts empty each time it opens, so the server sends it everything again (a
+    // follow kept from before would bring only what comes next, leaving earlier lanes blank).
+    if (followed === sessionId) await api.invoke('session:unfollow', sessionId);
+    followed = sessionId;
+    await api.invoke('session:follow', sessionId);
     await attachLane(session);
   } catch (error) {
     reportError(error);
@@ -410,6 +411,11 @@ export async function fixBlocker(session: Session): Promise<void> {
   const blocker = getState().room?.blocker;
   if (!blocker) return;
   try {
+    if (blocker.fix === 'watch') {
+      patchRoom({ blocker: null });
+      await watchSession(session);
+      return;
+    }
     if (blocker.fix === 'branch' || blocker.fix === 'checkout') {
       await openSessionCheckout(session);
       showView('session');
@@ -419,7 +425,7 @@ export async function fixBlocker(session: Session): Promise<void> {
       if (getState().view === 'setup') return;
       showView('session');
     } else if (blocker.fix === 'provider') {
-      setState({ settingsSection: 'providers' });
+      setState({ settingsSection: blocker.section ?? 'providers' });
       showView('settings');
       return;
     }
@@ -459,7 +465,12 @@ export async function leaveSession(session: Session): Promise<void> {
 }
 
 export async function endSession(session: Session): Promise<void> {
-  if (!confirm(`End "${session.title}"? It moves to History with its transcript and final diff.`))
+  const others = session.participants.filter((p) => p.mode === 'join' && p.userId !== me()).length;
+  if (
+    !confirm(
+      `End "${session.title}" for everyone?${others ? ` The agents of ${others} other ${others === 1 ? 'person' : 'people'} in it stop too.` : ''} It moves to History with its transcript. Its final changes are taken from this computer's copy of the branch, so work a teammate hasn't synced yet isn't in them.`,
+    )
+  )
     return;
   try {
     const lane = getState().conversation;

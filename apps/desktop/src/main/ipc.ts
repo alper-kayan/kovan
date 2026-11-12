@@ -117,7 +117,7 @@ const ARGS: { [C in InvokeChannel]: z.ZodType<Parameters<InvokeContract[C]>> } =
     }),
   ]) as unknown as z.ZodType<Parameters<InvokeContract['terminal:create']>>,
   'accounts:list': z.tuple([]),
-  'accounts:add': z.tuple([z.enum(['claude-code', 'codex']), str.max(40)]),
+  'accounts:add': z.tuple([z.enum(['claude-code', 'codex']), str.max(40), z.boolean().optional()]),
   'accounts:remove': z.tuple([str.max(64)]),
   'accounts:status': z.tuple([z.enum(['claude-code', 'codex']), str.max(64).nullable()]),
   'terminal:write': z.tuple([int, str]),
@@ -147,6 +147,7 @@ const ARGS: { [C in InvokeChannel]: z.ZodType<Parameters<InvokeContract[C]>> } =
   'bindings:set': z.tuple([str, str.nullable()]),
   'repo:choose': z.tuple([]),
   'repo:inspect': z.tuple([str]),
+  'repo:init': z.tuple([]),
   'repo:clone': z.tuple([str.max(500), str.max(200)]),
   'agent:list': z.tuple([]),
   'agent:create': z.tuple([]),
@@ -166,6 +167,16 @@ const ARGS: { [C in InvokeChannel]: z.ZodType<Parameters<InvokeContract[C]>> } =
       .partial()
       .strict(),
   ]) as unknown as z.ZodType<Parameters<InvokeContract['agent:configure']>>,
+  'agent:readiness': z.tuple([
+    z
+      .object({
+        auto: z.boolean(),
+        harness: z.enum(['kovan', 'claude-code', 'codex']),
+        model: str.max(200),
+        account: z.string().max(64).optional(),
+      })
+      .strict(),
+  ]) as unknown as z.ZodType<Parameters<InvokeContract['agent:readiness']>>,
   'agent:send': z.tuple([
     str,
     str.max(200_000),
@@ -388,6 +399,8 @@ export function registerIpc(deps: IpcDeps): void {
     platform: process.platform,
     homeDir: homedir(),
     userName: userInfo().username,
+    screenReader: app.accessibilitySupportEnabled,
+    locale: app.getPreferredSystemLanguages()[0] ?? app.getLocale(),
   }));
   handle('update:state', () => deps.updater.current);
   handle('update:check', () => deps.updater.check());
@@ -418,7 +431,12 @@ export function registerIpc(deps: IpcDeps): void {
     return info;
   });
   handle('workspace:open', async (ctx, folder) => {
-    const info = await ctx.openWorkspace(folder);
+    const info = await ctx.openWorkspace(folder).catch(async (error: unknown) => {
+      // A recent folder that was moved or deleted leaves the list, as the message says.
+      if (error instanceof Error && /isn't there any more/.test(error.message))
+        await deps.recents.forget(folder).catch(() => undefined);
+      throw error;
+    });
     // A session's worktree is reached through its session, not the recent list.
     if (!info.session) await deps.recents.add(info.root, info.name);
     return info;
@@ -461,7 +479,7 @@ export function registerIpc(deps: IpcDeps): void {
     return ctx.terminals.create(cwd, cols, rows, program);
   });
   handle('accounts:list', () => deps.accounts.list());
-  handle('accounts:add', (_ctx, harness, name) => deps.accounts.add(harness, name));
+  handle('accounts:add', (_ctx, harness, name, home) => deps.accounts.add(harness, name, home));
   handle('accounts:remove', (_ctx, id) => deps.accounts.remove(id));
   handle('accounts:status', (_ctx, harness, account) =>
     deps.accountStatus(harness, account ?? undefined),
@@ -496,6 +514,11 @@ export function registerIpc(deps: IpcDeps): void {
     return result.canceled ? null : (result.filePaths[0] ?? null);
   });
 
+  handle('repo:init', async (ctx) => {
+    const root = ctx.requireRoot();
+    if (await gitEngine.findRepoRoot(root)) return;
+    await gitEngine.git(root, ['init']);
+  });
   handle('repo:inspect', async (_ctx, folder): Promise<RepoInfo> => {
     const repoRoot = await gitEngine.findRepoRoot(folder);
     const root = repoRoot ?? folder;
@@ -549,6 +572,7 @@ export function registerIpc(deps: IpcDeps): void {
     });
     return updated;
   });
+  handle('agent:readiness', (ctx, choice) => agents(ctx).readiness(choice));
   handle('agent:send', (ctx, id, text, attachments) =>
     agents(ctx).send(ctx.requireRoot(), id, text, attachments),
   );
@@ -635,24 +659,20 @@ export function registerIpc(deps: IpcDeps): void {
         reason: "Open this session's checkout in this window to join.",
         fix: 'checkout',
       };
-    if (input.harness === 'kovan') {
-      const status = await deps.keys.status();
-      const custom = (await deps.customProviders.models()).length;
-      if (!status.openrouter.configured && custom === 0)
-        return {
-          ok: false,
-          reason: 'Your agent needs a model provider: add an OpenRouter key or a custom provider.',
-          fix: 'provider',
-        };
-    } else {
-      const cli = (await deps.externalAgents(false)).find((a) => a.id === input.harness);
-      if (!cli?.supported)
-        return {
-          ok: false,
-          reason: cli?.reason ?? 'That agent is not available on this machine.',
-          fix: 'provider',
-        };
-    }
+    // The same check the chat makes before sending: a key, Kovan billing, or an added account.
+    const ready = await agents(ctx).readiness({
+      auto: false,
+      harness: input.harness,
+      model: input.harness === 'kovan' ? (await deps.settings.get()).agentModel : 'default',
+    });
+    if (!ready.ready)
+      return {
+        ok: false,
+        reason: ready.why,
+        fix: ready.fix === 'wait' ? null : 'provider',
+        section:
+          ready.fix === 'billing' ? 'billing' : ready.fix === 'provider' ? 'providers' : 'agents',
+      };
     if (input.branch && ws.isRepo) {
       const current = await currentBranch(ws.root);
       if (current !== input.branch && !ws.session)
@@ -663,7 +683,7 @@ export function registerIpc(deps: IpcDeps): void {
           branch: input.branch,
         };
       const push = await pushProblem(ws.root, input.branch);
-      if (push) return { ok: false, reason: push, fix: null };
+      if (push) return { ok: false, reason: push, fix: 'watch' };
     }
     return { ok: true };
   });

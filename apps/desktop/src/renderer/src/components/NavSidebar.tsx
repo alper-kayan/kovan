@@ -1,4 +1,5 @@
 import { openSession, sessionState } from '../services/sessions';
+import { t } from '../i18n';
 import {
   Brain,
   Building2,
@@ -41,11 +42,12 @@ import { GitPanel } from './GitPanel';
 import { KovanMark } from './Logo';
 import { Avatar, ProgressRing, WorkspaceIcon } from './ui';
 
-const NAV: { view: View; label: string; icon: typeof LayoutGrid }[] = [
-  { view: 'sessions', label: 'Sessions', icon: LayoutGrid },
-  { view: 'brain', label: 'Brain', icon: Brain },
-  { view: 'people', label: 'People', icon: Users },
-  { view: 'agents', label: 'Agents', icon: Workflow },
+/** The app's pages: a short word under each icon, the whole name on hover. */
+const NAV: { view: View; label: string; short: string; icon: typeof LayoutGrid }[] = [
+  { view: 'sessions', label: 'Sessions: shared tasks', short: 'Sessions', icon: LayoutGrid },
+  { view: 'brain', label: "Brain: the team's notes and decisions", short: 'Brain', icon: Brain },
+  { view: 'people', label: 'People and AI teammates', short: 'People', icon: Users },
+  { view: 'agents', label: 'Agent map: every agent at work', short: 'Map', icon: Workflow },
 ];
 
 const MIN_WIDTH = 190;
@@ -104,19 +106,21 @@ export function ActivityBar() {
   const sideItem = (
     id: SideView,
     label: string,
+    short: string,
     Icon: typeof LayoutGrid,
     badge?: number,
     warn?: boolean,
   ) => (
     <button
       key={id}
-      className={`activity-item ${sideOpen && side === id ? 'on' : ''}`}
-      title={label}
-      aria-label={label}
+      className={`activity-item labelled ${sideOpen && side === id ? 'on' : ''}`}
+      title={t(label)}
+      aria-label={t(label)}
       aria-pressed={sideOpen && side === id}
       onClick={() => toggleSide(id)}
     >
-      <Icon size={19} />
+      <Icon size={18} />
+      <span className="activity-label">{t(short)}</span>
       {badge ? <span className={`activity-badge ${warn ? 'warn' : ''}`}>{badge}</span> : null}
     </button>
   );
@@ -126,29 +130,48 @@ export function ActivityBar() {
       <span className="activity-logo" title="Kovan">
         <KovanMark size={20} />
       </span>
-      {sideItem('explorer', 'Explorer', FolderTree, conflicts, conflicts > 0)}
-      {isRepo && sideItem('git', 'Source Control', GitCompare, changes)}
-      {sideItem('workspaces', 'Workspaces', Layers)}
+      {sideItem(
+        'explorer',
+        "Explorer: the open folder's files",
+        'Files',
+        FolderTree,
+        conflicts,
+        conflicts > 0,
+      )}
+      {isRepo && sideItem('git', 'Source Control: changes and commits', 'Git', GitCompare, changes)}
+      {sideItem('workspaces', "Workspaces: your folders and your team's", 'Workspaces', Layers)}
       <span className="activity-sep" />
-      {NAV.map(({ view: v, label, icon: Icon }) => (
+      {NAV.map(({ view: v, label, short, icon: Icon }) => (
         <button
           key={v}
-          className={`activity-item ${view === v ? 'on' : ''}`}
-          title={label}
-          aria-label={label}
+          className={`activity-item labelled ${view === v ? 'on' : ''}`}
+          title={t(label)}
+          aria-label={t(label)}
+          aria-current={view === v ? 'page' : undefined}
           onClick={() => showView(v)}
         >
-          <Icon size={19} />
+          <Icon size={18} />
+          <span className="activity-label">{t(short)}</span>
         </button>
       ))}
       <span className="spacer" />
-      <button
-        className="activity-item"
-        title={`Getting started · ${done}/${STEPS.length}`}
-        onClick={() => setState({ gettingStartedOpen: true })}
-      >
-        <ProgressRing value={done} total={STEPS.length} />
-      </button>
+      {/* Until every step is done: a named way back to the guide, not a lone ring. */}
+      {done < STEPS.length && (
+        <button
+          className="activity-item labelled start-item"
+          title={t('Getting started: {done} of {total} steps done', { done, total: STEPS.length })}
+          aria-label={t('Getting started: {done} of {total} steps done', {
+            done,
+            total: STEPS.length,
+          })}
+          onClick={() => setState({ gettingStartedOpen: true })}
+        >
+          <ProgressRing value={done} total={STEPS.length} />
+          <span className="activity-label">
+            {t('Start')} {done}/{STEPS.length}
+          </span>
+        </button>
+      )}
       {update?.status === 'downloading' && (
         <span
           className="activity-item busy"
@@ -183,7 +206,7 @@ export function ActivityBar() {
       </button>
       <button
         className={`activity-item ${view === 'settings' ? 'on' : ''}`}
-        title="Settings"
+        title={t('Settings')}
         onClick={() => showView('settings')}
       >
         <Settings size={19} />
@@ -212,13 +235,13 @@ export function SideBar() {
         : side;
   return (
     <>
-      <aside className="side" style={{ width }} aria-label={SIDE_TITLES[current]}>
+      <aside className="side" style={{ width }} aria-label={t(SIDE_TITLES[current])}>
         <div className="side-title">
-          <span>{SIDE_TITLES[current]}</span>
+          <span>{t(SIDE_TITLES[current])}</span>
           {current === 'workspaces' && (
             <button
               className="icon-btn"
-              title="Add a workspace"
+              title={t('Add a workspace')}
               onClick={() => void addWorkspace()}
             >
               <Plus size={13} />
@@ -227,7 +250,7 @@ export function SideBar() {
           {current === 'explorer' && (
             <button
               className="icon-btn"
-              title="Open another folder"
+              title={t('Open another folder')}
               onClick={() => runCommand('workspace.open')}
             >
               <FolderOpen size={13} />
@@ -309,6 +332,11 @@ function WorkspacesList() {
   // Folders opened on this machine that aren't linked to a shared workspace.
   const boundPaths = new Set(Object.values(bindings));
   const localOnly = recent.filter((r) => !boundPaths.has(r.root));
+  // Two entries with one name ("shop" shared and "shop" here) say which folder each is.
+  const names = [...(signedIn ? team.map((w) => w.name) : []), ...localOnly.map((r) => r.name)];
+  const twice = new Set(names.filter((n, i) => names.indexOf(n) !== i));
+  const where = (path: string | undefined) =>
+    path ? (path.split(/[\\/]/).slice(-2, -1)[0] ?? '') : '';
 
   return (
     <div className="side-workspaces">
@@ -349,6 +377,11 @@ function WorkspacesList() {
                 >
                   <WorkspaceIcon name={w.name} color={w.color} />
                   <span>{w.name}</span>
+                  {twice.has(w.name) && (
+                    <span className="nav-ws-hint">
+                      {bindings[w.id] ? `${t('shared')} · ${where(bindings[w.id])}/` : t('shared')}
+                    </span>
+                  )}
                   {online > 0 && (
                     <span
                       className="nav-online"
@@ -372,20 +405,38 @@ function WorkspacesList() {
               </div>
             );
           })}
-        {signedIn && localOnly.length > 0 && <div className="nav-subheading">On this machine</div>}
-        {localOnly.map((r) => (
-          <button
-            key={r.root}
-            className={`nav-ws ${view === 'workspace' && workspace?.root === r.root ? 'active' : ''}`}
-            title={r.root}
-            onClick={() => void openWorkspace(r.root)}
+        {signedIn && localOnly.length > 0 && (
+          <div
+            className="nav-subheading"
+            title="Opened here but not shared: teammates don't see these. Share one to work on it together."
           >
-            <WorkspaceIcon name={r.name} />
-            <span>{r.name}</span>
-          </button>
+            {t('Only on this computer')}
+          </div>
+        )}
+        {localOnly.map((r) => (
+          <div key={r.root} className="nav-ws-row">
+            <button
+              className={`nav-ws ${view === 'workspace' && workspace?.root === r.root ? 'active' : ''}`}
+              title={r.root}
+              onClick={() => void openWorkspace(r.root)}
+            >
+              <WorkspaceIcon name={r.name} />
+              <span>{r.name}</span>
+              {twice.has(r.name) && <span className="nav-ws-hint">{where(r.root)}/</span>}
+            </button>
+            {signedIn && (
+              <button
+                className="btn btn-sm nav-ws-share"
+                title={`Make ${r.name} a workspace your team can join (the files stay here)`}
+                onClick={() => void addWorkspace(r.root)}
+              >
+                {t('Share')}
+              </button>
+            )}
+          </div>
         ))}
         {team.length === 0 && localOnly.length === 0 && (
-          <div className="nav-empty">No workspaces yet.</div>
+          <div className="nav-empty">{t('No workspaces yet.')}</div>
         )}
       </div>
     </div>

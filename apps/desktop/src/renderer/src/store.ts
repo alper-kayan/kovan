@@ -163,8 +163,12 @@ interface State {
   /** The signed-in Kovan account, or null when working locally. */
   user: User | null;
   signedIn: boolean;
+  /** A session room's side section to open next ('comments', say), asked for by a notice. */
+  railFocus: string | null;
   serverUrl: string;
   loginPending: 'login' | 'link' | null;
+  /** The code an emailed sign-in link's page asks for, while a sign-in waits. */
+  loginCode: string | null;
   orgs: Org[];
   /** The organization the sidebar and Sessions show (see `currentOrg`); null: the default one. */
   currentOrgId: string | null;
@@ -298,9 +302,11 @@ export function writeLocal(key: string, value: unknown): void {
 
 export const useStore = create<State>(() => ({
   user: null,
+  railFocus: null,
   signedIn: false,
   serverUrl: '',
   loginPending: null,
+  loginCode: null,
   orgs: [],
   currentOrgId: readLocal<string | null>('kovan.org', null),
   teamWorkspaces: [],
@@ -334,7 +340,7 @@ export const useStore = create<State>(() => ({
   recent: [],
   view: 'sessions',
   lastAppView: 'sessions',
-  settingsSection: 'general',
+  settingsSection: 'agents',
   settingsQuery: '',
   navCollapsed: readLocal('kovan.navCollapsed', false),
   navWidth: readLocal('kovan.navWidth', 224),
@@ -419,4 +425,14 @@ export function reportError(error: unknown): void {
 
 export function updateTab(id: string, patch: Partial<Tab>): void {
   setState((s) => ({ tabs: s.tabs.map((t) => (t.id === id ? ({ ...t, ...patch } as Tab) : t)) }));
+}
+
+/** Where secrets are kept on this system, in the words its users know. */
+export function secretStore(): string {
+  const platform = getState().appInfo?.platform;
+  return platform === 'darwin'
+    ? 'the macOS keychain'
+    : platform === 'win32'
+      ? "Windows' protected storage"
+      : "your system's keyring";
 }

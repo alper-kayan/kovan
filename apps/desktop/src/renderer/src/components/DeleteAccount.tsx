@@ -1,4 +1,5 @@
 import type { AccountDeletionPlan } from '@kovan/shared';
+import { DialogKeys } from './DialogKeys';
 import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { deleteAccount, loadDeletionPlan } from '../services/team';
@@ -50,6 +51,7 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
           void submit();
         }}
       >
+        <DialogKeys onClose={onClose} />
         <div className="modal-head">
           <h2 className="modal-title">Delete your account</h2>
           <p className="modal-desc">For good, on every device. It can&apos;t be undone.</p>
@@ -68,12 +70,23 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
                   <li>Your account, its sign-ins, and the phones that get your notifications.</li>
                   {plan.deleted.length > 0 && (
                     <li>
-                      Workspaces only you are in, with their sessions, transcripts and AI teammates:{' '}
+                      Workspaces only you are in, with their sessions, transcripts, AI teammates,
+                      and the API keys, webhooks and machines made for them (other systems using
+                      those stop working):{' '}
                       <strong>{plan.deleted.map((w) => w.name).join(', ')}</strong>.
                     </li>
                   )}
                   <li>What you wrote in shared workspaces: your comments and your agent lanes.</li>
-                  <li>Your saved card and billing details.</li>
+                  {plan.orgsDeleted.length > 0 && (
+                    <li>
+                      Organizations only you are in, with their organization-wide keys, webhooks and
+                      machines: <strong>{plan.orgsDeleted.map((o) => o.name).join(', ')}</strong>.
+                    </li>
+                  )}
+                  <li>
+                    Your saved card, billing details and invoice history (download receipts you need
+                    first, from Billing &amp; usage).
+                  </li>
                 </ul>
               </div>
               {handedOver.length > 0 && (
@@ -89,7 +102,7 @@ export function DeleteAccountDialog({ onClose }: { onClose: () => void }) {
               <p className="setting-desc">
                 Repositories on GitHub and code on this computer aren&apos;t touched.
                 {plan.unbilled > 0
-                  ? ` Managed usage not charged yet (${usd(plan.unbilled)}) won't be charged.`
+                  ? ` Kovan billing usage not charged yet (${usd(plan.unbilled)}) is charged to your card as the account is deleted (under $0.50, it's waived).`
                   : ''}
               </p>
               {plan.blocker ? (

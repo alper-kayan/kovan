@@ -3,7 +3,7 @@ import { updateSettings } from './settings';
 import { pushOnboarding } from './team';
 
 export type StepId =
-  'verify-email' | 'connect-github' | 'start' | 'notifications' | 'first-session' | 'invite';
+  'start' | 'ai' | 'verify-email' | 'connect-github' | 'notifications' | 'first-session' | 'invite';
 
 export interface Step {
   id: StepId;
@@ -11,10 +11,12 @@ export interface Step {
   title: string;
 }
 
+/** In the order that gets someone working soonest: a folder, an AI that runs, then the rest. */
 export const STEPS: Step[] = [
+  { id: 'start', group: 'setup', title: 'Open a project folder' },
+  { id: 'ai', group: 'setup', title: 'Get an AI agent ready' },
   { id: 'verify-email', group: 'setup', title: 'Verify your email' },
   { id: 'connect-github', group: 'setup', title: 'Connect GitHub' },
-  { id: 'start', group: 'setup', title: 'Start with Kovan' },
   { id: 'notifications', group: 'setup', title: 'Turn on notifications' },
   { id: 'first-session', group: 'milestones', title: 'Start your first session' },
   { id: 'invite', group: 'milestones', title: 'Invite a teammate to your workspace' },
@@ -43,3 +45,6 @@ export function completeFromAccount(user: {
 export function doneCount(onboarding: Record<string, boolean>, group?: Step['group']): number {
   return STEPS.filter((s) => (!group || s.group === group) && onboarding[s.id]).length;
 }
+
+/** The guide opens by itself once, the first time someone gets past the sign-in screen. */
+export const INTRODUCED = 'introduced';

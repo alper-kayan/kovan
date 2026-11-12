@@ -122,7 +122,10 @@ export class GithubClient {
       'GET',
       `/repos/${repo.owner}/${repo.repo}/pulls/${number}`,
     );
-    if (r.status !== 200) throw new Error(`GitHub answered ${r.status} for PR #${number}`);
+    if (r.status !== 200)
+      throw new Error(
+        `GitHub didn't let Kovan read pull request #${number} (HTTP ${r.status}): check that your GitHub account can open ${repo.owner}/${repo.repo}.`,
+      );
     if (r.data.merged || r.data.merged_at) return 'merged';
     return r.data.state === 'closed' ? 'closed' : 'open';
   }

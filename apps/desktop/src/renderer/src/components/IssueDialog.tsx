@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { DialogKeys } from './DialogKeys';
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { reportError, setState, toast, useStore } from '../store';
@@ -85,6 +86,7 @@ export function IssueDialog() {
           send();
         }}
       >
+        <DialogKeys onClose={close} />
         <div className="modal-head">
           <h2 className="modal-title">Create issue</h2>
           <p className="modal-desc">

@@ -1,4 +1,4 @@
-import type { PlanStep, SwarmMessage } from '@kovan/shared';
+import { openQuestions, type PlanStep, type SwarmMessage } from '@kovan/shared';
 
 /** Where a message stands for the agents it went to, as the swarm's chat shows it. */
 export interface MessageStatus {
@@ -55,15 +55,10 @@ export function needsAttention(
   agentIds: string[],
 ): Attention[] {
   const isAgent = (id: string) => agentIds.includes(id);
-  const asked: Attention[] = messages
-    .filter(
-      (m) =>
-        isAgent(m.fromId) &&
-        (m.kind === 'question' || m.kind === 'blocker') &&
-        (m.toId === null || !isAgent(m.toId)) &&
-        !messages.some((x) => x.replyTo === m.id && !isAgent(x.fromId)),
-    )
-    .map((message) => ({ kind: 'question', message }));
+  const asked: Attention[] = openQuestions(messages, agentIds).map((message) => ({
+    kind: 'question',
+    message,
+  }));
   const tasks: Attention[] = steps
     .filter((s) => s.ownerId && isAgent(s.ownerId))
     .flatMap((step): Attention[] => {

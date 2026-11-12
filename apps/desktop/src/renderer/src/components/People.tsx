@@ -1,7 +1,16 @@
 import { ROLES, type AiAgent, type Role } from '@kovan/shared';
-import { Bot, ChevronDown, Layers, Pencil, Plus, X } from 'lucide-react';
+import { DialogKeys } from './DialogKeys';
+import { JEV_MODEL_ID, parseCustomModelId } from '../../../shared/agent';
+import { Bot, ChevronDown, Layers, Pencil, Plus, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { changeRole, invite, loadAllMembers, removeMember, revokeInvite } from '../services/team';
+import {
+  addWorkspace,
+  changeRole,
+  invite,
+  loadAllMembers,
+  removeMember,
+  revokeInvite,
+} from '../services/team';
 import {
   createAiAgent,
   loadAiAgents,
@@ -11,13 +20,15 @@ import {
 } from '../services/swarm';
 import { notify, setState, useStore } from '../store';
 import { PageHeader } from './PageHeader';
-import { Avatar } from './ui';
+import { Avatar, EmptyState } from './ui';
 
 const ROLE_HELP: Record<Role, string> = {
-  viewer: 'Sees sessions, transcripts, diffs and plans',
-  commenter: 'Viewer, plus comments and holding work',
-  editor: 'Commenter, plus everything with agents',
-  owner: 'Editor, plus members, roles and settings',
+  viewer: 'Watches sessions, what the agents do and their changes. Changes nothing.',
+  commenter: 'Watches and comments, and can hold a file or task. Runs no agents.',
+  editor:
+    'Runs their own agents, changes code and pushes branches; spends the team’s AI budget if the team pays. Answers teammates’ agents only if the workspace allows it.',
+  owner:
+    'Everything an editor does, plus people, roles, settings and billing; answers for any agent.',
 };
 
 function InviteDialog({ defaultWorkspace }: { defaultWorkspace: string | null }) {
@@ -62,10 +73,12 @@ function InviteDialog({ defaultWorkspace }: { defaultWorkspace: string | null })
           void submit();
         }}
       >
+        <DialogKeys onClose={close} />
         <div className="modal-head">
           <h2 className="modal-title">Invite a teammate</h2>
           <p className="modal-desc">
-            They join as soon as they sign in with that GitHub account or email.
+            An email invite brings them a link that joins with any account they sign in with. For a
+            GitHub username no email goes out: you get the link to send them yourself.
           </p>
           <button type="button" className="icon-btn modal-close" title="Close" onClick={close}>
             <X size={15} />
@@ -136,11 +149,15 @@ function InviteDialog({ defaultWorkspace }: { defaultWorkspace: string | null })
   );
 }
 
-const AI_MODES: { id: AiAgent['mode']; label: string }[] = [
-  { id: 'allow', label: 'Allow edits: edits freely, asks before commands' },
-  { id: 'request', label: 'Request: asks before every edit and command' },
-  { id: 'full', label: 'Full: edits and runs commands without asking' },
-  { id: 'plan', label: 'Plan: reads and plans, never edits' },
+const AI_MODES: { id: AiAgent['mode']; label: string; short: string }[] = [
+  { id: 'request', label: 'Ask first: asks before every edit and command', short: 'asks first' },
+  { id: 'allow', label: 'Edit freely: edits, asks before commands', short: 'edits freely' },
+  {
+    id: 'full',
+    label: 'Full access: edits and runs commands without asking',
+    short: 'full access',
+  },
+  { id: 'plan', label: 'Plan only: reads and plans, never edits', short: 'plans only' },
 ];
 
 /** Adds an AI teammate to a workspace, or edits one. */
@@ -163,13 +180,18 @@ function AiTeammateDialog({
   const [ws, setWs] = useState(editing?.workspaceId ?? workspaceId ?? workspaces[0]?.id ?? '');
   const [form, setForm] = useState<AiAgentInput>({
     name: editing?.name ?? '',
-    model: editing?.model ?? defaultModel,
+    // A model of a provider only this person has would fail for everyone else: JevRouter instead.
+    model: editing?.model ?? (parseCustomModelId(defaultModel) ? JEV_MODEL_ID : defaultModel),
     effort: editing?.effort ?? null,
-    mode: editing?.mode ?? 'allow',
+    // Like people: it asks before it acts, until someone chooses otherwise.
+    mode: editing?.mode ?? 'request',
     instructions: editing?.instructions ?? '',
     monthlyLimit: editing?.monthlyLimit ?? null,
   });
-  const [limitText, setLimitText] = useState(editing?.monthlyLimit?.toString() ?? '');
+  // A new teammate starts with a limit of its own: it spends its host's account.
+  const [limitText, setLimitText] = useState(
+    editing ? (editing.monthlyLimit?.toString() ?? '') : '10',
+  );
   const owner = all.find((w) => w.id === (editing?.workspaceId ?? ws))?.role === 'owner';
   const limit = limitText.trim() ? Number(limitText) : null;
   const limitOk = limit === null || limit >= 0.01;
@@ -202,6 +224,7 @@ function AiTeammateDialog({
           void submit();
         }}
       >
+        <DialogKeys onClose={onClose} />
         <div className="modal-head">
           <h2 className="modal-title">{editing ? `Edit ${editing.name}` : 'Add an AI teammate'}</h2>
           <p className="modal-desc">
@@ -313,13 +336,38 @@ function AiTeammateDialog({
   );
 }
 
+type MembersByWorkspace = Record<string, { members: { userId: string; role: Role }[] }>;
+
+const roleWord = (r: Role) => r[0]!.toUpperCase() + r.slice(1);
+
+/** Someone's roles across the workspaces shown: "Editor in all 3", "Owner in Shop · Viewer in Lobby". */
+function rolesAcross(
+  userId: string,
+  inWorkspaces: string[],
+  workspaces: { id: string; name: string }[],
+  members: MembersByWorkspace,
+): string {
+  const roles = inWorkspaces.map((id) => ({
+    name: workspaces.find((w) => w.id === id)?.name ?? '',
+    role: members[id]?.members.find((m) => m.userId === userId)?.role ?? 'viewer',
+  }));
+  if (roles.length > 1 && roles.every((r) => r.role === roles[0]!.role))
+    return `${roleWord(roles[0]!.role)} in ${roles.length === workspaces.length ? `all ${roles.length}` : `${roles.length} workspaces`}`;
+  return roles.map((r) => `${roleWord(r.role)} in ${r.name}`).join(' · ');
+}
+
+const ownersIn = (workspaceId: string, members: MembersByWorkspace) =>
+  (members[workspaceId]?.members ?? []).filter((m) => m.role === 'owner').length;
+
 export function PeoplePage() {
   const signedIn = useStore((s) => s.signedIn);
   const me = useStore((s) => s.user);
   const workspaces = useStore((s) => s.teamWorkspaces);
   const members = useStore((s) => s.members);
   const presence = useStore((s) => s.presence);
-  const [filter, setFilter] = useState<string>('all');
+  const [picked, setFilter] = useState<string>('all');
+  // With one workspace there's nothing to pick: its roles and buttons show at once.
+  const filter = picked === 'all' && workspaces.length === 1 ? workspaces[0]!.id : picked;
   const aiByWorkspace = useStore((s) => s.aiAgents);
   const [aiDialog, setAiDialog] = useState<{ editing: AiAgent | null } | null>(null);
 
@@ -382,12 +430,12 @@ export function PeoplePage() {
   return (
     <section className="page">
       <PageHeader title="People">
-        {signedIn && (
+        {signedIn && workspaces.length > 0 && (
           <button className="btn" onClick={() => setAiDialog({ editing: null })}>
             <Bot size={14} /> Add AI teammate
           </button>
         )}
-        {soloHere ? (
+        {signedIn && workspaces.length === 0 ? null : soloHere ? (
           <span className="muted small" title="Owners switch it in Settings → Workspaces">
             Solo workspace · switch to Team or Adaptive to invite people
           </span>
@@ -397,124 +445,159 @@ export function PeoplePage() {
           </button>
         )}
       </PageHeader>
-      <div className="page-sub">
-        <label className="filter">
-          <Layers size={13} />
-          <select
-            className="filter-select"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          >
-            <option value="all">All workspaces</option>
-            {workspaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-          {filter === 'all' && <span className="count">{workspaces.length} workspaces</span>}
-          <ChevronDown size={12} />
-        </label>
-      </div>
-      <div className="page-rule" />
-      <div className="group-label">Members</div>
-      {rows.length === 0 && <div>No members to show. Invite a teammate to a workspace.</div>}
-      <div className="people">
-        {rows.map(({ member, in: inWorkspaces, online }) => {
-          const isMe = member.userId === me?.id;
-          return (
-            <div key={member.userId} className="person">
-              <Avatar name={member.name} src={member.avatarUrl} size={30} online={isMe || online} />
-              <div className="person-text">
-                <div>
-                  {member.name} {isMe && <span className="muted small">You</span>}
-                </div>
-                {member.githubLogin && <div className="mono small muted">{member.githubLogin}</div>}
-              </div>
-              <div className="person-meta">
-                {filter === 'all' ? (
-                  <span className="muted">
-                    {inWorkspaces.length === workspaces.length
-                      ? 'All workspaces'
-                      : `${inWorkspaces.length} of ${workspaces.length} workspaces`}
-                  </span>
-                ) : canManage ? (
-                  <select
-                    className="select role-select"
-                    value={member.role}
-                    onChange={(e) => void changeRole(filter, member.userId, e.target.value as Role)}
-                  >
-                    {ROLES.map((r) => (
-                      <option key={r} value={r}>
-                        {r[0]!.toUpperCase() + r.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <span className="muted">
-                    {member.role[0]!.toUpperCase() + member.role.slice(1)}
-                  </span>
-                )}
-                {filter !== 'all' && (canManage || isMe) && (
-                  <button
-                    className="icon-btn"
-                    title={isMe ? 'Leave workspace' : 'Remove'}
-                    onClick={() => void removeMember(filter, member)}
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {signedIn && (
+      {signedIn && workspaces.length === 0 ? (
+        <EmptyState icon={<Users size={40} strokeWidth={1.2} />} title="No one here yet">
+          <p className="empty-text">
+            People join a workspace: a project folder you share. Add one, then invite teammates or
+            add AI teammates to it.
+          </p>
+          <button className="btn btn-primary btn-sm" onClick={() => void addWorkspace()}>
+            Add a workspace
+          </button>
+        </EmptyState>
+      ) : (
         <>
-          <div className="group-label">AI teammates</div>
-          {ai.length === 0 && (
-            <div className="muted">
-              No AI teammates yet. Add one to give it tasks in sessions or to run a swarm.
-            </div>
-          )}
-          <div className="people">
-            {ai.map((a) => (
-              <div key={a.id} className="person">
-                <span className="ai-avatar" title="AI teammate">
-                  <Bot size={15} />
-                </span>
-                <div className="person-text">
-                  <div>
-                    {a.name} <span className="ai-badge">AI</span>
-                  </div>
-                  <div className="mono small muted">
-                    {a.model} · {a.mode} · ${a.monthSpent.toFixed(4)} this month
-                    {a.monthlyLimit !== null ? ` of $${a.monthlyLimit.toFixed(2)}` : ''}
-                  </div>
-                  {a.instructions && <div className="small muted ai-about">{a.instructions}</div>}
-                </div>
-                <div className="person-meta">
-                  <span className="muted small">
-                    {filter === 'all'
-                      ? (workspaces.find((w) => w.id === a.workspaceId)?.name ?? '')
-                      : a.createdByName
-                        ? `Added by ${a.createdByName}`
-                        : ''}
-                  </span>
-                  <button
-                    className="icon-btn"
-                    title="Edit"
-                    onClick={() => setAiDialog({ editing: a })}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button className="icon-btn" title="Retire" onClick={() => void retireAiAgent(a)}>
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            ))}
+          <div className="page-sub">
+            <label className="filter">
+              <Layers size={13} />
+              <select
+                className="filter-select"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+              >
+                <option value="all">All workspaces</option>
+                {workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+              {filter === 'all' && <span className="count">{workspaces.length} workspaces</span>}
+              <ChevronDown size={12} />
+            </label>
           </div>
+          <div className="page-rule" />
+          <div className="group-label">Members</div>
+          {rows.length === 0 && <div>No members to show. Invite a teammate to a workspace.</div>}
+          <div className="people">
+            {rows.map(({ member, in: inWorkspaces, online }) => {
+              const isMe = member.userId === me?.id;
+              return (
+                <div key={member.userId} className="person">
+                  <Avatar
+                    name={member.name}
+                    src={member.avatarUrl}
+                    size={30}
+                    online={isMe || online}
+                  />
+                  <div className="person-text">
+                    <div>
+                      {member.name} {isMe && <span className="muted small">You</span>}
+                    </div>
+                    {(member.email || member.githubLogin) && (
+                      <div className="mono small muted">
+                        {[member.email, member.githubLogin && `@${member.githubLogin}`]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="person-meta">
+                    {filter === 'all' ? (
+                      <span
+                        className="muted small"
+                        title="Pick a workspace above to change roles or remove people"
+                      >
+                        {rolesAcross(member.userId, inWorkspaces, workspaces, members)}
+                      </span>
+                    ) : canManage ? (
+                      <select
+                        className="select role-select"
+                        value={member.role}
+                        onChange={(e) =>
+                          void changeRole(filter, member.userId, e.target.value as Role)
+                        }
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {r[0]!.toUpperCase() + r.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="muted">
+                        {member.role[0]!.toUpperCase() + member.role.slice(1)}
+                      </span>
+                    )}
+                    {filter !== 'all' &&
+                      (canManage || isMe) &&
+                      // The only owner can't leave: someone has to look after the workspace.
+                      !(isMe && member.role === 'owner' && ownersIn(filter, members) < 2) && (
+                        <button
+                          className="btn btn-sm btn-ghost"
+                          onClick={() => void removeMember(filter, member)}
+                        >
+                          {isMe ? 'Leave' : 'Remove'}
+                        </button>
+                      )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {signedIn && (
+            <>
+              <div className="group-label">AI teammates</div>
+              {ai.length === 0 && (
+                <div className="muted">
+                  No AI teammates yet. Add one to give it tasks in sessions or to run a swarm.
+                </div>
+              )}
+              <div className="people">
+                {ai.map((a) => (
+                  <div key={a.id} className="person">
+                    <span className="ai-avatar" title="AI teammate">
+                      <Bot size={15} />
+                    </span>
+                    <div className="person-text">
+                      <div>
+                        {a.name} <span className="ai-badge">AI</span>
+                      </div>
+                      <div className="mono small muted">
+                        {a.model} · {AI_MODES.find((m) => m.id === a.mode)?.short ?? a.mode} · $
+                        {a.monthSpent.toFixed(2)} this month
+                        {a.monthlyLimit !== null ? ` of $${a.monthlyLimit.toFixed(2)}` : ''}
+                      </div>
+                      {a.instructions && (
+                        <div className="small muted ai-about">{a.instructions}</div>
+                      )}
+                    </div>
+                    <div className="person-meta">
+                      <span className="muted small">
+                        {filter === 'all'
+                          ? (workspaces.find((w) => w.id === a.workspaceId)?.name ?? '')
+                          : a.createdByName
+                            ? `Added by ${a.createdByName}`
+                            : ''}
+                      </span>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => setAiDialog({ editing: a })}
+                      >
+                        <Pencil size={12} /> Edit
+                      </button>
+                      <button
+                        className="btn btn-sm btn-ghost"
+                        onClick={() => void retireAiAgent(a)}
+                      >
+                        Retire
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </>
       )}
       {aiDialog && (

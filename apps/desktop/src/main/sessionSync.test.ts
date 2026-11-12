@@ -305,7 +305,7 @@ describe('sync trouble', () => {
   it('names credential and ruleset refusals', () => {
     const err = (stderr: string) => Object.assign(new Error('git push failed'), { stderr });
     expect(syncTrouble(err('remote: error: GH013: Repository rule violations found'))).toMatch(
-      /rules refused/,
+      /rules don't let Kovan save work there/,
     );
     expect(syncTrouble(err('fatal: Authentication failed for https://github.com/x'))).toMatch(
       /couldn't sign in/,

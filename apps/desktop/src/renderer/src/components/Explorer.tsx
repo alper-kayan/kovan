@@ -3,7 +3,7 @@ import { can, type Workspace } from '@kovan/shared';
 import type { DirEntry } from '../../../shared/api';
 import { openDraft, openFile } from '../services/editor';
 import { loadDir, toggleDir } from '../services/explorer';
-import { compareVersion, pickVersion, setSyncEnabled } from '../services/sync';
+import { compareVersion, pickVersion, resumeSync, setSyncEnabled } from '../services/sync';
 import { getState, setState, useStore, type AgentMark } from '../store';
 import { Avatar, initials } from './ui';
 import { ChevronDown, ChevronRight, GitCompare, RefreshCw } from 'lucide-react';
@@ -105,6 +105,54 @@ function AgentBadges({ marks }: { marks: AgentMark[] }) {
   );
 }
 
+/**
+ * The file tree from the keyboard, as in any editor: arrows move, Right opens a folder (or
+ * goes into it), Left closes it (or goes up to its folder), Enter opens, Home and End jump.
+ */
+function treeKey(
+  e: React.KeyboardEvent<HTMLElement>,
+  row: { open: () => void; dir: boolean; expanded: boolean },
+): void {
+  const here = e.currentTarget;
+  const rows = [...(here.closest('.tree')?.querySelectorAll<HTMLElement>('.tree-row') ?? [])];
+  const at = rows.indexOf(here);
+  const go = (el: HTMLElement | undefined) => {
+    if (!el) return;
+    e.preventDefault();
+    el.focus();
+  };
+  const level = Number(here.getAttribute('aria-level'));
+  switch (e.key) {
+    case 'ArrowDown':
+      return go(rows[at + 1]);
+    case 'ArrowUp':
+      return go(rows[at - 1]);
+    case 'Home':
+      return go(rows[0]);
+    case 'End':
+      return go(rows.at(-1));
+    case 'ArrowRight':
+      e.preventDefault();
+      if (row.dir && !row.expanded) row.open();
+      else if (row.dir) go(rows[at + 1]);
+      return;
+    case 'ArrowLeft':
+      e.preventDefault();
+      if (row.dir && row.expanded) return row.open();
+      return go(
+        rows
+          .slice(0, at)
+          .reverse()
+          .find((r) => Number(r.getAttribute('aria-level')) < level),
+      );
+    case 'Enter':
+    case ' ':
+      e.preventDefault();
+      row.open();
+      return;
+  }
+}
+
 function Row({ entry, depth }: { entry: DirEntry & { draft?: boolean }; depth: number }) {
   const expanded = useStore((s) => s.expanded[entry.path] === true);
   const marks = useMarks(entry);
@@ -135,7 +183,13 @@ function Row({ entry, depth }: { entry: DirEntry & { draft?: boolean }; depth: n
       <div
         className={`tree-row ${active ? 'active' : ''} ${deco?.className ?? ''} ${dirDirty ? 'git-dir-dirty' : ''} ${entry.draft ? 'tree-draft' : ''}`}
         style={{ paddingLeft: 8 + depth * 12 }}
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={active}
+        {...(entry.kind === 'dir' ? { 'aria-expanded': expanded } : {})}
+        tabIndex={-1}
         onClick={onClick}
+        onKeyDown={(e) => treeKey(e, { open: onClick, dir: entry.kind === 'dir', expanded })}
         title={
           entry.draft
             ? `${entry.path}: new, written by ${[...new Set(marks.map((m) => (m.mine ? 'your agent' : m.name)))].join(', ')} in another copy; not in yours yet`
@@ -172,10 +226,18 @@ function Row({ entry, depth }: { entry: DirEntry & { draft?: boolean }; depth: n
   );
 }
 
-/** Files both you and a teammate changed in the same place: compare and pick. */
+/**
+ * Files both you and a teammate changed in the same place: Kovan's two kept versions to
+ * compare and pick, and Git's own merge conflicts (markers in the file) to settle by hand.
+ */
 function Conflicts() {
   const versions = useStore((s) => s.sync?.versions);
-  if (!versions?.length)
+  const status = useStore((s) => s.gitStatus);
+  const merging = useMemo(
+    () => status?.files.filter((f) => f.kind === 'conflicted') ?? [],
+    [status],
+  );
+  if (!versions?.length && merging.length === 0)
     return (
       <p className="empty-note">
         No conflicts. When you and a teammate change the same lines, both versions are kept here to
@@ -184,7 +246,29 @@ function Conflicts() {
     );
   return (
     <div className="conflicts">
-      {versions.map((v) => (
+      {merging.length > 0 && (
+        <div className="conflict-git">
+          <p className="muted small">
+            Git couldn&apos;t combine these by itself. Open each one, keep what you want between the
+            &lt;&lt;&lt;&lt;&lt;&lt;&lt; and &gt;&gt;&gt;&gt;&gt;&gt;&gt; lines and delete the
+            markers, then commit. To give up on the merge instead, run git merge --abort in the
+            terminal.
+          </p>
+          {merging.map((f) => (
+            <button
+              key={f.path}
+              className="conflict-row conflict-open"
+              onClick={() => void openFile(f.path)}
+            >
+              <span className="conflict-path" title={f.path}>
+                {f.path}
+              </span>
+              <span className="versions-chip">needs you</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {(versions ?? []).map((v) => (
         <div key={v.id} className="conflict-row">
           <div className="conflict-head">
             <span className="conflict-path" title={v.path}>
@@ -226,7 +310,8 @@ function changedBy(workspace: Workspace | undefined): string {
 
 /**
  * The workspace's automatic Git sync switch, while a session checkout syncs. One switch for
- * everyone in the workspace: flipping it here flips it for the team.
+ * everyone in the workspace, so turning it off asks first; paused, a click tries again (the
+ * reason is in the banner above the editor).
  */
 function SyncSwitch() {
   const sync = useStore((s) => s.sync);
@@ -234,22 +319,32 @@ function SyncSwitch() {
   if (!sync) return null;
   const label = sync.status === 'paused' ? 'Paused' : sync.status === 'off' ? 'Off' : 'On';
   const mayFlip = !workspace || can(workspace.role, 'workspace.gitSync');
+  const paused = sync.status === 'paused';
+  const what = paused
+    ? `Paused: ${sync.paused?.reason ?? 'the sync stopped'} · Click to try again`
+    : sync.enabled
+      ? `Your saved work goes to the session's teammates every few seconds (through the team's Git remote)${sync.lastPushAt ? ` · last sent ${new Date(sync.lastPushAt).toLocaleTimeString()}` : ''}${mayFlip ? ' · Click to turn it off for everyone' : ''}`
+      : `Off for everyone in this workspace: nothing goes out or comes in${mayFlip ? ' · Click to turn it on' : ''}`;
   return (
     <button
       className={`sync-switch ${sync.status}`}
-      disabled={!mayFlip}
-      title={
-        sync.paused?.reason ??
-        `${
-          sync.enabled
-            ? `Saved changes sync with the session every few seconds${sync.lastPushAt ? ` · last sent ${new Date(sync.lastPushAt).toLocaleTimeString()}` : ''}`
-            : 'Off for everyone in this workspace: nothing goes out or comes in'
-        }${changedBy(workspace)}${mayFlip ? '' : ' · Editors and owners turn it on or off'}`
-      }
-      onClick={() => void setSyncEnabled(!sync.enabled)}
+      disabled={!mayFlip && !paused}
+      title={`Git sync: ${what}${changedBy(workspace)}${mayFlip ? '' : ' · Editors and owners turn it on or off'}`}
+      aria-label={`Git sync ${label}`}
+      onClick={() => {
+        if (paused) return void resumeSync();
+        if (
+          sync.enabled &&
+          !window.confirm(
+            `Turn Git sync off for everyone in ${workspace?.name ?? 'this workspace'}?\n\nNobody's work goes out or comes in until someone turns it back on.`,
+          )
+        )
+          return;
+        void setSyncEnabled(!sync.enabled);
+      }}
     >
       <span className="sync-dot" />
-      Git sync <b>{label}</b>
+      Sync <b>{label}</b>
     </button>
   );
 }
@@ -257,7 +352,11 @@ function SyncSwitch() {
 export function Explorer() {
   const workspace = useStore((s) => s.workspace);
   const tab = useStore((s) => s.explorerTab);
-  const conflicts = useStore((s) => s.sync?.versions.length ?? 0);
+  const conflicts = useStore(
+    (s) =>
+      (s.sync?.versions.length ?? 0) +
+      (s.gitStatus?.files.filter((f) => f.kind === 'conflicted').length ?? 0),
+  );
   if (!workspace) return null;
   return (
     <div className="side-panel explorer">
@@ -265,12 +364,14 @@ export function Explorer() {
         <div className="seg">
           <button
             className={tab === 'files' ? 'on' : ''}
+            aria-pressed={tab === 'files'}
             onClick={() => setState({ explorerTab: 'files' })}
           >
             Files
           </button>
           <button
             className={tab === 'conflicts' ? 'on' : ''}
+            aria-pressed={tab === 'conflicts'}
             onClick={() => setState({ explorerTab: 'conflicts' })}
           >
             Conflicts <span className={`count-pill ${conflicts ? 'warn' : ''}`}>{conflicts}</span>
@@ -289,7 +390,18 @@ export function Explorer() {
       {tab === 'conflicts' ? (
         <Conflicts />
       ) : (
-        <div className="tree">
+        <div
+          className="tree"
+          role="tree"
+          aria-label="Files"
+          tabIndex={0}
+          // Tabbing in lands on the open file's row, or the first one.
+          onFocus={(e) => {
+            if (e.target !== e.currentTarget) return;
+            const rows = e.currentTarget.querySelectorAll<HTMLElement>('.tree-row');
+            (e.currentTarget.querySelector<HTMLElement>('.tree-row.active') ?? rows[0])?.focus();
+          }}
+        >
           <Entries dir="" depth={0} />
         </div>
       )}

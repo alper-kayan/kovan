@@ -21,6 +21,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
+import { t } from '../i18n';
 import { Fragment, useEffect, useState, type ReactNode } from 'react';
 import { DEFAULT_KEYBINDINGS, formatAccelerator } from '../../../shared/keybindings';
 import { accountOf, limitLabel, limitNow, type LimitAccount } from '../../../shared/limits';
@@ -43,6 +44,9 @@ import {
   type WorkspaceEventType,
   WORKSPACE_EVENTS,
   type BillingState,
+  type OrgBillingState,
+  TEAM_BILLING_CONSENT,
+  TEAM_BILLING_CONSENT_VERSION,
   type OrgSettings,
   type UsageSummary,
   type Workspace,
@@ -114,6 +118,7 @@ import {
   currentOrg,
   renameOrg,
   setWorkspaceGitSync,
+  reloadMembers,
   setWorkspaceMode,
   signIn,
   signOut,
@@ -121,7 +126,7 @@ import {
   updateWorkspace,
   workspaceMode,
 } from '../services/team';
-import { MODES } from './AgentPanel';
+import { formatCost, MODES } from './AgentPanel';
 import { forgetRecent } from '../services/workspace';
 import { loadAgentSpend, setAgentMonthlyLimit } from '../services/swarm';
 import { GithubMark } from './Logo';
@@ -133,41 +138,83 @@ import {
   reportError,
   setState,
   showView,
+  toast,
   useStore,
   type SettingsSection,
+  secretStore,
 } from '../store';
 import { Avatar, OnOff, ProgressRing, Segmented, WORKSPACE_COLORS, WorkspaceIcon } from './ui';
+import { LoginCode } from './SignIn';
 
+type SectionGroup = 'AI and agents' | 'The app' | 'Your Kovan account';
+
+/**
+ * The sections, grouped by the question they answer. AI first: it's what someone new needs to
+ * set up, and the four parts of it say what each one is for.
+ */
 const SECTIONS: {
   id: SettingsSection;
   label: string;
   icon: LucideIcon;
-  group: 'Personal' | 'Kovan';
+  group: SectionGroup;
+  /** One line under the title: what this section is for. */
+  about?: string;
 }[] = [
-  { id: 'general', label: 'General', icon: SlidersHorizontal, group: 'Personal' },
-  { id: 'editor', label: 'Editor', icon: Code, group: 'Personal' },
-  { id: 'terminal', label: 'Terminal', icon: SquareTerminal, group: 'Personal' },
-  { id: 'keyboard', label: 'Keyboard', icon: Keyboard, group: 'Personal' },
-  { id: 'providers', label: 'Providers & spend', icon: KeyRound, group: 'Personal' },
-  { id: 'models', label: 'Models', icon: Boxes, group: 'Personal' },
-  { id: 'agents', label: 'Agents', icon: Bot, group: 'Personal' },
-  { id: 'arena', label: 'Arena', icon: FlaskConical, group: 'Personal' },
-  { id: 'account', label: 'Account', icon: UserRound, group: 'Kovan' },
-  { id: 'billing', label: 'Billing & usage', icon: CreditCard, group: 'Kovan' },
-  { id: 'organization', label: 'Organization', icon: Building2, group: 'Kovan' },
-  { id: 'workspaces', label: 'Workspaces', icon: FolderGit2, group: 'Kovan' },
-  { id: 'privacy', label: 'Privacy', icon: ShieldCheck, group: 'Kovan' },
+  {
+    id: 'agents',
+    label: 'Agents',
+    icon: Bot,
+    group: 'AI and agents',
+    about:
+      "Start here: which AI agents work for you (Kovan's own, Claude Code, Codex), in what order, and what they may do.",
+  },
+  {
+    id: 'providers',
+    label: 'Model keys & spend',
+    icon: KeyRound,
+    group: 'AI and agents',
+    about: "Keys for model providers such as OpenRouter or your own server, and what you've spent.",
+  },
+  {
+    id: 'models',
+    label: 'Models',
+    icon: Boxes,
+    group: 'AI and agents',
+    about: 'Every model your agents can use, with its price and how it did on our test tasks.',
+  },
+  {
+    id: 'arena',
+    label: 'Arena',
+    icon: FlaskConical,
+    group: 'AI and agents',
+    about: 'Give one task to several models side by side and compare what they do.',
+  },
+  { id: 'general', label: 'General', icon: SlidersHorizontal, group: 'The app' },
+  { id: 'editor', label: 'Editor', icon: Code, group: 'The app' },
+  { id: 'terminal', label: 'Terminal', icon: SquareTerminal, group: 'The app' },
+  { id: 'keyboard', label: 'Keyboard', icon: Keyboard, group: 'The app' },
+  { id: 'account', label: 'Account', icon: UserRound, group: 'Your Kovan account' },
+  { id: 'billing', label: 'Billing & usage', icon: CreditCard, group: 'Your Kovan account' },
+  { id: 'organization', label: 'Organization', icon: Building2, group: 'Your Kovan account' },
+  { id: 'workspaces', label: 'Workspaces', icon: FolderGit2, group: 'Your Kovan account' },
+  { id: 'privacy', label: 'Privacy', icon: ShieldCheck, group: 'Your Kovan account' },
 ];
+
+const GROUPS: SectionGroup[] = ['AI and agents', 'The app', 'Your Kovan account'];
 
 /** One settings row: title and description on the left, the control on the right. */
 function Row({ title, desc, children }: { title: string; desc?: string; children: ReactNode }) {
   const query = useStore((s) => s.settingsQuery);
-  if (query && !`${title} ${desc ?? ''}`.toLowerCase().includes(query.toLowerCase())) return null;
+  // Rows say themselves in the app's language (texts the catalog has; others as written).
+  const shownTitle = t(title);
+  const shownDesc = desc ? t(desc) : undefined;
+  if (query && !`${shownTitle} ${shownDesc ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+    return null;
   return (
     <div className="setting">
       <div className="setting-text">
-        <div className="setting-title">{title}</div>
-        {desc && <div className="setting-desc">{desc}</div>}
+        <div className="setting-title">{shownTitle}</div>
+        {shownDesc && <div className="setting-desc">{shownDesc}</div>}
       </div>
       <div className="setting-control">{children}</div>
     </div>
@@ -177,7 +224,7 @@ function Row({ title, desc, children }: { title: string; desc?: string; children
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="settings-group">
-      <h2>{title}</h2>
+      <h2>{t(title)}</h2>
       {children}
     </div>
   );
@@ -212,13 +259,42 @@ function NumberInput({
 function General({ s }: { s: Settings }) {
   return (
     <Group title="Appearance">
+      <Row
+        title="Language"
+        desc="Kovan's own words: menus, messages and help. Your code and chats stay as they are."
+      >
+        <select
+          className="select"
+          value={s.language}
+          onChange={(e) =>
+            void updateSettings({ language: e.target.value as Settings['language'] })
+          }
+        >
+          <option value="system">{t('Same as the system')}</option>
+          <option value="en">English</option>
+          <option value="tr">Türkçe</option>
+        </select>
+      </Row>
+      <Row
+        title="Text size"
+        desc="How large everything in Kovan is drawn: text, buttons and panels together."
+      >
+        <Segmented
+          value={String(s.uiScale)}
+          options={['0.9', '1', '1.15', '1.3', '1.5', '1.75'].map((v) => ({
+            value: v,
+            label: `${Math.round(Number(v) * 100)}%`,
+          }))}
+          onChange={(v) => void updateSettings({ uiScale: Number(v) })}
+        />
+      </Row>
       <Row title="Theme" desc="Dark is the default. System follows your OS.">
         <Segmented
           value={s.theme}
           options={[
-            { value: 'dark', label: 'Dark' },
-            { value: 'light', label: 'Light' },
-            { value: 'system', label: 'System' },
+            { value: 'dark', label: t('Dark') },
+            { value: 'light', label: t('Light') },
+            { value: 'system', label: t('System') },
           ]}
           onChange={(theme) => void updateSettings({ theme })}
         />
@@ -275,7 +351,11 @@ function Updates({ s }: { s: Settings }) {
   );
 }
 
-const request = <T,>(method: 'GET' | 'PATCH', path: string, body?: unknown) =>
+const request = <T,>(
+  method: 'GET' | 'PATCH' | 'PUT' | 'POST' | 'DELETE',
+  path: string,
+  body?: unknown,
+) =>
   (body === undefined
     ? api.invoke('brain:request', method, path)
     : api.invoke('brain:request', method, path, body)) as Promise<T>;
@@ -437,7 +517,7 @@ function Organization() {
         </Row>
         <Row
           title="Keep transcripts for"
-          desc={`Session transcripts are redacted for secrets, encrypted, and deleted for good after this many days. ${owner ? 'A shorter time deletes older transcripts right away.' : 'Only an owner can change this.'}`}
+          desc={`Session transcripts and the final changes of ended sessions hold code. They are redacted for secrets, encrypted, and deleted for good after this many days. ${owner ? 'A shorter time deletes older ones right away.' : 'Only an owner can change this.'}`}
         >
           <div className="retention">
             <input
@@ -468,7 +548,8 @@ function Organization() {
           <p className="setting-desc">
             One API key, one webhook and one event stream for all of {org.name}&apos;s workspaces,
             those made later too; machines registered here serve every workspace whose repository
-            they hold.
+            they hold. Usually what you want; Settings → Workspaces has the same for one workspace
+            only.
           </p>
           <h3 className="settings-subhead">API keys</h3>
           <ApiKeyList key={`org-keys-${org.id}`} base={integrationsOf({ orgId: org.id })} />
@@ -478,6 +559,7 @@ function Organization() {
           <WebhookList key={`org-hooks-${org.id}`} base={integrationsOf({ orgId: org.id })} />
         </Group>
       )}
+      {owner && <TeamBilling orgId={org.id} orgName={org.name} />}
       {owner && (
         <Group title="Audit log">
           <p className="setting-desc">
@@ -502,6 +584,303 @@ function Organization() {
               Show older
             </button>
           )}
+        </Group>
+      )}
+    </>
+  );
+}
+
+/**
+ * An organization that pays for its members' models in its workspaces: an owner turns it on,
+ * sets a monthly cap and a limit per member, saves the company's card and details, and sees who
+ * spent what this month and where the month is headed.
+ */
+function TeamBilling({ orgId, orgName }: { orgId: string; orgName: string }) {
+  const [t, setT] = useState<OrgBillingState | null>(null);
+  const [cap, setCap] = useState('100');
+  const [memberLimit, setMemberLimit] = useState('');
+  const [company, setCompany] = useState({ name: '', address: '', taxId: '', email: '' });
+  const [agree, setAgree] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [limits, setLimits] = useState<Record<string, string>>({});
+  const base = `/api/orgs/${orgId}/billing`;
+  const take = (x: OrgBillingState) => {
+    setT(x);
+    if (x.monthlyCap !== null) setCap(String(x.monthlyCap));
+    setMemberLimit(x.memberLimit === null ? '' : String(x.memberLimit));
+    setCompany({
+      name: x.company.name ?? '',
+      address: x.company.address ?? '',
+      taxId: x.company.taxId ?? '',
+      email: x.company.email ?? '',
+    });
+  };
+  const reload = () =>
+    void request<{ billing: OrgBillingState }>('GET', base)
+      .then((r) => take(r.billing))
+      .catch(reportError);
+  useEffect(() => {
+    reload();
+    // Back from Stripe's page in the browser: show the saved card.
+    window.addEventListener('focus', reload);
+    return () => window.removeEventListener('focus', reload);
+  }, [orgId]);
+  if (!t) return null;
+  if (!t.available)
+    return (
+      <Group title="Team billing">
+        <p className="setting-desc">
+          This Kovan server doesn't offer paying for models through it.
+        </p>
+      </Group>
+    );
+  const capValue = Number(cap);
+  const limitValue = memberLimit.trim() === '' ? null : Number(memberLimit);
+  const valid =
+    Number.isFinite(capValue) &&
+    capValue >= 1 &&
+    (limitValue === null || (Number.isFinite(limitValue) && limitValue >= 0.01));
+  const save = () => {
+    setBusy(true);
+    void request<{ billing: OrgBillingState }>('PUT', base, {
+      monthlyCap: capValue,
+      memberLimit: limitValue,
+      consent: true,
+      consentVersion: TEAM_BILLING_CONSENT_VERSION,
+      company: {
+        name: company.name.trim() || null,
+        address: company.address.trim() || null,
+        taxId: company.taxId.trim() || null,
+        email: company.email.trim() || null,
+      },
+    })
+      .then((r) => {
+        take(r.billing);
+        setAgree(false);
+        toast(`${orgName} pays for its members' models now, up to ${usd(capValue)} a month.`);
+      })
+      .catch(reportError)
+      .finally(() => setBusy(false));
+  };
+  return (
+    <>
+      <Group title="Team billing">
+        <p className="setting-desc billing-intro">
+          {orgName} can pay for its members' models in its workspaces, so nobody needs a key or a
+          card of their own. You set a monthly limit for the organization and one per member;
+          everyone sees their own limit. Charged once a month, at provider cost × 1.05, with the
+          company's details.
+        </p>
+        <div className={`billing-alert ${t.ready ? 'ok' : ''}`}>
+          {t.ready ? `${orgName} pays for its members' models.` : t.reason}
+        </div>
+        <Row
+          title="Monthly limit for the organization"
+          desc="All members together, each calendar month."
+        >
+          <div className="billing-allowance">
+            <span className="mono">$</span>
+            <input
+              className="input mono"
+              type="number"
+              min={1}
+              step="any"
+              value={cap}
+              onChange={(e) => setCap(e.target.value)}
+            />
+          </div>
+        </Row>
+        <Row
+          title="Monthly limit per member"
+          desc="Unless you set one for someone below. Leave it empty for no limit of their own (the organization's still applies)."
+        >
+          <div className="billing-allowance">
+            <span className="mono">$</span>
+            <input
+              className="input mono"
+              type="number"
+              min={0.01}
+              step="any"
+              placeholder="none"
+              value={memberLimit}
+              onChange={(e) => setMemberLimit(e.target.value)}
+            />
+          </div>
+        </Row>
+        <Row title="Company" desc="On the receipts and invoices. All optional.">
+          <div className="team-company">
+            <input
+              className="input"
+              placeholder="Company name"
+              value={company.name}
+              onChange={(e) => setCompany({ ...company, name: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="Address"
+              value={company.address}
+              onChange={(e) => setCompany({ ...company, address: e.target.value })}
+            />
+            <input
+              className="input"
+              placeholder="Tax ID"
+              value={company.taxId}
+              onChange={(e) => setCompany({ ...company, taxId: e.target.value })}
+            />
+            <input
+              className="input"
+              type="email"
+              placeholder="Billing email (receipts go here)"
+              value={company.email}
+              onChange={(e) => setCompany({ ...company, email: e.target.value })}
+            />
+          </div>
+        </Row>
+        <label className="billing-consent">
+          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+          <span>{TEAM_BILLING_CONSENT}</span>
+        </label>
+        <div className="billing-actions">
+          <button className="btn btn-primary" disabled={!agree || !valid || busy} onClick={save}>
+            {t.enabled ? 'Save changes' : `Accept and turn on for ${orgName}`}
+          </button>
+          {t.enabled && (
+            <button
+              className="btn"
+              disabled={busy}
+              onClick={() =>
+                void request<{ billing: OrgBillingState }>('DELETE', base)
+                  .then((r) => {
+                    take(r.billing);
+                    toast('Team billing is off: members pay for themselves from now on.');
+                  })
+                  .catch(reportError)
+              }
+            >
+              Turn off
+            </button>
+          )}
+        </div>
+        {t.enabled && (
+          <Row
+            title="Organization's card"
+            desc="Saved with Stripe; Kovan never sees the card number."
+          >
+            <div className="billing-card">
+              {t.card && (
+                <span className="mono">
+                  {t.card.brand} •••• {t.card.last4}
+                </span>
+              )}
+              <button
+                className="btn"
+                onClick={() =>
+                  void request<{ url: string }>('POST', `${base}/setup`)
+                    .then(({ url }) => {
+                      window.open(url, '_blank');
+                      toast("Add the organization's card on the Stripe page, then come back here.");
+                    })
+                    .catch(reportError)
+                }
+              >
+                <CreditCard size={13} /> {t.card ? 'Change card' : 'Add a card'}
+              </button>
+            </div>
+          </Row>
+        )}
+      </Group>
+      {t.enabled && (
+        <Group title={`This month in ${orgName}`}>
+          <Row
+            title="Spent so far"
+            desc={`At this pace the month ends near ${usd(t.projected)}${t.monthlyCap !== null ? `, of a ${usd(t.monthlyCap)} limit` : ''}.`}
+          >
+            <span className="mono">{usd(t.spent)}</span>
+          </Row>
+          <div className="billing-usage">
+            <h3>By member</h3>
+            {t.byMember.map((m) => (
+              <div key={m.userId} className="billing-line team-member">
+                <span className="billing-label">{m.name}</span>
+                <span className="mono">
+                  {usd(m.spent)}
+                  {m.limit !== null ? ` of ${usd(m.limit)}` : ''}
+                </span>
+                <input
+                  className="input input-narrow mono"
+                  type="number"
+                  min={0}
+                  step="any"
+                  aria-label={`Monthly limit for ${m.name}`}
+                  placeholder={m.own ? 'none' : 'default'}
+                  value={limits[m.userId] ?? (m.own && m.limit !== null ? String(m.limit) : '')}
+                  onChange={(e) => setLimits({ ...limits, [m.userId]: e.target.value })}
+                />
+                <button
+                  className="btn btn-sm"
+                  onClick={() => {
+                    const raw = (limits[m.userId] ?? '').trim();
+                    void request<{ billing: OrgBillingState }>(
+                      raw === '' ? 'DELETE' : 'PUT',
+                      `${base}/members/${m.userId}`,
+                      raw === '' ? undefined : { monthlyLimit: Number(raw) },
+                    )
+                      .then((r) => {
+                        take(r.billing);
+                        setLimits(({ [m.userId]: _gone, ...rest }) => rest);
+                      })
+                      .catch(reportError);
+                  }}
+                >
+                  {(limits[m.userId] ?? '').trim() === '' ? 'Use default' : 'Set'}
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="billing-usage">
+            <h3>By workspace</h3>
+            {t.byWorkspace.length === 0 && <p className="setting-desc">Nothing yet this month.</p>}
+            {t.byWorkspace.map((u) => (
+              <div key={u.key} className="billing-line">
+                <span className="billing-label">{u.label}</span>
+                <span className="muted small">{u.calls} calls</span>
+                <span className="mono">{usd(u.cost)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="billing-usage">
+            <h3>Invoices</h3>
+            {t.invoices.length === 0 && (
+              <p className="setting-desc">The first one comes at the start of next month.</p>
+            )}
+            {t.invoices.map((inv) => (
+              <div key={inv.id} className={`invoice ${inv.status}`}>
+                <span className="mono">
+                  {inv.period ?? new Date(inv.createdAt).toLocaleDateString()}
+                </span>
+                <span className="mono">{usd(inv.amount)}</span>
+                <span className={`invoice-status ${inv.status}`}>{inv.status}</span>
+                <span className="spacer" />
+                {inv.receiptUrl && (
+                  <a className="link-btn" href={inv.receiptUrl} target="_blank" rel="noreferrer">
+                    Receipt
+                  </a>
+                )}
+                {inv.status === 'failed' && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() =>
+                      void request('POST', `${base}/invoices/${inv.id}/retry`)
+                        .then(reload)
+                        .catch(reportError)
+                    }
+                  >
+                    Retry payment
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </Group>
       )}
     </>
@@ -687,7 +1066,10 @@ function Billing() {
   if (!signedIn)
     return (
       <Group title="Billing & usage">
-        <Row title="Managed usage" desc="Sign in to use Kovan managed usage and see your invoices.">
+        <Row
+          title="Kovan billing"
+          desc="Sign in to pay for models through Kovan and see your invoices."
+        >
           <span />
         </Row>
       </Group>
@@ -695,7 +1077,7 @@ function Billing() {
   if (!b)
     return (
       <Group title="Billing & usage">
-        <Row title="Managed usage" desc="Loading…">
+        <Row title="Kovan billing" desc="Loading…">
           <span />
         </Row>
       </Group>
@@ -704,141 +1086,189 @@ function Billing() {
   const valid = uncapped || (Number.isFinite(value) && value >= 0.01);
   return (
     <>
-      <Group title="Managed usage">
-        <p className="setting-desc billing-intro">
-          Optional: use models without your own provider key. You pay the provider's token cost ×
-          1.05, applied once ($1.00 of provider usage costs $1.05, before any separately shown tax).
-          Whoever starts a run pays for it, including its subagents, swarm agents and routing. No
-          subscription or seat fee.
-        </p>
-        {!b.available && (
-          <div className="billing-alert">This Kovan server doesn't offer managed usage.</div>
-        )}
-        {b.available && (
-          <div className={`billing-alert ${b.ready ? 'ok' : ''}`}>
-            {b.ready ? 'Managed usage is ready.' : b.reason}
-          </div>
-        )}
-        <Row
-          title="Allowance"
-          desc="Shared across all your workspaces and runs, markup included. Changing it starts counting again; unpaid usage is still charged."
-        >
-          <div className="billing-allowance">
-            <span className="mono">$</span>
-            <input
-              className="input mono"
-              type="number"
-              min={0.01}
-              step="any"
-              disabled={uncapped}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <label className="swarm-check">
-              <input
-                type="checkbox"
-                checked={uncapped}
-                onChange={(e) => setUncapped(e.target.checked)}
-              />
-              Unlimited
-            </label>
-          </div>
-        </Row>
-        <label className="billing-consent">
-          <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-          <span>{BILLING_CONSENT}</span>
-        </label>
-        <div className="billing-actions">
-          <button
-            className="btn btn-primary"
-            disabled={!agree || !valid || busy}
-            onClick={() => {
-              setBusy(true);
-              void saveAllowance(uncapped ? null : value).then((x) => {
-                setBusy(false);
-                if (x) {
-                  setB(x);
-                  setAgree(false);
-                }
-              });
-            }}
-          >
-            {b.consentAt ? 'Update allowance' : 'Accept and set allowance'}
-          </button>
-          {b.consentAt && (
-            <span className="muted small">
-              Accepted {new Date(b.consentAt).toLocaleDateString()} ·{' '}
-              {b.uncapped ? 'unlimited' : `${usd(b.spent)} of ${usd(b.allowance ?? 0)} used`}
-            </span>
-          )}
-        </div>
-        <Row
-          title="Payment method"
-          desc={
-            b.card
-              ? `Charged once a day for the day's usage; balances under ${usd(b.minimum)} carry forward.`
-              : 'Saved with Stripe; Kovan never sees your card number.'
-          }
-        >
-          <div className="billing-card">
-            {b.card && (
+      {b.teams.length > 0 && (
+        <Group title="Paid by your team">
+          {b.teams.map((t) => (
+            <Row
+              key={t.orgId}
+              title={t.orgName}
+              desc={
+                t.ready
+                  ? `Pays for your models in its workspaces.${t.limit !== null ? ` Your limit there: ${usd(t.limit)} a month.` : ''}`
+                  : (t.reason ?? '')
+              }
+            >
               <span className="mono">
-                {b.card.brand} •••• {b.card.last4}
+                {usd(t.spent)}
+                {t.limit !== null ? ` of ${usd(t.limit)}` : ''} this month
               </span>
-            )}
-            <button className="btn" disabled={!b.available} onClick={() => void addCard()}>
-              <CreditCard size={13} /> {b.card ? 'Change card' : 'Add a card'}
+            </Row>
+          ))}
+        </Group>
+      )}
+      {!b.available && b.invoices.length === 0 ? (
+        <Group title="Pay for models through Kovan">
+          <p className="setting-desc billing-intro">
+            This Kovan server doesn't sell model usage, so there's nothing to pay here. Your agents
+            run on your own model key or your Claude Code and Codex accounts.
+          </p>
+          <div className="billing-actions">
+            <button
+              className="btn"
+              onClick={() => setState({ settingsSection: 'providers', settingsQuery: '' })}
+            >
+              Model keys
+            </button>
+            <button
+              className="btn"
+              onClick={() => setState({ settingsSection: 'agents', settingsQuery: '' })}
+            >
+              Agents
             </button>
           </div>
-        </Row>
-        <Row title="Not charged yet" desc="Usage since the last charge, markup included.">
-          <span className="mono">{usd(b.unbilled)}</span>
-        </Row>
-      </Group>
-      <Group title="Invoices">
-        {b.invoices.length === 0 && <p className="setting-desc">No charges yet.</p>}
-        {b.invoices.map((inv) => (
-          <div key={inv.id} className={`invoice ${inv.status}`}>
-            <span className="mono">{new Date(inv.createdAt).toLocaleDateString()}</span>
-            <span className="mono">{usd(inv.amount)}</span>
-            <span className={`invoice-status ${inv.status}`}>{inv.status}</span>
-            <span className="muted small invoice-note">
-              {inv.status === 'failed' ? inv.failureReason : `usage ${usd(inv.usage)}`}
-            </span>
-            <span className="spacer" />
-            {inv.receiptUrl && (
-              <a className="link-btn" href={inv.receiptUrl} target="_blank" rel="noreferrer">
-                Receipt
-              </a>
+        </Group>
+      ) : (
+        <>
+          <Group title="Pay for models through Kovan">
+            <p className="setting-desc billing-intro">
+              Optional: use models without your own provider key. You pay the provider's token cost
+              × 1.05, applied once ($1.00 of provider usage costs $1.05, before any separately shown
+              tax). Whoever starts a run pays for it, including its subagents, swarm agents and
+              routing. No subscription or seat fee. In the workspaces of a team that pays for its
+              members, the team pays instead.
+            </p>
+            {!b.available && (
+              <div className="billing-alert">This Kovan server doesn't sell model usage.</div>
             )}
-            {inv.status === 'failed' && (
+            {b.available && (
+              <div className={`billing-alert ${b.ready ? 'ok' : ''}`}>
+                {b.ready ? 'Kovan billing is ready.' : b.reason}
+              </div>
+            )}
+            <Row
+              title="Monthly allowance"
+              desc="What your runs may spend each calendar month, across all your workspaces, markup included. It starts again on the 1st; raising it keeps what you spent this month."
+            >
+              <div className="billing-allowance">
+                <span className="mono">$</span>
+                <input
+                  className="input mono"
+                  type="number"
+                  min={0.01}
+                  step="any"
+                  disabled={uncapped}
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+                <label className="swarm-check">
+                  <input
+                    type="checkbox"
+                    checked={uncapped}
+                    onChange={(e) => setUncapped(e.target.checked)}
+                  />
+                  Unlimited
+                </label>
+              </div>
+            </Row>
+            <label className="billing-consent">
+              <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+              <span>{BILLING_CONSENT}</span>
+            </label>
+            <div className="billing-actions">
               <button
-                className="btn btn-sm btn-primary"
-                onClick={() => void retryInvoice(inv.id).then((x) => x && setB(x))}
+                className="btn btn-primary"
+                disabled={!agree || !valid || busy}
+                onClick={() => {
+                  setBusy(true);
+                  void saveAllowance(uncapped ? null : value).then((x) => {
+                    setBusy(false);
+                    if (x) {
+                      setB(x);
+                      setAgree(false);
+                    }
+                  });
+                }}
               >
-                Retry payment
+                {b.consentAt ? 'Update allowance' : 'Accept and set allowance'}
               </button>
-            )}
-          </div>
-        ))}
-      </Group>
-      <Group title="Managed usage, last 30 days">
-        {(['byRun', 'byModel', 'byWorkspace'] as const).map((k) => (
-          <div key={k} className="billing-usage">
-            <h3>{k === 'byRun' ? 'By run' : k === 'byModel' ? 'By model' : 'By workspace'}</h3>
-            {b.usage[k].length === 0 && <p className="setting-desc">Nothing yet.</p>}
-            {b.usage[k].slice(0, 8).map((u) => (
-              <div key={u.key} className="billing-line">
-                <span className="mono billing-label" title={u.label}>
-                  {u.label}
+              {b.consentAt && (
+                <span className="muted small">
+                  Accepted {new Date(b.consentAt).toLocaleDateString()} ·{' '}
+                  {b.uncapped ? 'unlimited' : `${usd(b.spent)} of ${usd(b.allowance ?? 0)} used`}
                 </span>
-                <span className="muted small">{u.calls} calls</span>
-                <span className="mono">{usd(u.cost)}</span>
+              )}
+            </div>
+            <Row
+              title="Payment method"
+              desc={
+                b.card
+                  ? `Charged once a day for the day's usage; balances under ${usd(b.minimum)} carry forward.`
+                  : 'Saved with Stripe; Kovan never sees your card number.'
+              }
+            >
+              <div className="billing-card">
+                {b.card && (
+                  <span className="mono">
+                    {b.card.brand} •••• {b.card.last4}
+                  </span>
+                )}
+                <button className="btn" disabled={!b.available} onClick={() => void addCard()}>
+                  <CreditCard size={13} /> {b.card ? 'Change card' : 'Add a card'}
+                </button>
+              </div>
+            </Row>
+            <Row title="Not charged yet" desc="Usage since the last charge, markup included.">
+              <span className="mono">{usd(b.unbilled)}</span>
+            </Row>
+          </Group>
+          <Group title="Invoices">
+            {b.invoices.length === 0 && <p className="setting-desc">No charges yet.</p>}
+            {b.invoices.map((inv) => (
+              <div key={inv.id} className={`invoice ${inv.status}`}>
+                <span className="mono">
+                  {inv.period ?? new Date(inv.createdAt).toLocaleDateString()}
+                </span>
+                <span className="mono">{usd(inv.amount)}</span>
+                <span className={`invoice-status ${inv.status}`}>{inv.status}</span>
+                <span className="muted small invoice-note">
+                  {inv.status === 'failed' ? inv.failureReason : `usage ${usd(inv.usage)}`}
+                </span>
+                <span className="spacer" />
+                {inv.receiptUrl && (
+                  <a className="link-btn" href={inv.receiptUrl} target="_blank" rel="noreferrer">
+                    Receipt
+                  </a>
+                )}
+                {inv.status === 'failed' && (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => void retryInvoice(inv.id).then((x) => x && setB(x))}
+                  >
+                    Retry payment
+                  </button>
+                )}
               </div>
             ))}
-          </div>
-        ))}
-      </Group>
+          </Group>
+          <Group title="Paid through Kovan, last 30 days">
+            {(['byRun', 'byModel', 'byWorkspace'] as const).map((k) => (
+              <div key={k} className="billing-usage">
+                <h3>{k === 'byRun' ? 'By run' : k === 'byModel' ? 'By model' : 'By workspace'}</h3>
+                {b.usage[k].length === 0 && <p className="setting-desc">Nothing yet.</p>}
+                {b.usage[k].slice(0, 8).map((u) => (
+                  <div key={u.key} className="billing-line">
+                    <span className="mono billing-label" title={u.label}>
+                      {u.label}
+                    </span>
+                    <span className="muted small">{u.calls} calls</span>
+                    <span className="mono">{usd(u.cost)}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </Group>
+        </>
+      )}
     </>
   );
 }
@@ -852,6 +1282,7 @@ function Providers({ s }: { s: Settings }) {
   const status = providers?.openrouter;
   const model = models.find((m) => m.id === s.agentModel);
   const spent = conversations.reduce((sum, c) => sum + c.cost, 0);
+  const openFolder = useStore((st) => st.workspace?.name ?? null);
 
   return (
     <>
@@ -862,22 +1293,22 @@ function Providers({ s }: { s: Settings }) {
             s.modelBilling === 'own'
               ? 'Your OpenRouter key only.'
               : s.modelBilling === 'managed'
-                ? 'Kovan managed usage: provider cost × 1.05, billed to you daily.'
-                : 'Your OpenRouter key when you have one; otherwise Kovan managed usage.'
+                ? 'Kovan billing: what the model costs × 1.05, charged to you daily.'
+                : 'Your OpenRouter key when you have one; otherwise Kovan billing.'
           }
         >
           <Segmented
             value={s.modelBilling}
             options={[
-              { value: 'auto', label: 'Auto' },
-              { value: 'own', label: 'My key' },
-              { value: 'managed', label: 'Managed' },
+              { value: 'auto', label: 'My key, else Kovan' },
+              { value: 'own', label: 'My key only' },
+              { value: 'managed', label: 'Kovan billing' },
             ]}
             onChange={(v) => void updateSettings({ modelBilling: v }).then(() => loadProviders())}
           />
         </Row>
         {s.modelBilling !== 'own' && (
-          <Row title="Managed usage" desc="Allowance, card, invoices and usage.">
+          <Row title="Kovan billing" desc="Monthly limit, card, invoices and usage.">
             <button className="btn" onClick={() => setState({ settingsSection: 'billing' })}>
               Billing & usage
             </button>
@@ -891,7 +1322,7 @@ function Providers({ s }: { s: Settings }) {
             status?.configured
               ? status.source === 'environment'
                 ? 'Using OPENROUTER_API_KEY from the environment (development).'
-                : 'Stored in the system keychain. Models are billed by OpenRouter to this key.'
+                : `Stored in ${secretStore()}. Models are billed by OpenRouter to this key.`
               : 'One key gives the agent access to every model. Get one at openrouter.ai/keys.'
           }
         >
@@ -909,6 +1340,7 @@ function Providers({ s }: { s: Settings }) {
             <input
               className="input mono"
               type="password"
+              aria-label="OpenRouter API key"
               placeholder={status?.source === 'keychain' ? '•••••••• (saved)' : 'sk-or-v1-…'}
               value={key}
               onChange={(e) => setKey(e.target.value)}
@@ -923,7 +1355,10 @@ function Providers({ s }: { s: Settings }) {
             )}
           </form>
         </Row>
-        <Row title="Model catalog" desc={`${models.length} models with tool use. Refreshed daily.`}>
+        <Row
+          title="Model catalog"
+          desc={`${models.filter((m) => !parseCustomModelId(m.id)).length} OpenRouter models that can use tools, refreshed daily (your own providers are listed below).`}
+        >
           <button className="btn btn-sm" onClick={() => void loadModels(true)}>
             Refresh now
           </button>
@@ -931,8 +1366,27 @@ function Providers({ s }: { s: Settings }) {
       </Group>
       <CustomProvidersGroup />
       <Group title="Agent defaults">
-        <Row title="Model" desc="New conversations start with the last model you picked.">
-          <span className="mono small">{model?.name ?? s.agentModel}</span>
+        <Row
+          title="Model"
+          desc="What Kovan's own agent starts new conversations with. Picking one in a chat changes it too."
+        >
+          <select
+            className="select"
+            value={s.agentModel}
+            onChange={(e) => void updateSettings({ agentModel: e.target.value })}
+          >
+            <option value={JEV_MODEL_ID}>JevRouter (picks per step)</option>
+            {!model && s.agentModel !== JEV_MODEL_ID && (
+              <option value={s.agentModel}>{s.agentModel}</option>
+            )}
+            {[...models]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name}
+                </option>
+              ))}
+          </select>
         </Row>
         <Row title="Permission mode" desc={MODES.find((m) => m.id === s.agentMode)?.hint ?? ''}>
           <Segmented
@@ -943,12 +1397,14 @@ function Providers({ s }: { s: Settings }) {
         </Row>
       </Group>
       <Group title="Spend">
-        <Row
-          title="This workspace"
-          desc="Provider cost of the agent conversations in the open workspace, as OpenRouter reported it."
-        >
-          <span className="mono">${spent.toFixed(spent < 0.01 ? 6 : 4)}</span>
-        </Row>
+        {openFolder && (
+          <Row
+            title={`This workspace (${openFolder})`}
+            desc="What the agent conversations in the open workspace cost, as their providers reported it (with Kovan billing, what you pay: the × 1.05 is in it)."
+          >
+            <span className="mono">{formatCost(spent)}</span>
+          </Row>
+        )}
         <AccountUsage />
       </Group>
     </>
@@ -994,8 +1450,9 @@ function CustomProvidersGroup() {
               {p.name} <span className="mono small muted">@{p.id}</span>
             </div>
             <div className="setting-desc">
-              <span className="mono">{p.baseUrl}</span> · {p.models.length} models
-              {p.hasKey ? ' · key in keychain' : ' · no key'}
+              <span className="mono">{p.baseUrl}</span> · {p.models.length}{' '}
+              {p.models.length === 1 ? 'model' : 'models'}
+              {p.hasKey ? ' · key saved' : ' · no key'}
             </div>
           </div>
           <div className="setting-control" style={{ display: 'flex', gap: 6 }}>
@@ -1196,21 +1653,28 @@ function LimitLine({ account }: { account: LimitAccount }) {
   return <div className={`setting-desc limit-${status}`}>{label}</div>;
 }
 
-/** "Ready", or "Out of usage" while the agent's account limit is reached. */
+/**
+ * "Ready" only when Kovan can really run it: installed, with an account added here (Kovan
+ * doesn't use the CLI's own sign-in), and not out of usage.
+ */
 function AgentState({ agent }: { agent: ExternalAgentInfo }) {
   const limit = useStore((st) => st.agentLimits.find((l) => l.account === agent.id));
+  const hasAccount = useStore((st) => st.agentAccounts.some((a) => a.harness === agent.id));
   const out = agent.supported && limit && limitNow(limit, Date.now()).status === 'full';
+  const ready = agent.supported && hasAccount && !out;
   return (
     <span
-      className={`agent-state ${out ? 'planned' : agent.supported ? 'ok' : agent.path ? 'planned' : ''}`}
+      className={`agent-state ${ready ? 'ok' : agent.supported || agent.path ? 'planned' : ''}`}
     >
       {out
         ? 'Out of usage'
-        : agent.supported
+        : ready
           ? 'Ready'
-          : agent.path
-            ? 'Terminal only'
-            : 'Not installed'}
+          : agent.supported
+            ? 'Not set up yet'
+            : agent.path
+              ? 'Terminal only'
+              : 'Not installed'}
     </span>
   );
 }
@@ -1458,7 +1922,7 @@ function PairRows({
         className="btn btn-sm"
         onClick={() => onChange([...rows, { name: '', value: '', saved: false }])}
       >
-        Add {label}
+        {t('Add {label}', { label: t(label) })}
       </button>
     </div>
   );
@@ -1520,15 +1984,15 @@ function McpGroup() {
     <Group title="MCP servers">
       <p className="setting-desc" style={{ margin: '0 0 8px' }}>
         An MCP server gives Kovan&apos;s agents more tools: GitHub, a database, a browser. Each call
-        asks first in Request and Allow modes (or choose &quot;Always allow&quot; on the card). A
-        repository&apos;s <span className="mono">.mcp.json</span> or{' '}
+        asks first under &quot;Ask first&quot; and &quot;Edit freely&quot; (or choose &quot;Always
+        allow&quot; when it asks). A repository&apos;s <span className="mono">.mcp.json</span> or{' '}
         <span className="mono">.kovan/mcp.json</span> starts only after you allow it, and asks again
-        when it changes. Values you enter here are kept in the system keychain.
+        when it changes. Values you enter here are kept in {secretStore()}.
       </p>
       {listing && !listing.keychain && (
         <p className="setting-desc danger-text">
-          This system has no keychain Kovan can use: secret values can&apos;t be saved, and sign-ins
-          last until Kovan quits.
+          This system has no secure storage Kovan can use: secret values can&apos;t be saved, and
+          sign-ins last until Kovan quits.
         </p>
       )}
       {error && <p className="setting-desc danger-text">{error}</p>}
@@ -1559,8 +2023,8 @@ function McpGroup() {
                     repo
                       ? ''
                       : s.plainValues
-                        ? ' (written in the file: Edit and Save to move them to the keychain)'
-                        : ' in keychain'
+                        ? ' (written in the file: Edit and Save to move them to secure storage)'
+                        : ' saved securely'
                   }`}
                 {s.signedIn && ' · signed in'}
                 {repo && s.trust === 'once' && ' · allowed until Kovan quits'}
@@ -2251,7 +2715,11 @@ function AccountRow({ account: a, installed }: { account: AgentAccount; installe
   return (
     <Row
       title={`${HARNESS_NAMES[a.harness]} · ${a.name}`}
-      desc="Its own sign-in, in Kovan's data folder."
+      desc={
+        a.home
+          ? `This computer's own ${HARNESS_NAMES[a.harness]}: your sign-in, settings, MCP servers and instructions, as in your terminal.`
+          : "Its own sign-in, kept in Kovan's data folder."
+      }
     >
       <div className="account-state">
         {status === 'checking' ? (
@@ -2272,7 +2740,13 @@ function AccountRow({ account: a, installed }: { account: AgentAccount; installe
           status?.signedIn && <span className="setting-desc">Usage shows after its first turn</span>
         )}
       </div>
-      {signedOut && (
+      {signedOut && a.home && (
+        <span className="setting-desc">
+          Sign in from your terminal:{' '}
+          {a.harness === 'codex' ? 'codex login' : 'claude, then /login'}
+        </span>
+      )}
+      {signedOut && !a.home && (
         <button
           className="btn btn-sm"
           disabled={!installed}
@@ -2305,11 +2779,32 @@ function AccountsGroup() {
   return (
     <Group title="Accounts">
       <p className="setting-desc" style={{ margin: '0 0 8px' }}>
-        Claude Code and Codex run only as the accounts you add here; the sign-in they already have
-        on this computer isn't used. Each account signs in once in a terminal here and keeps its own
-        sign-in on this machine; rank it in your order below, and when one account reaches its limit
-        the conversation goes on with the next.
+        Kovan runs Claude Code and Codex as the accounts listed here. Use this computer's own
+        sign-in to work as you do in your terminal (your settings, MCP servers and instructions come
+        along), or add separate accounts that sign in here and keep their sign-in apart; with
+        several, rank them in your order below, and when one reaches its limit the conversation goes
+        on with the next.
       </p>
+      {(['claude-code', 'codex'] as ExternalHarness[])
+        .filter((h) => installed(h) && !accounts.some((a) => a.harness === h && a.home))
+        .map((h) => (
+          <Row
+            key={`home-${h}`}
+            title={`Use this computer's ${HARNESS_NAMES[h]}`}
+            desc={`The sign-in ${HARNESS_NAMES[h]} already has here, with your own settings. Kovan doesn't change them.`}
+          >
+            <button
+              className="btn btn-sm btn-primary"
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void addAgentAccount(h, 'This computer', true).then(() => setBusy(false));
+              }}
+            >
+              <Plus size={13} /> Use it
+            </button>
+          </Row>
+        ))}
       {(['claude-code', 'codex'] as ExternalHarness[]).map((h) => (
         <Fragment key={h}>
           {accounts
@@ -2320,8 +2815,8 @@ function AccountsGroup() {
         </Fragment>
       ))}
       <Row
-        title="Add an account"
-        desc={`A terminal opens with ${HARNESS_NAMES[harness]}'s own sign-in; finish it there (${harness === 'codex' ? 'it opens your browser' : 'type /login if it does not ask'}).`}
+        title="Add a separate account"
+        desc={`For another ${harness === 'codex' ? 'OpenAI' : 'Claude'} account (say, Work and Personal). A terminal opens with ${HARNESS_NAMES[harness]}'s own sign-in; finish it there (${harness === 'codex' ? 'it opens your browser' : 'type /login if it does not ask'}).`}
       >
         <select
           className="select"
@@ -2372,7 +2867,8 @@ function OrderGroup() {
     o.account
       ? (accounts.find((a) => a.id === o.account)?.name ?? 'removed account')
       : o.harness !== 'kovan'
-        ? 'first account added'
+        ? // No account named: the first one of that agent runs, so say which that is.
+          (accounts.find((a) => a.harness === o.harness)?.name ?? 'no account yet')
         : undefined;
 
   useEffect(() => {
@@ -2398,7 +2894,7 @@ function OrderGroup() {
     if (parseCustomModelId(o.model))
       return models.length > 0 && !modelOf(o.model) ? 'Provider or model removed: skipped' : null;
     return providers && !providers.openrouter.configured && !providers.managed
-      ? 'No OpenRouter key or managed usage: skipped'
+      ? 'No OpenRouter key or Kovan billing: skipped'
       : null;
   };
   const hint = (o: AgentOption): string => {
@@ -2469,7 +2965,7 @@ function OrderGroup() {
         title="Add a step"
         desc={
           draft.harness === 'kovan'
-            ? 'Any model from the catalog, including your custom providers (Providers & spend).'
+            ? 'Any model from the catalog, including your custom providers (Model keys & spend).'
             : `A model of ${HARNESS_NAMES[draft.harness]}; Default lets ${draft.harness === 'claude-code' ? 'Auto pick by how hard the task is' : 'Codex decide'}.`
         }
       >
@@ -2562,6 +3058,16 @@ function OrderGroup() {
           <Plus size={13} /> Add
         </button>
       </Row>
+      {/* Why Add is greyed out, said where it can be read (not only on hover). */}
+      {draftModel && (draftNoAccount || draftTaken || !draftKnown) && (
+        <p className="setting-desc danger-text" style={{ margin: '-4px 0 8px' }}>
+          {draftNoAccount
+            ? `Add a ${HARNESS_NAMES[draft.harness]} account first, under Accounts.`
+            : draftTaken
+              ? 'That one is already in your order.'
+              : `There's no model called “${draftModel}” in the catalog: pick one from the list.`}
+        </p>
+      )}
       <Row
         title="Continue with the next when an account runs out"
         desc="When an account hits its usage limit mid-task, the same conversation goes on with the next step of your order. It is told what you asked, what was done and what must not be repeated."
@@ -2569,6 +3075,15 @@ function OrderGroup() {
         <OnOff
           value={s.agentFailover}
           onChange={(agentFailover) => void updateSettings({ agentFailover })}
+        />
+      </Row>
+      <Row
+        title="Choose who continues"
+        desc="When an agent runs out of usage, Kovan asks which of your ready agents the conversation goes on with. Off: the next one in your order takes over by itself."
+      >
+        <OnOff
+          value={s.agentFailoverChoose}
+          onChange={(agentFailoverChoose) => void updateSettings({ agentFailoverChoose })}
         />
       </Row>
       <Row
@@ -2586,61 +3101,108 @@ function OrderGroup() {
 
 function AgentsSection() {
   const agents = useStore((st) => st.externalAgents);
+  const providers = useStore((st) => st.providers);
+  const kovanReady =
+    (providers?.openrouter.configured ?? false) ||
+    (providers?.customModels ?? 0) > 0 ||
+    (providers?.managed ?? false);
   const [refreshing, setRefreshing] = useState(false);
+  const query = useStore((st) => st.settingsQuery);
+  // Eight topics in one scroll was too much: three tabs, all shown while searching.
+  const [tab, setTab] = useState<'setup' | 'tools' | 'more'>('setup');
+  const showing = (t: typeof tab) => Boolean(query) || tab === t;
   return (
     <>
-      <Group title="Agents on this machine">
-        <p className="setting-desc" style={{ margin: '0 0 8px' }}>
-          Kovan runs the coding agents you already pay for. It doesn't change their configuration:
-          sessions it starts get Kovan's coordination tools (MCP), and Claude Code's permission
-          prompts show up as approval cards. Your own terminal sessions stay exactly as they were.
-        </p>
-        <div className="setting">
-          <div className="setting-text">
-            <div className="setting-title">Kovan</div>
-            <div className="setting-desc">Built in · any model through OpenRouter</div>
-          </div>
-          <div className="setting-control">
-            <span className="agent-state ok">Ready</span>
-          </div>
-        </div>
-        {agents.map((a) => (
-          <div key={a.id} className={`setting ${a.supported ? '' : 'dimmed'}`}>
-            <div className="setting-text">
-              <div className="setting-title">
-                {a.name} {a.version && <span className="mono small muted">{a.version}</span>}
+      {!query && (
+        <Segmented
+          value={tab}
+          options={[
+            { value: 'setup', label: 'Agents and accounts' },
+            { value: 'tools', label: 'Skills, tools and plugins' },
+            { value: 'more', label: 'Issues and background work' },
+          ]}
+          onChange={setTab}
+        />
+      )}
+      {showing('setup') && (
+        <>
+          <Group title="Agents on this machine">
+            <p className="setting-desc" style={{ margin: '0 0 8px' }}>
+              Kovan has an agent of its own, and can also run Claude Code and Codex if they're
+              installed here. Below: which are ready, the accounts they use, and the order Auto
+              tries them in. When an agent wants to do something you asked to approve, it asks in
+              the chat.
+            </p>
+            <div className="setting">
+              <div className="setting-text">
+                <div className="setting-title">Kovan</div>
+                <div className="setting-desc">
+                  Built in · models through your OpenRouter key, a provider of your own, or Kovan
+                  billing
+                </div>
               </div>
-              <div className="setting-desc">
-                {a.supported ? <span className="mono">{a.path}</span> : a.reason}
+              <div className="setting-control">
+                {kovanReady ? (
+                  <span className="agent-state ok">Ready</span>
+                ) : (
+                  <button
+                    className="btn btn-sm"
+                    onClick={() => setState({ settingsSection: 'providers' })}
+                  >
+                    Needs a model
+                  </button>
+                )}
               </div>
-              {a.supported && <LimitLine account={a.id as Harness} />}
             </div>
-            <div className="setting-control">
-              <AgentState agent={a} />
-            </div>
-          </div>
-        ))}
-        <ConnectRepoRow />
-        <Row title="Look again" desc="After installing or updating an agent CLI.">
-          <button
-            className="btn btn-sm"
-            disabled={refreshing}
-            onClick={() => {
-              setRefreshing(true);
-              void loadExternalAgents(true).finally(() => setRefreshing(false));
-            }}
-          >
-            {refreshing ? 'Checking…' : 'Detect agents'}
-          </button>
-        </Row>
-        <BackgroundAgentsRow />
-      </Group>
-      <AccountsGroup />
-      <OrderGroup />
-      <SkillsGroup />
-      <McpGroup />
-      <PluginsGroup />
-      <IssuesGroup />
+            {agents.map((a) => (
+              <div key={a.id} className={`setting ${a.supported ? '' : 'dimmed'}`}>
+                <div className="setting-text">
+                  <div className="setting-title">
+                    {a.name} {a.version && <span className="mono small muted">{a.version}</span>}
+                  </div>
+                  <div className="setting-desc">
+                    {a.supported ? <span className="mono">{a.path}</span> : a.reason}
+                  </div>
+                  {a.supported && <LimitLine account={a.id as Harness} />}
+                </div>
+                <div className="setting-control">
+                  <AgentState agent={a} />
+                </div>
+              </div>
+            ))}
+            <ConnectRepoRow />
+            <Row title="Look again" desc="After installing or updating an agent CLI.">
+              <button
+                className="btn btn-sm"
+                disabled={refreshing}
+                onClick={() => {
+                  setRefreshing(true);
+                  void loadExternalAgents(true).finally(() => setRefreshing(false));
+                }}
+              >
+                {refreshing ? 'Checking…' : 'Detect agents'}
+              </button>
+            </Row>
+          </Group>
+          <AccountsGroup />
+          <OrderGroup />
+        </>
+      )}
+      {showing('tools') && (
+        <>
+          <SkillsGroup />
+          <McpGroup />
+          <PluginsGroup />
+        </>
+      )}
+      {showing('more') && (
+        <>
+          <IssuesGroup />
+          <Group title="Background work">
+            <BackgroundAgentsRow />
+          </Group>
+        </>
+      )}
     </>
   );
 }
@@ -2658,7 +3220,7 @@ function Account() {
       <Group title="Account">
         <Row
           title="Not signed in"
-          desc="Sign in to share workspaces, see teammates and invite people. Your code stays on this machine."
+          desc="Sign in to share workspaces, see teammates and invite people. Your repository stays in your checkout."
         >
           <button
             className="btn btn-primary"
@@ -2668,6 +3230,7 @@ function Account() {
             {pending ? 'Waiting for the browser…' : 'Sign in'}
           </button>
         </Row>
+        {pending === 'login' && <LoginCode />}
         <Row title="Server" desc="Where accounts and coordination live.">
           <span className="mono small muted">{serverUrl}</span>
         </Row>
@@ -2789,7 +3352,7 @@ function Privacy() {
       </Row>
       <Row
         title="Where your code lives"
-        desc="Repositories stay in your local clones. Kovan's server stores accounts, workspaces and membership, never your source."
+        desc="Your repository stays in your local clone; the server never keeps a copy. In a shared session, what agents do and the changes they make reach the server, encrypted, so teammates can follow; they're kept for your organization's retention period (90 days unless changed). What you send an agent goes to the model provider you chose."
       >
         <span />
       </Row>
@@ -2901,7 +3464,7 @@ function GitSyncRow({ workspace }: { workspace: Workspace }) {
   return (
     <Row
       title="Automatic Git sync"
-      desc={`Saved changes in a session go to its teammates every few seconds, and theirs come in. One switch for everyone in the workspace.${by}${mayFlip ? '' : ' Editors and owners change it.'}`}
+      desc={`While a session runs, everyone's saved work (uncommitted edits too) goes to the team's Git remote every few seconds under hidden refs, and teammates' work comes in; each agent's turn leaves a checkpoint there too. Off: nothing goes out until someone pushes. One switch for everyone in the workspace.${by}${mayFlip ? '' : ' Editors and owners change it.'}`}
     >
       {mayFlip ? (
         <OnOff
@@ -2924,10 +3487,15 @@ const MODE_HINT: Record<Workspace['mode'], string> = {
 /** How a workspace works; owners choose. */
 function ModeRow({ workspace }: { workspace: Workspace }) {
   const owner = workspace.role === 'owner';
+  // "Now: Solo or Team" counts the people in it: load them if this is the first look.
+  const members = useStore((st) => st.members[workspace.id]);
+  useEffect(() => {
+    if (!members) void reloadMembers(workspace.id);
+  }, [workspace.id, members]);
   return (
     <Row
       title="How it works"
-      desc={`${MODE_HINT[workspace.mode]}${workspace.mode === 'adaptive' ? ` Now: ${workspaceMode(workspace) === 'solo' ? 'Solo' : 'Team'}.` : ''}${owner ? '' : ' Only owners change it.'}`}
+      desc={`${MODE_HINT[workspace.mode]}${workspace.mode === 'adaptive' ? ` Now: ${!members ? '…' : workspaceMode(workspace) === 'solo' ? 'Solo' : 'Team'}.` : ''}${owner ? '' : ' Only owners change it.'}`}
     >
       <select
         className="select"
@@ -2938,6 +3506,31 @@ function ModeRow({ workspace }: { workspace: Workspace }) {
         <option value="adaptive">Adaptive</option>
         <option value="solo">Solo</option>
         <option value="team">Team</option>
+      </select>
+    </Row>
+  );
+}
+
+/** Who may answer for, and give work to, an agent that isn't theirs. */
+function OthersAgentsRow({ workspace }: { workspace: Workspace }) {
+  const owner = workspace.role === 'owner';
+  return (
+    <Row
+      title="Someone else's agent"
+      desc={`Who may approve a teammate's agent's commands and give it work (which runs, and is paid for, on that teammate's account). Its own person always may.${owner ? '' : ' Only owners change it.'}`}
+    >
+      <select
+        className="select"
+        value={workspace.othersAgents}
+        disabled={!owner}
+        onChange={(e) =>
+          void updateWorkspace(workspace.id, {
+            othersAgents: e.target.value as Workspace['othersAgents'],
+          })
+        }
+      >
+        <option value="owners">Its person and owners</option>
+        <option value="editors">Every editor too</option>
       </select>
     </Row>
   );
@@ -2957,7 +3550,7 @@ function AgentLimitRow({ workspace }: { workspace: Workspace }) {
   return (
     <Row
       title="Monthly limit for agent swarms"
-      desc={`All sessions together; at it, swarms pause. ${used}${owner ? '' : ' · Only owners change it.'}`}
+      desc={`What the swarms in this workspace may spend each month, all sessions together; at it, swarms pause. It is separate from each person's own monthly allowance (Billing & usage). ${used}${owner ? '' : ' · Only owners change it.'}`}
     >
       <input
         className="input input-narrow mono"
@@ -3008,7 +3601,17 @@ function IntegrationsGroup({ owned }: { owned: Workspace[] }) {
   if (!workspace) return null;
   const base = integrationsOf({ workspaceId: workspace.id });
   return (
-    <Group title="Integrations">
+    <Group title="Integrations: one workspace">
+      <p className="setting-desc">
+        Keys and webhooks that reach only {workspace.name}. For all your workspaces at once, use{' '}
+        <button
+          className="link-btn"
+          onClick={() => setState({ settingsSection: 'organization', settingsQuery: '' })}
+        >
+          Organization → Integrations
+        </button>
+        .
+      </p>
       {owned.length > 1 && (
         <Row title="Workspace" desc="Keys and webhooks belong to one workspace.">
           <select
@@ -3149,7 +3752,7 @@ function BackgroundAgentsRow() {
         desc={
           status?.enabled
             ? `${status.running ? 'Running' : 'Not running'} as the machine "${status.name}". Swarms sent to it (Run on) keep going after you quit Kovan. Log: ${status.log}`
-            : "Runs this computer's agents in a background process of their own, as a machine of your organization, so work you send to it goes on after you quit Kovan. It offers the checkouts opened here and works with Claude Code on your subscription."
+            : "Keeps work going after you quit Kovan: a small program on this computer takes tasks sent from Kovan or your phone and runs them here, in the folders you've opened, with Claude Code on your subscription."
         }
       >
         <button
@@ -3569,6 +4172,7 @@ function Workspaces() {
           <WorkspaceDetails workspace={w} />
           <GitSyncRow workspace={w} />
           <ModeRow workspace={w} />
+          <OthersAgentsRow workspace={w} />
           <AgentLimitRow workspace={w} />
         </Group>
       ))}
@@ -3593,6 +4197,55 @@ function Workspaces() {
   );
 }
 
+/**
+ * While searching, only matching rows show (CSS hides the rest of each section); when none
+ * match, this says so instead of an empty page.
+ */
+function NoMatch({ query }: { query: string }) {
+  const [none, setNone] = useState(false);
+  // Every row is matched by its text, built with Row or not; a group with no match goes. Done
+  // again whenever the page changes underneath (a section that loads its data later).
+  useEffect(() => {
+    const main = document.querySelector<HTMLElement>('.settings-main');
+    if (!main) return;
+    const q = query.trim().toLowerCase();
+    let hidden: HTMLElement[] = [];
+    const apply = () => {
+      for (const el of hidden) el.style.display = '';
+      hidden = [];
+      let hits = 0;
+      for (const group of main.querySelectorAll<HTMLElement>(
+        '.settings-searching .settings-group',
+      )) {
+        let inGroup = 0;
+        for (const row of group.querySelectorAll<HTMLElement>('.setting')) {
+          if ((row.textContent ?? '').toLowerCase().includes(q)) inGroup++;
+          else hidden.push(row);
+        }
+        if (!inGroup) hidden.push(group);
+        hits += inGroup;
+      }
+      for (const el of hidden) el.style.display = 'none';
+      setNone(hits === 0);
+    };
+    apply();
+    let frame = 0;
+    const watch = new MutationObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(apply);
+    });
+    watch.observe(main, { childList: true, subtree: true, characterData: true });
+    return () => {
+      watch.disconnect();
+      cancelAnimationFrame(frame);
+      for (const el of hidden) el.style.display = '';
+    };
+  }, [query]);
+  return none ? (
+    <p className="setting-desc">{t('No settings match “{query}”.', { query })}</p>
+  ) : null;
+}
+
 export function SettingsView() {
   const settings = useStore((s) => s.settings);
   const section = useStore((s) => s.settingsSection);
@@ -3608,36 +4261,38 @@ export function SettingsView() {
     <div className="settings-layout">
       <aside className="settings-nav">
         <button className="nav-item" onClick={() => showView(lastView)}>
-          <ArrowLeft size={15} className="nav-icon" /> Back to app
+          <ArrowLeft size={15} className="nav-icon" /> {t('Back to app')}
         </button>
         <label className="settings-search">
           <Search size={13} />
           <input
-            placeholder="Search settings"
+            aria-label={t('Search settings')}
+            placeholder={t('Search settings')}
             value={query}
             onChange={(e) => setState({ settingsQuery: e.target.value })}
           />
         </label>
         <button className="nav-item" onClick={() => setState({ gettingStartedOpen: true })}>
           <ProgressRing value={done} total={STEPS.length} />
-          <span>Onboarding checklist</span>
+          <span>{t('Getting started')}</span>
           <span className="nav-meta">
             {done}/{STEPS.length}
           </span>
         </button>
-        {(['Personal', 'Kovan'] as const).map((group) => (
+        {GROUPS.map((group) => (
           <div key={group}>
             <div className="nav-heading" style={{ paddingLeft: 8 }}>
-              {group}
+              {t(group)}
             </div>
             {SECTIONS.filter((x) => x.group === group).map(({ id, label, icon: SectionIcon }) => (
               <button
                 key={id}
                 className={`nav-item ${!query && id === section ? 'active' : ''}`}
+                aria-current={!query && id === section ? 'page' : undefined}
                 onClick={() => setState({ settingsSection: id, settingsQuery: '' })}
               >
                 <SectionIcon size={15} className="nav-icon" />
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -3646,12 +4301,16 @@ export function SettingsView() {
       <main className="settings-main">
         <div className="settings-inner">
           {!query && (
-            <h1 className="settings-title">
-              <current.icon size={17} /> {current.label}
-            </h1>
+            <>
+              <h1 className="settings-title">
+                <current.icon size={17} /> {t(current.label)}
+              </h1>
+              {current.about && <p className="settings-about">{t(current.about)}</p>}
+            </>
           )}
+          {query && <NoMatch query={query} />}
           {shown.map(({ id }) => (
-            <div key={id}>
+            <div key={id} className={query ? 'settings-searching' : undefined}>
               {id === 'general' && <General s={settings} />}
               {id === 'general' && <Updates s={settings} />}
               {id === 'editor' && <Editor s={settings} />}

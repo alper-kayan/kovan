@@ -1,4 +1,12 @@
-import { can, type LaneEvent, type Participant, type Session } from '@kovan/shared';
+import {
+  can,
+  mayActOnLane,
+  swarmBadge,
+  type LaneEvent,
+  type Participant,
+  type Session,
+} from '@kovan/shared';
+import { t } from '../i18n';
 import {
   ArrowLeft,
   CircleAlert,
@@ -81,11 +89,12 @@ import { Avatar } from './ui';
 const NONE_LIST: never[] = [];
 const NONE_MAP: Record<string, never> = {};
 
+/** The same words as the phone: what's going on, not the state machine's names. */
 const STATE_LABEL = {
-  running: 'Running',
-  waiting: 'Needs approval',
-  awaiting: 'Awaiting takeover',
-  idle: 'Idle',
+  running: 'Working',
+  waiting: 'Needs a yes',
+  awaiting: 'Stopped: someone needs to take over',
+  idle: 'Nothing running',
   ended: 'Ended',
 } as const;
 
@@ -178,13 +187,16 @@ function Lane({
   events,
   mine,
   canAnswer,
+  othersAgents,
   width,
 }: {
   session: Session;
   participant: Participant;
   events: LaneEvent[];
   mine: boolean;
+  /** Whether this person may answer for this lane's agent (see `mayActOnLane`). */
   canAnswer: boolean;
+  othersAgents: 'owners' | 'editors';
   /** Set once someone drags its edge; otherwise lanes share the room evenly. */
   width?: number | undefined;
 }) {
@@ -198,11 +210,17 @@ function Lane({
   const live = session.status === 'active';
   const state = live ? participant.state : 'idle';
 
+  // Who answers for this lane's agent: its person, the owners, and editors when allowed.
+  const owner =
+    participant.kind === 'agent' ? (participant.hostName ?? 'its host') : participant.name;
   const approvals: ApprovalHandler = local
-    ? { answer: answerApproval, note: 'any Editor · first wins' }
+    ? { answer: answerApproval, note: 'Approves this exact action, once' }
     : {
         answer: (id, ok) => void answerTeamApproval(session.id, participant.userId, id, ok),
-        note: canAnswer ? 'any Editor · first wins' : 'Editors answer approvals',
+        note: `You answer for ${owner}'s agent · the first answer counts`,
+        blocked: canAnswer
+          ? undefined
+          : `${owner} answers this${othersAgents === 'editors' ? ', or any editor' : ', or an owner of the workspace'}.`,
       };
 
   return (
@@ -236,7 +254,8 @@ function Lane({
         ) : (
           <Chat
             items={items}
-            userName={participant.kind === 'agent' ? 'Task' : participant.name}
+            userName={participant.name}
+            assigned={participant.kind === 'agent'}
             avatarUrl={participant.avatarUrl}
             approvals={approvals}
             annotate={{
@@ -347,7 +366,7 @@ function SteerBox({ session, participant }: { session: Session; participant: Par
           !canSteer
             ? `${name} is using ${agentLine(participant)}. Your role can watch.`
             : running
-              ? `${name} is using ${agentLine(participant)}. Steer their agent…`
+              ? `${name} is using ${agentLine(participant)}. Guide their agent as it works…`
               : participant.state === 'awaiting'
                 ? `${name}'s agent stopped (${participant.awaitingReason ?? 'usage limit'}). Take over to continue.`
                 : `${name} is using ${agentLine(participant)}. Their agent is idle.`
@@ -362,11 +381,18 @@ function SteerBox({ session, participant }: { session: Session; participant: Par
         }}
       />
       <div className="steer-bar">
-        <span className="muted small">
+        <span
+          className="muted small"
+          title={
+            !running && participant.snapshotAt
+              ? `${name}'s work as of then (uncommitted edits too), saved on the team's Git remote under a hidden ref, so it can be taken over. Git sync in Settings → Workspaces turns this off.`
+              : undefined
+          }
+        >
           {running
             ? `Guidance runs on ${name}'s account`
             : participant.snapshotAt
-              ? `Last checkpoint ${ago(participant.snapshotAt)}`
+              ? `Last checkpoint ${ago(participant.snapshotAt)} · on the team remote`
               : ''}
         </span>
         <span className="spacer" />
@@ -382,7 +408,7 @@ function SteerBox({ session, participant }: { session: Session; participant: Par
         {canSteer && running && (
           <button
             className="send-btn"
-            title="Steer (Enter)"
+            title="Guide (Enter)"
             disabled={!text.trim()}
             onClick={() =>
               void steer(session.id, participant.userId, text.trim()).then(
@@ -401,10 +427,10 @@ function SteerBox({ session, participant }: { session: Session; participant: Par
 function ago(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
   return minutes < 1
-    ? 'just now'
+    ? t('just now')
     : minutes < 60
-      ? `${minutes} min ago`
-      : `${Math.round(minutes / 60)} h ago`;
+      ? t('{n}m ago', { n: minutes })
+      : t('{n}h ago', { n: Math.round(minutes / 60) });
 }
 
 function DiffText({ diff }: { diff: string }) {
@@ -447,8 +473,14 @@ function SessionTab({ session }: { session: Session }) {
       : blocker?.fix === 'setup'
         ? 'Set up the workspace'
         : blocker?.fix === 'provider'
-          ? 'Open Providers'
-          : null;
+          ? blocker.section === 'billing'
+            ? 'Set up billing'
+            : blocker.section === 'agents'
+              ? 'Open Agents'
+              : 'Add a key'
+          : blocker?.fix === 'watch' && !me
+            ? 'Watch instead'
+            : null;
 
   return (
     <>
@@ -595,7 +627,11 @@ const ACTIVITY_FILTERS: { id: string; label: string; kinds: string[] | null }[] 
     label: 'Turns',
     kinds: ['turn_started', 'turn_interrupted', 'steer', 'limit_hit'],
   },
-  { id: 'permissions', label: 'Permissions', kinds: ['mode_changed', 'lock', 'unlock'] },
+  {
+    id: 'permissions',
+    label: 'Permissions',
+    kinds: ['mode_changed', 'lock', 'unlock', 'approval_answered'],
+  },
   { id: 'takeovers', label: 'Takeovers', kinds: ['takeover_requested', 'handed_over'] },
   {
     id: 'swarm',
@@ -637,7 +673,7 @@ function ActivityFeed({ session }: { session: Session }) {
   const kinds = ACTIVITY_FILTERS.find((f) => f.id === filter)?.kinds ?? null;
   const shown = (feed ?? []).filter((a) => !kinds || kinds.includes(a.kind));
   return (
-    <div className="activity">
+    <div className="activity-feed">
       <div className="activity-filters">
         {ACTIVITY_FILTERS.map((f) => (
           <button
@@ -1311,7 +1347,9 @@ function SwarmPanel({ session }: { session: Session }) {
   return (
     <div className="swarm">
       <div className="swarm-head">
-        <span className={`swarm-status ${swarm.status}`}>{swarm.status.toUpperCase()}</span>
+        <span className={`swarm-status ${swarmBadge(swarm).tone}`}>
+          {swarmBadge(swarm).label.toUpperCase()}
+        </span>
         <span className="muted small">
           {session.machine
             ? `on ${session.machine.name}`
@@ -1454,10 +1492,21 @@ function AddAiTeammate({ session }: { session: Session }) {
 function Rail({ session, width }: { session: Session; width: number }) {
   const [open, setOpen] = useState<Record<string, boolean>>({
     people: true,
+    comments: true,
     swarm: true,
     plan: true,
     activity: true,
   });
+  // A notice ("Ana mentioned you") can ask for a section: it opens, and scrolls into view.
+  const focus = useStore((s) => s.railFocus);
+  useEffect(() => {
+    if (!focus) return;
+    setOpen((o) => ({ ...o, [focus]: true }));
+    setState({ railFocus: null });
+    requestAnimationFrame(() =>
+      document.querySelector(`[data-rail="${focus}"]`)?.scrollIntoView({ block: 'nearest' }),
+    );
+  }, [focus]);
   const plan = useStore((s) => s.plans[session.id]);
   const comments = useStore((s) => s.comments[session.workspaceId]);
   const feed = useStore((s) => s.activity[session.id]);
@@ -1480,7 +1529,7 @@ function Rail({ session, width }: { session: Session; width: number }) {
     count: string | null,
     body: React.ReactNode,
   ) => (
-    <div className="rail-section-fold">
+    <div className="rail-section-fold" data-rail={id}>
       <button className="rail-fold-head" onClick={() => setOpen({ ...open, [id]: !open[id] })}>
         <ChevronRight size={12} className={open[id] ? 'turned' : ''} />
         {icon}
@@ -1502,6 +1551,13 @@ function Rail({ session, width }: { session: Session; width: number }) {
           {joined && session.status === 'active' && <HandOffMenu session={session} />}
           {session.status === 'active' && <AddAiTeammate session={session} />}
         </>,
+      )}
+      {section(
+        'comments',
+        <MessageSquare size={13} />,
+        'Comments',
+        openComments ? String(openComments) : null,
+        <SessionComments session={session} />,
       )}
       {section(
         'swarm',
@@ -1531,13 +1587,6 @@ function Rail({ session, width }: { session: Session; width: number }) {
         'Locks',
         session.locks.length ? String(session.locks.length) : null,
         <LocksPanel session={session} />,
-      )}
-      {section(
-        'comments',
-        <MessageSquare size={13} />,
-        'Comments',
-        openComments ? String(openComments) : null,
-        <SessionComments session={session} />,
       )}
       {section(
         'activity',
@@ -1573,7 +1622,15 @@ export function SessionRoom() {
 
   const ws = workspaces.find((w) => w.id === session.workspaceId);
   const role = ws?.role;
-  const canAnswer = Boolean(role && can(role, 'approval.answer'));
+  const othersAgents = ws?.othersAgents ?? 'owners';
+  const canAnswerLane = (p: Participant) =>
+    mayActOnLane({
+      role,
+      userId: user?.id,
+      lane: { userId: p.userId, hostId: p.hostId ?? null },
+      othersAgents,
+      action: 'approval.answer',
+    });
   const lanes = session.participants.filter((p) => p.mode === 'join');
   // People whose lanes have events but who left still show in history.
   const extra = Object.keys(room.lanes)
@@ -1691,7 +1748,8 @@ export function SessionRoom() {
                     participant={p}
                     events={room.lanes[p.userId] ?? []}
                     mine={p.userId === user?.id}
-                    canAnswer={canAnswer}
+                    canAnswer={canAnswerLane(p)}
+                    othersAgents={othersAgents}
                     width={laneWidths[p.userId]}
                   />
                   {i < all.length - 1 && (

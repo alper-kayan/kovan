@@ -3,6 +3,7 @@ import { foldEvents, type ConversationEvent } from './agent.js';
 import {
   conversationDigest,
   insertMention,
+  mentionedPeople,
   mentionedTeammate,
   mentionMatches,
   mentionQuery,
@@ -97,5 +98,17 @@ describe('mentions', () => {
         'Alper',
       ),
     ).toBe('Alper to @Bob: @Bob check it\nBob: It is fine.');
+  });
+
+  it('finds everyone a comment calls by name, once each', () => {
+    const ana = { id: 'a', name: 'Ana' };
+    const anaSu = { id: 's', name: 'Ana Su' };
+    expect(mentionedPeople('@Ana Su and @Bob, look', [ana, anaSu, bob]).map((p) => p.id)).toEqual([
+      's',
+      'b',
+    ]);
+    expect(mentionedPeople('@ana @Ana', [ana]).map((p) => p.id)).toEqual(['a']);
+    expect(mentionedPeople('mail ana@x.com', [ana])).toEqual([]);
+    expect(mentionedPeople('@Bobby', [bob])).toEqual([]);
   });
 });

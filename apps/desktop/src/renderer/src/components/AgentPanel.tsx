@@ -1,4 +1,5 @@
 import type { Effort } from '@kovan/model-gateway';
+import { ChatAnnouncer } from './ChatAnnouncer';
 import {
   ArrowUp,
   Bot,
@@ -8,6 +9,7 @@ import {
   CircleDot,
   CircleHelp,
   CornerDownLeft,
+  ListChecks,
   ListPlus,
   MessageSquarePlus,
   Paperclip,
@@ -20,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { riskOf } from '@kovan/shared';
 import {
   CLAUDE_MODELS,
   CODEX_MODELS,
@@ -32,6 +35,8 @@ import {
   type PermissionMode,
   parseCustomModelId,
   type ApprovalRequest,
+  type Readiness,
+  type ReadyFix,
 } from '../../../shared/agent';
 import { limitLabel, limitNow, type AgentLimit } from '../../../shared/limits';
 import {
@@ -58,17 +63,28 @@ import { issueFromReply } from '../services/issues';
 import { useFileOpener } from '../fileOpener';
 import { overlapFor, steer } from '../services/flow';
 import { openSession } from '../services/sessions';
+import { openWorkspace } from '../services/workspace';
 import { startSubagent } from '../services/sync';
 import { api } from '../services/api';
 import type { OverlapWarning, SkillInfo } from '../../../shared/api';
 import { newTerminal } from '../services/terminal';
-import { getState, notify, reportError, setState, showView, useStore } from '../store';
+import {
+  getState,
+  notify,
+  reportError,
+  setState,
+  showView,
+  toast,
+  useStore,
+  type SettingsSection,
+  secretStore,
+} from '../store';
 import { updateSettings } from '../services/settings';
 import { Markdown } from './Markdown';
 import { ModelPicker } from './ModelPicker';
-import { MentionMenu, useMentionMenu, useTeammates } from './MentionMenu';
+import { MentionMenu, useAiTargets, useMentionMenu, useTeammates } from './MentionMenu';
 import { mentionedTeammate } from '../../../shared/mentions';
-import { Avatar, personColor, ProgressRing, useFloating } from './ui';
+import { Avatar, personColor, ProgressRing, useFloating, pressable } from './ui';
 
 export const MODES: { id: PermissionMode; label: string; hint: string }[] = [
   { id: 'plan', label: 'Plan only', hint: 'Reads and plans, never edits' },
@@ -84,17 +100,108 @@ const STARTERS = [
   'Review my uncommitted changes',
 ];
 
+/** The same, for a folder that isn't a repository (nothing to review in Git there). */
+const FOLDER_STARTERS = [
+  'Explain what is in this folder',
+  'Find what looks broken and fix it',
+  'Tidy up the files here',
+];
+
+/** A step waiting for a yes hasn't happened yet: "Wrote" reads as "Wants to write". */
+const WAITING_VERBS: Record<string, string> = {
+  Wrote: 'Wants to write',
+  Edited: 'Wants to edit',
+  Ran: 'Wants to run',
+  Deleted: 'Wants to delete',
+  Created: 'Wants to create',
+  Moved: 'Wants to move',
+  Used: 'Wants to use',
+  Called: 'Wants to call',
+};
+function waitingVerb(verb: string): string {
+  return WAITING_VERBS[verb] ?? verb;
+}
+
 /** Costs are shown down to the smallest charge; zero is shown as zero. */
+/** A spend for people: "$0", "<$0.0001", "$0.0042", "$1.25". */
 export function formatCost(cost: number): string {
-  if (cost === 0) return '$0.00000000';
-  if (cost < 0.01) return `$${cost.toFixed(cost < 0.0001 ? 8 : 6)}`;
-  return `$${cost.toFixed(4)}`;
+  if (cost <= 0) return '$0';
+  if (cost < 0.0001) return '<$0.0001';
+  return `$${cost.toFixed(cost < 1 ? 4 : 2)}`;
 }
 
 const time = (at: number) =>
   new Date(at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-function ProviderSetup() {
+/** Where each kind of fix lives, and what its button says. */
+const READY_FIX: Record<ReadyFix, { label: string; section: SettingsSection } | null> = {
+  provider: { label: 'Add a key', section: 'providers' },
+  billing: { label: 'Set up billing', section: 'billing' },
+  accounts: { label: 'Set it up', section: 'agents' },
+  install: { label: 'See what to install', section: 'agents' },
+  order: { label: 'Change the order', section: 'agents' },
+  wait: null,
+};
+
+function openFix(fix: ReadyFix): void {
+  const target = READY_FIX[fix];
+  if (!target) return;
+  setState({ settingsSection: target.section });
+  showView('settings');
+}
+
+/**
+ * Whether the agent this composer would send to can start now. Asked again whenever what it
+ * depends on changes, and when the window comes back (an account added elsewhere, say).
+ */
+function useReadiness(choice: {
+  auto: boolean;
+  harness: Harness;
+  model: string;
+  account: string | undefined;
+}): Readiness | null {
+  const providers = useStore((s) => s.providers);
+  const accounts = useStore((s) => s.agentAccounts);
+  const signedIn = useStore((s) => s.signedIn);
+  const order = useStore((s) => s.settings.agentOrder);
+  const limits = useStore((s) => s.agentLimits);
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  const [focus, setFocus] = useState(0);
+  useEffect(() => {
+    const again = () => setFocus((n) => n + 1);
+    window.addEventListener('focus', again);
+    return () => window.removeEventListener('focus', again);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    void api
+      .invoke('agent:readiness', {
+        auto: choice.auto,
+        harness: choice.harness,
+        model: choice.model,
+        ...(choice.account ? { account: choice.account } : {}),
+      })
+      .then((r) => live && setReadiness(r))
+      .catch(() => live && setReadiness(null));
+    return () => {
+      live = false;
+    };
+  }, [
+    choice.auto,
+    choice.harness,
+    choice.model,
+    choice.account,
+    providers,
+    accounts,
+    signedIn,
+    order,
+    limits,
+    focus,
+  ]);
+  return readiness;
+}
+
+function ProviderSetup({ billing }: { billing: boolean }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
   return (
@@ -103,7 +210,7 @@ function ProviderSetup() {
       <div className="empty-title">Connect a model provider</div>
       <p className="empty-text">
         Kovan's agent runs on your machine and calls models through OpenRouter with your own key.
-        The key stays in the system keychain.
+        The key stays in {secretStore()}.
       </p>
       <form
         className="key-form"
@@ -130,6 +237,17 @@ function ProviderSetup() {
       <a className="link-btn" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
         Get a key at openrouter.ai
       </a>
+      <div className="empty-alternatives">
+        <span className="muted small">Or, instead of a key:</span>
+        <button className="link-btn" onClick={() => openFix('accounts')}>
+          Use your Claude Code or Codex account
+        </button>
+        {billing && (
+          <button className="link-btn" onClick={() => openFix('billing')}>
+            Pay for models through Kovan
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -308,6 +426,8 @@ function IssueCard({ request }: { request: ApprovalRequest }) {
 export interface ApprovalHandler {
   answer(approvalId: string, approved: boolean): void;
   note: string;
+  /** Set when this person can't answer: who can, said instead of the buttons. */
+  blocked?: string | undefined;
 }
 
 const ownApproval: ApprovalHandler = {
@@ -329,11 +449,21 @@ function ToolRow({
   const path = item.meta?.path;
   return (
     <div className={`tool-row tool-${item.status}`}>
-      <div className="tool-line" onClick={() => item.output && setOpen(!open)}>
+      <div
+        className="tool-line"
+        onClick={() => item.output && setOpen(!open)}
+        {...(item.output ? { ...pressable(() => setOpen(!open)), 'aria-expanded': open } : {})}
+      >
         <span className="tool-bullet">
           {item.status === 'running' ? <span className="dot-pulse" /> : '•'}
         </span>
-        <span className="tool-verb">{item.status === 'denied' ? 'Denied' : verb}</span>
+        <span className="tool-verb">
+          {item.status === 'denied'
+            ? 'Denied'
+            : item.status === 'waiting'
+              ? waitingVerb(verb ?? '')
+              : verb}
+        </span>
         {path ? (
           <button
             className="tool-target md-file"
@@ -367,62 +497,71 @@ function ToolRow({
               <CircleHelp size={15} />
               <span>{item.approval.title}</span>
             </div>
+            {item.approval.kind === 'command' &&
+              (() => {
+                const risk = riskOf(item.approval.title, item.approval.detail);
+                return risk ? <p className="approval-risk">Hard to undo: {risk}.</p> : null;
+              })()}
             <pre className="approval-detail">{item.approval.detail}</pre>
-            <div className="approval-actions">
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => approvals.answer(item.approval!.id, true)}
-              >
-                <Check size={13} /> {item.approval.trustKey ? 'Allow once' : 'Approve'}
-              </button>
-              {item.approval.trustKey && approvals === ownApproval && (
+            {approvals.blocked ? (
+              <p className="approval-note">{approvals.blocked}</p>
+            ) : (
+              <div className="approval-actions">
                 <button
-                  className="btn btn-sm"
-                  title="Starts without asking from now on, until the file changes (Settings → Agents → MCP servers)"
-                  onClick={() => {
-                    const { id, trustKey } = item.approval!;
-                    void api
-                      .invoke('mcp:trust', trustKey!, 'always')
-                      .then(() => approvals.answer(id, true), reportError);
-                  }}
+                  className="btn btn-primary btn-sm"
+                  onClick={() => approvals.answer(item.approval!.id, true)}
                 >
-                  Always allow
+                  <Check size={13} /> {item.approval.trustKey ? 'Allow once' : 'Approve'}
                 </button>
-              )}
-              {item.approval.kind === 'external' &&
-                !item.approval.trustKey &&
-                approvals === ownApproval && (
+                {item.approval.trustKey && approvals === ownApproval && (
                   <button
                     className="btn btn-sm"
-                    title="This tool runs without asking from now on (Settings → Agents)"
+                    title="Starts without asking from now on, until the file changes (Settings → Agents → MCP servers)"
                     onClick={() => {
-                      const { id, tool } = item.approval!;
-                      const allowed = getState().settings.mcpAlwaysAllow;
-                      void updateSettings({
-                        mcpAlwaysAllow: allowed.includes(tool) ? allowed : [...allowed, tool],
-                      }).then(() => approvals.answer(id, true));
+                      const { id, trustKey } = item.approval!;
+                      void api
+                        .invoke('mcp:trust', trustKey!, 'always')
+                        .then(() => approvals.answer(id, true), reportError);
                     }}
                   >
                     Always allow
                   </button>
                 )}
-              <button
-                className="btn btn-sm"
-                onClick={() => {
-                  const { id, trustKey } = item.approval!;
-                  // "Don't allow" is remembered until the file changes; a plain no from
-                  // someone else's device only skips it this turn.
-                  if (trustKey && approvals === ownApproval)
-                    void api
-                      .invoke('mcp:trust', trustKey, 'deny')
-                      .then(() => approvals.answer(id, false), reportError);
-                  else approvals.answer(id, false);
-                }}
-              >
-                <X size={13} /> {item.approval.trustKey ? "Don't allow" : 'Deny'}
-              </button>
-              {!item.approval.trustKey && <span className="approval-note">{approvals.note}</span>}
-            </div>
+                {item.approval.kind === 'external' &&
+                  !item.approval.trustKey &&
+                  approvals === ownApproval && (
+                    <button
+                      className="btn btn-sm"
+                      title="This tool runs without asking from now on (Settings → Agents)"
+                      onClick={() => {
+                        const { id, tool } = item.approval!;
+                        const allowed = getState().settings.mcpAlwaysAllow;
+                        void updateSettings({
+                          mcpAlwaysAllow: allowed.includes(tool) ? allowed : [...allowed, tool],
+                        }).then(() => approvals.answer(id, true));
+                      }}
+                    >
+                      Always allow
+                    </button>
+                  )}
+                <button
+                  className="btn btn-sm"
+                  onClick={() => {
+                    const { id, trustKey } = item.approval!;
+                    // "Don't allow" is remembered until the file changes; a plain no from
+                    // someone else's device only skips it this turn.
+                    if (trustKey && approvals === ownApproval)
+                      void api
+                        .invoke('mcp:trust', trustKey, 'deny')
+                        .then(() => approvals.answer(id, false), reportError);
+                    else approvals.answer(id, false);
+                  }}
+                >
+                  <X size={13} /> {item.approval.trustKey ? "Don't allow" : 'Deny'}
+                </button>
+                {!item.approval.trustKey && <span className="approval-note">{approvals.note}</span>}
+              </div>
+            )}
           </div>
         )}
       {item.steps?.length ? <ToolSteps steps={item.steps} approvals={approvals} /> : null}
@@ -464,6 +603,7 @@ function Reasoning({ text }: { text: string }) {
     <div
       className={`reasoning ${open || !long ? 'open' : ''}`}
       onClick={() => long && setOpen(!open)}
+      {...(long ? { ...pressable(() => setOpen(!open)), 'aria-expanded': open } : {})}
     >
       ✻ {open || !long ? text : `${text.slice(0, 280)}…`}
     </div>
@@ -476,12 +616,18 @@ export function Chat({
   avatarUrl,
   approvals,
   annotate,
+  onRetry,
+  assigned,
 }: {
   items: ChatItem[];
   userName: string;
   avatarUrl: string | null;
+  /** An AI teammate's lane: its prompts are tasks handed to it, not a person's words. */
+  assigned?: boolean;
   /** Leave out for your own conversation; a lane in a session passes how to answer there. */
   approvals?: ApprovalHandler;
+  /** Your own conversation: a turn that failed last can be sent again. */
+  onRetry?: ((text: string) => void) | undefined;
   /** In a session: comment on a row, and what to show under it (its thread). */
   annotate?: {
     comment: (index: number) => void;
@@ -512,11 +658,17 @@ export function Chat({
                   style={{ borderLeftColor: personColor(userName) }}
                 >
                   <div className="prompt-head">
-                    <Avatar name={userName} src={avatarUrl} size={18} />
+                    {assigned ? (
+                      <ListChecks size={14} className="muted" />
+                    ) : (
+                      <Avatar name={userName} src={avatarUrl} size={18} />
+                    )}
                     <span className="prompt-author" style={{ color: personColor(userName) }}>
-                      {userName}
+                      {assigned ? 'Task' : userName}
                     </span>
-                    <span className="muted small">prompt</span>
+                    <span className="muted small">
+                      {assigned ? 'given to this teammate' : 'prompt'}
+                    </span>
                     <span className="prompt-time mono">{time(item.at)}</span>
                   </div>
                   <div className="prompt-text">{item.text}</div>
@@ -578,8 +730,31 @@ export function Chat({
                   <Zap size={11} /> JevRouter → {item.model} · {item.tier} · {item.reason}
                 </div>
               );
-            case 'end':
-              return <TurnEnd key={i} item={item} />;
+            case 'end': {
+              // The last turn failed: its prompt can go again, as it was.
+              const last =
+                i === items.length - 1 || !items.slice(i + 1).some((x) => x.kind !== 'note');
+              const prompt =
+                onRetry && last && item.reason === 'error'
+                  ? items.slice(0, i).findLast((x) => x.kind === 'prompt')
+                  : undefined;
+              // Out of steps is not failure: one click lets the agent carry on from where it is.
+              const carryOn = onRetry && last && item.reason === 'step_limit';
+              return (
+                <TurnEnd
+                  key={i}
+                  item={item}
+                  retry={
+                    carryOn
+                      ? () => onRetry!('Continue where you left off.')
+                      : prompt?.kind === 'prompt' && prompt.text.trim()
+                        ? () => onRetry!(prompt.text)
+                        : undefined
+                  }
+                  retryLabel={carryOn ? 'Continue' : 'Try again'}
+                />
+              );
+            }
             case 'note':
               return (
                 <div key={i} className={`chat-note ${item.tone}`}>
@@ -607,23 +782,67 @@ export function Chat({
   );
 }
 
-function TurnEnd({ item }: { item: Extract<ChatItem, { kind: 'end' }> }) {
+/**
+ * "Working…", and once nothing has come back for a while, for how long: a model that hangs
+ * shows as one, with the way out.
+ */
+function Working({ events }: { events: number }) {
+  const [since, setSince] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => setSince(Date.now()), [events]);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, []);
+  const quiet = Math.floor((now - since) / 1000);
+  return (
+    <div className="thinking">
+      <span className="dot-pulse" /> Working…
+      {quiet >= 30 && (
+        <span className="muted small">
+          {' '}
+          nothing new for {quiet >= 120 ? `${Math.floor(quiet / 60)} min` : `${quiet}s`} · Esc stops
+          it
+        </span>
+      )}
+    </div>
+  );
+}
+
+function TurnEnd({
+  item,
+  retry,
+  retryLabel = 'Try again',
+}: {
+  item: Extract<ChatItem, { kind: 'end' }>;
+  retry?: (() => void) | undefined;
+  retryLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const estimated = item.receipt.some((r) => r.estimated);
   const unpriced = item.receipt.length > 0 && item.receipt.every((r) => r.unpriced);
+  // Claude Code and Codex run on the person's own plan: the figure is what the same work would
+  // cost at API prices, not something charged to them.
+  const onPlan = /subscription|plan/i.test(item.payer ?? '');
   const price = (cost: number, isUnpriced?: boolean) =>
     isUnpriced ? 'on your own account' : formatCost(cost);
   const tokens = (n: number) => (n >= 10_000 ? `${(n / 1000).toFixed(0)}K` : n.toLocaleString());
   return (
     <div className={`turn-end ${item.reason === 'error' ? 'turn-error' : ''}`}>
       {item.reason === 'error' && <div className="turn-error-text">{item.error}</div>}
+      {retry && (
+        <button className="btn btn-sm turn-retry" onClick={retry}>
+          {retryLabel}
+        </button>
+      )}
       <button
         className="receipt-toggle mono"
         onClick={() => setOpen(!open)}
         title="Show the receipt"
       >
-        {item.model ?? ''} · {estimated ? '≈ ' : ''}
+        {item.model ?? ''} · {estimated || onPlan ? '≈ ' : ''}
         {price(item.cost, unpriced)}
+        {onPlan && !unpriced ? ' at API prices' : ''}
         {item.reason === 'stopped'
           ? ' · stopped'
           : item.reason === 'step_limit'
@@ -688,11 +907,54 @@ function versionNumber(version: string): string {
   return /\d+\.\d+(?:\.\d+)?/.exec(version)?.[0] ?? version;
 }
 
-/** A composer menu that stays on screen however narrow its lane is. */
+/**
+ * A composer menu that stays on screen however narrow its lane is. From the keyboard it is a
+ * real menu: focus moves into it, arrows go between the choices (the checked one is said as
+ * such), Esc or Tab closes it and focus goes back to its button.
+ */
 function FloatingMenu({ onLeave, children }: { onLeave: () => void; children: ReactNode }) {
   const ref = useFloating<HTMLDivElement>();
+  const items = () => [...(ref.current?.querySelectorAll<HTMLElement>('.menu-item') ?? [])];
+  useLayoutEffect(() => {
+    for (const item of items()) {
+      item.setAttribute('role', 'menuitemradio');
+      item.setAttribute('aria-checked', String(item.classList.contains('on')));
+    }
+  });
+  useEffect(() => {
+    const first = items().find((i) => i.classList.contains('on')) ?? items()[0];
+    first?.focus();
+  }, []);
+  const back = () => {
+    const button = ref.current?.parentElement?.querySelector<HTMLElement>('[aria-haspopup]');
+    onLeave();
+    button?.focus();
+  };
   return (
-    <div className="menu" ref={ref} onMouseLeave={onLeave}>
+    <div
+      className="menu"
+      role="menu"
+      ref={ref}
+      onMouseLeave={onLeave}
+      onKeyDown={(e) => {
+        const list = items();
+        const at = list.indexOf(document.activeElement as HTMLElement);
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const by = e.key === 'ArrowDown' ? 1 : -1;
+          list[(at + by + list.length) % list.length]?.focus();
+        } else if (e.key === 'Home' || e.key === 'End') {
+          e.preventDefault();
+          (e.key === 'Home' ? list[0] : list.at(-1))?.focus();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          back();
+        } else if (e.key === 'Tab') {
+          onLeave();
+        }
+      }}
+    >
       {children}
     </div>
   );
@@ -834,7 +1096,8 @@ export function Composer() {
   const fileInput = useRef<HTMLInputElement>(null);
   // In a session, "@Name" calls an AI teammate in instead of prompting your agent.
   const teammates = useTeammates(conversation?.session?.workspaceId);
-  const mentionMenu = useMentionMenu(text, setText, teammates, input);
+  const mentionTargets = useAiTargets(conversation?.session?.workspaceId);
+  const mentionMenu = useMentionMenu(text, setText, mentionTargets, input);
 
   const modelId = conversation?.model ?? settings.agentModel;
   const mode = conversation?.mode ?? settings.agentMode;
@@ -842,6 +1105,14 @@ export function Composer() {
   const info = useMemo(() => models.find((m) => m.id === modelId), [models, modelId]);
   const running = conversation?.running ?? false;
   const harness = conversation?.harness ?? (conversation ? 'kovan' : settings.agentHarness);
+  const readiness = useReadiness({
+    auto: conversation ? conversation.auto === true : settings.agentAuto,
+    harness,
+    model: modelId,
+    account,
+  });
+  // Said before sending: a first message never fails for a missing account or key.
+  const blocked = !running && readiness?.ready === false ? readiness : null;
   // No account named runs as the first one added for that agent, the same rule the app runs it by.
   const accountName =
     harness === 'kovan'
@@ -893,6 +1164,7 @@ export function Composer() {
 
   const submit = async (force = false) => {
     if (!text.trim() && attachments.length === 0) return;
+    if (blocked) return;
     const called = conversation?.session ? mentionedTeammate(text, teammates) : null;
     if (conversation && called) {
       try {
@@ -918,7 +1190,7 @@ export function Composer() {
       if (!running || !conversation) {
         notify({
           kind: 'info',
-          message: 'Steer guides a running turn. Your agent is idle: send it as a prompt.',
+          message: 'Guide changes a running turn. Your agent is idle: send it as a prompt.',
         });
         return;
       }
@@ -989,6 +1261,16 @@ export function Composer() {
   return (
     <div className="composer" style={{ ['--owner' as string]: personColor(userName) }}>
       <span className="composer-owner">{userName}</span>
+      {blocked && (
+        <div className="composer-blocked" role="status">
+          <span>{blocked.why}</span>
+          {READY_FIX[blocked.fix] && (
+            <button className="btn btn-sm btn-primary" onClick={() => openFix(blocked.fix)}>
+              {READY_FIX[blocked.fix]!.label}
+            </button>
+          )}
+        </div>
+      )}
       {overlap && overlap.text === text && (
         <OverlapCard
           warnings={overlap.warnings}
@@ -1140,6 +1422,9 @@ export function Composer() {
           <button
             className="pill"
             onClick={() => setHarnessMenu(!harnessMenu)}
+            aria-haspopup="menu"
+            aria-expanded={harnessMenu}
+            aria-label={`Who runs the agent: ${autoPending ? 'Auto' : HARNESS_NAMES[harness]}`}
             title={
               autoOn && !autoPending
                 ? `Who runs the agent (Auto picked ${HARNESS_NAMES[harness]})`
@@ -1164,7 +1449,7 @@ export function Composer() {
                 <span>
                   <span className="menu-title">Auto</span>
                   <span className="menu-hint">
-                    JevRouter reads the prompt and picks the agent · [jev: codex] names one
+                    Kovan picks the best agent for each message from the ones you've set up
                   </span>
                 </span>
                 {autoOn && <Check size={13} />}
@@ -1225,7 +1510,7 @@ export function Composer() {
                         </span>
                         <span className="menu-hint">
                           {cli?.supported
-                            ? 'Add an account in Settings → Agents → Accounts'
+                            ? "Set it up in Settings → Agents (this computer's sign-in works)"
                             : (cli?.reason ?? 'Checking…')}
                         </span>
                       </span>
@@ -1269,7 +1554,10 @@ export function Composer() {
           <button
             className="pill"
             onClick={() => setIntentMenu(!intentMenu)}
-            title="What Enter does: send now, queue next, steer the running turn, or start a subagent"
+            aria-haspopup="menu"
+            aria-expanded={intentMenu}
+            aria-label={`What Enter does: ${intent === 'prompt' ? 'send' : intent}`}
+            title="What Enter does: send now, queue next, guide the running turn, or start a subagent"
           >
             <CornerDownLeft size={12} />
             {intent === 'prompt'
@@ -1277,7 +1565,7 @@ export function Composer() {
               : intent === 'queue'
                 ? ' Queue'
                 : intent === 'steer'
-                  ? ' Steer'
+                  ? ' Guide'
                   : ' Subagent'}{' '}
             <ChevronDown size={12} />
           </button>
@@ -1287,7 +1575,7 @@ export function Composer() {
                 [
                   ['prompt', 'Prompt now', 'Runs right away (when your agent is idle)'],
                   ['queue', 'Queue next', 'Runs after the current turn finishes'],
-                  ['steer', 'Steer', 'Guides the running turn before its next step'],
+                  ['steer', 'Guide', 'Changes the running turn before its next step'],
                   [
                     'subagent',
                     'Subagent',
@@ -1317,6 +1605,9 @@ export function Composer() {
           <button
             className="pill"
             onClick={() => setModeMenu(!modeMenu)}
+            aria-haspopup="menu"
+            aria-expanded={modeMenu}
+            aria-label={`What it may do without asking: ${MODES.find((m) => m.id === mode)?.label ?? ''}`}
             title={`What it may do without asking: ${MODES.find((m) => m.id === mode)?.hint ?? ''}`}
           >
             <ShieldCheck size={12} /> {MODES.find((m) => m.id === mode)?.label}{' '}
@@ -1422,8 +1713,8 @@ export function Composer() {
         ) : (
           <button
             className="send-btn"
-            title="Send (Enter)"
-            disabled={!text.trim() && attachments.length === 0}
+            title={blocked ? blocked.why : 'Send (Enter)'}
+            disabled={blocked !== null || (!text.trim() && attachments.length === 0)}
             onClick={() => void submit()}
           >
             <ArrowUp size={14} />
@@ -1436,6 +1727,7 @@ export function Composer() {
 
 export function AgentPanel() {
   const providers = useStore((s) => s.providers);
+  const isRepo = useStore((s) => s.workspace?.isRepo ?? true);
   const conversation = useStore((s) => s.conversation);
   const conversations = useStore((s) => s.conversations);
   const userName = useStore((s) => s.user?.name ?? s.appInfo?.userName ?? 'you');
@@ -1458,6 +1750,14 @@ export function AgentPanel() {
   const settings = useStore((s) => s.settings);
   // Claude Code, Codex and custom providers run on the person's own account; no OpenRouter key needed.
   const harness = conversation?.harness ?? (conversation ? 'kovan' : settings.agentHarness);
+  // Kovan billing is offered here only when this server has it (the ready check knows).
+  const readiness = useReadiness({
+    auto: conversation ? conversation.auto === true : settings.agentAuto,
+    harness,
+    model: conversation?.model ?? settings.agentModel,
+    account: conversation?.account,
+  });
+  const offerBilling = readiness?.ready === false && readiness.fix === 'billing';
   const configured =
     (providers?.openrouter.configured ?? false) ||
     (providers?.customModels ?? 0) > 0 ||
@@ -1526,7 +1826,7 @@ export function AgentPanel() {
       </div>
       {/* With no model to send to, an empty chat asks for one; a chat that has turns (one from the terminal, say) still shows them. */}
       {!configured && items.length === 0 ? (
-        <ProviderSetup />
+        <ProviderSetup billing={offerBilling} />
       ) : (
         <>
           <div
@@ -1541,11 +1841,36 @@ export function AgentPanel() {
               <div className="agent-empty">
                 <div className="empty-title">What should we work on?</div>
                 <p className="empty-text">
-                  Your agent reads this repository, edits files and runs commands. It asks first
-                  whenever the shield below says so.
+                  Your agent reads this {isRepo ? 'repository' : 'folder'}, edits files and runs
+                  commands. It asks first whenever the shield below says so.
                 </p>
+                {!isRepo && (
+                  <div className="empty-warning">
+                    <p>
+                      This folder isn&apos;t a Git repository, so Kovan can&apos;t show or undo what
+                      the agent changes here.
+                    </p>
+                    <button
+                      className="btn btn-sm"
+                      onClick={() =>
+                        void api
+                          .invoke('repo:init')
+                          .then(() => {
+                            const root = getState().workspace?.root;
+                            if (root) void openWorkspace(root);
+                            toast(
+                              'This folder is a Git repository now: changes show in Source Control.',
+                            );
+                          })
+                          .catch(reportError)
+                      }
+                    >
+                      Make it a Git repository
+                    </button>
+                  </div>
+                )}
                 <div className="agent-starters">
-                  {STARTERS.map((s) => (
+                  {(isRepo ? STARTERS : FOLDER_STARTERS).map((s) => (
                     <button
                       key={s}
                       className="agent-starter"
@@ -1561,15 +1886,21 @@ export function AgentPanel() {
                 <p className="empty-keys">Enter sends · Shift+Enter adds a line · Esc stops</p>
               </div>
             ) : (
-              <Chat items={items} userName={userName} avatarUrl={avatarUrl} />
+              <>
+                <ChatAnnouncer items={items} running={conversation?.running ?? false} />
+                <Chat
+                  items={items}
+                  userName={userName}
+                  avatarUrl={avatarUrl}
+                  onRetry={conversation?.running ? undefined : (text) => void sendPrompt(text, [])}
+                />
+              </>
             )}
             {conversation?.running && items.at(-1)?.kind !== 'tool' && (
-              <div className="thinking">
-                <span className="dot-pulse" /> Working…
-              </div>
+              <Working events={conversation.events.length} />
             )}
           </div>
-          {configured ? <Composer /> : <ProviderSetup />}
+          {configured ? <Composer /> : <ProviderSetup billing={offerBilling} />}
         </>
       )}
     </aside>

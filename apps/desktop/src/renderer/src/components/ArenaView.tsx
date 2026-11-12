@@ -110,8 +110,8 @@ export function ArenaView() {
         Runs the same task for each configuration of Kovan's agent, one after another, each in its
         own throwaway copy of {root ? <b>{root.split('/').pop()}</b> : 'the open repository'} at its
         current commit (your checkout and uncommitted changes are left out). Each run is checked
-        with the project's own checks and measured. Model calls are paid by your provider key, up to
-        the budget per run.
+        with the project's own checks and measured. Model calls are paid the way your agent's are
+        (your model key, or Kovan billing), up to the budget per run.
       </p>
       <textarea
         className="input"

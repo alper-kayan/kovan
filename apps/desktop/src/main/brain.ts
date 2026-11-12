@@ -25,6 +25,35 @@ function clipEvent<T>(value: T): T {
   return value;
 }
 
+/** What of the billing state says whether Kovan billing can pay for this person's models. */
+interface BillingReadiness {
+  available: boolean;
+  ready: boolean;
+  reason: string | null;
+  teams?: { ready: boolean; reason: string | null }[];
+}
+
+/**
+ * Ready when the person pays for themselves, or a team of theirs pays in its workspaces (the
+ * server still decides per call, by the workspace the run is in).
+ */
+function managedOf(b: BillingReadiness): ManagedStatus {
+  const team = (b.teams ?? []).find((t) => t.ready);
+  const ready = b.available && (b.ready || Boolean(team));
+  return {
+    available: b.available,
+    ready,
+    reason: ready ? null : (b.teams?.[0]?.reason ?? b.reason),
+  };
+}
+
+/** Managed usage for this person: offered by the server, ready to bill, and if not, why. */
+export interface ManagedStatus {
+  available: boolean;
+  ready: boolean;
+  reason: string | null;
+}
+
 export class BrainError extends Error {
   constructor(
     message: string,
@@ -38,6 +67,8 @@ export class BrainError extends Error {
 
 export interface BrainEvents {
   user(user: User | null): void;
+  /** While a sign-in waits: the code an emailed link's page asks for (null when it ends). */
+  loginCode?(code: string | null): void;
   connection(state: ConnectionState): void;
   message(message: ServerMessage): void;
 }
@@ -78,6 +109,12 @@ export class BrainClient {
     private readonly appVersion: string,
   ) {}
 
+  /** The app's language: the server answers (errors, texts) in it. */
+  private locale = 'en';
+  setLocale(locale: string): void {
+    this.locale = locale;
+  }
+
   /**
    * Kovan's managed model endpoint and the token that bills this person, when signed in. Only
    * this app's own model client uses it; it is never handed to agents or tools.
@@ -85,6 +122,30 @@ export class BrainClient {
   managedEndpoint(): { baseUrl: string; token: string } | null {
     if (!this.token) return null;
     return { baseUrl: `${this.serverUrl.replace(/\/$/, '')}/api/inference/v1`, token: this.token };
+  }
+
+  /** Whether managed usage can bill this person now (the server offers it and it is set up). */
+  private managed: { at: number; status: ManagedStatus } | null = null;
+
+  async managedStatus(): Promise<ManagedStatus> {
+    if (!this.token) return { available: false, ready: false, reason: null };
+    const now = Date.now();
+    if (this.managed && now - this.managed.at < 15_000) return this.managed.status;
+    try {
+      const { billing } = await this.request<{ billing: BillingReadiness }>('GET', '/api/billing');
+      this.managed = { at: now, status: managedOf(billing) };
+    } catch {
+      // Unknown (offline, say): keep the last answer and ask again soon.
+      this.managed = {
+        at: now - 10_000,
+        status: this.managed?.status ?? { available: false, ready: false, reason: null },
+      };
+    }
+    return this.managed.status;
+  }
+
+  async managedReady(): Promise<boolean> {
+    return (await this.managedStatus()).ready;
   }
 
   private get tokenFile() {
@@ -128,6 +189,7 @@ export class BrainClient {
 
   private async saveToken(token: string | null): Promise<void> {
     this.token = token;
+    this.managed = null;
     if (!token) {
       await rm(this.tokenFile, { force: true });
       return;
@@ -163,6 +225,7 @@ export class BrainClient {
         method,
         headers: {
           Authorization: `Bearer ${this.token}`,
+          'x-kovan-locale': this.locale,
           ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
           // The run of a swarm this request belongs to; refused once it is stale.
           ...(options.fence ? { 'x-kovan-fence': options.fence } : {}),
@@ -177,6 +240,8 @@ export class BrainClient {
         'offline',
       );
     }
+    // A change to billing (allowance, card, consent) changes whether managed usage is ready.
+    if (method !== 'GET' && path.startsWith('/api/billing')) this.managed = null;
     if (response.status === 204) return undefined as T;
     const data = (await response.json().catch(() => ({}))) as {
       error?: { code: string; message: string };
@@ -188,6 +253,11 @@ export class BrainClient {
         response.status,
         data.error?.code ?? 'error',
       );
+    }
+    // Anyone reading the billing state (Settings, say) refreshes what the agent knows of it.
+    if (method === 'GET' && path === '/api/billing') {
+      const billing = (data as { billing?: BillingReadiness }).billing;
+      if (billing) this.managed = { at: Date.now(), status: managedOf(billing) };
     }
     return data as T;
   }
@@ -229,11 +299,28 @@ export class BrainClient {
         start.status,
         'start_failed',
       );
-    const { loginId, url, expiresInSeconds } = (await start.json()) as {
+    const { loginId, url, expiresInSeconds, code } = (await start.json()) as {
       loginId: string;
       url: string;
       expiresInSeconds: number;
+      code?: string;
     };
+    this.events.loginCode?.(code ?? null);
+    try {
+      return await this.waitForLogin(intent, loginId, secret, url, expiresInSeconds, abort);
+    } finally {
+      this.events.loginCode?.(null);
+    }
+  }
+
+  private async waitForLogin(
+    intent: 'login' | 'link',
+    loginId: string,
+    secret: string,
+    url: string,
+    expiresInSeconds: number,
+    abort: AbortController,
+  ): Promise<User> {
     // Dev end-to-end checks finish the browser part themselves instead of opening a browser.
     if (process.env['KOVAN_E2E_NO_BROWSER'] && !process.env['NODE_ENV']?.startsWith('prod'))
       console.log(`[e2e] sign-in url ${url}`);
@@ -251,7 +338,15 @@ export class BrainClient {
           body: JSON.stringify({ loginId, secret }),
           signal: AbortSignal.timeout(10_000),
         });
-        if (!res.ok) throw new BrainError('Sign-in expired. Try again.', res.status, 'expired');
+        if (res.status === 410)
+          throw new BrainError(
+            'This sign-in was already finished elsewhere. Sign in again.',
+            410,
+            'expired',
+          );
+        if (res.status >= 500) continue; // the server's trouble, not the sign-in's: ask again
+        if (!res.ok)
+          throw new BrainError("The sign-in wasn't found. Sign in again.", res.status, 'expired');
         result = (await res.json()) as typeof result;
       } catch (error) {
         if (error instanceof BrainError) throw error;

@@ -12,6 +12,7 @@ import {
 import { useEffect, useMemo, useState } from 'react';
 import { addMemory, loadMemories, loadRetired, updateMemory } from '../services/collab';
 import { loadLearnings, updateLearning } from '../services/swarm';
+import { addWorkspace, signIn } from '../services/team';
 import { openFile } from '../services/editor';
 import { activeTeamWorkspace, setState, useStore } from '../store';
 import { PageHeader } from './PageHeader';
@@ -417,21 +418,24 @@ export function BrainPage() {
   return (
     <section className="page">
       <PageHeader title="Brain">
-        <Segmented
-          value={tab}
-          options={[
-            { value: 'live', label: `Notes (${notes.length})` },
-            { value: 'flagged', label: `Flagged (${flagged})` },
-            { value: 'disputed', label: `Disputed (${disputed})` },
-            { value: 'decisions', label: 'Decisions' },
-            { value: 'retired', label: 'Retired' },
-            {
-              value: 'learning',
-              label: `Learning (${learnings.length})${learnings.some((l) => l.status === 'suggested') ? ' •' : ''}`,
-            },
-          ]}
-          onChange={setTab}
-        />
+        {/* Six tabs over nothing read as broken: they come once there's something to sort. */}
+        {ws && (notes.length > 0 || learnings.length > 0 || tab !== 'live') && (
+          <Segmented
+            value={tab}
+            options={[
+              { value: 'live', label: `Notes (${notes.length})` },
+              { value: 'flagged', label: `Flagged (${flagged})` },
+              { value: 'disputed', label: `Disputed (${disputed})` },
+              { value: 'decisions', label: 'Decisions' },
+              { value: 'retired', label: 'Retired' },
+              {
+                value: 'learning',
+                label: `Learning (${learnings.length})${learnings.some((l) => l.status === 'suggested') ? ' •' : ''}`,
+              },
+            ]}
+            onChange={setTab}
+          />
+        )}
         {ws && (
           <button className="filter" onClick={cycle} title="Workspace">
             {ws.name}
@@ -451,11 +455,23 @@ export function BrainPage() {
         )}
       </PageHeader>
       {!signedIn || !ws ? (
-        <EmptyState icon={<Brain size={40} strokeWidth={1.2} />} title="The Brain is shared">
+        <EmptyState icon={<Brain size={40} strokeWidth={1.2} />} title="Your team's memory">
           <p className="empty-text">
-            Sign in and add a shared workspace. Notes pinned to code are read by every agent working
-            in it.
+            The Brain keeps what your team decided and learned (conventions, gotchas, why the code
+            is the way it is), and every AI agent working in the workspace reads it.{' '}
+            {signedIn
+              ? 'Add a workspace to start one.'
+              : 'It is shared with your team, so it needs an account.'}
           </p>
+          {signedIn ? (
+            <button className="btn btn-primary btn-sm" onClick={() => void addWorkspace()}>
+              Add a workspace
+            </button>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={() => void signIn('login')}>
+              Sign in
+            </button>
+          )}
         </EmptyState>
       ) : tab === 'learning' ? (
         <div className="notes">

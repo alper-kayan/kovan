@@ -1,4 +1,10 @@
-import type { PlanStep, Session, Swarm, SwarmMessage } from '@kovan/shared';
+import {
+  swarmResult,
+  type PlanStep,
+  type Session,
+  type Swarm,
+  type SwarmMessage,
+} from '@kovan/shared';
 import {
   ArrowLeft,
   ArrowUp,
@@ -263,7 +269,7 @@ export function SwarmRoom({ session, swarm }: { session: Session; swarm: Swarm }
               ref={input}
               className="input"
               rows={2}
-              placeholder={target ? `Message ${target.name}` : 'Steer all agents'}
+              placeholder={target ? `Message ${target.name}` : 'Message all agents'}
               value={text}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -285,7 +291,8 @@ export function SwarmRoom({ session, swarm }: { session: Session; swarm: Swarm }
         </div>
       ) : (
         <div className="swarm-room-closed muted small">
-          This swarm is {swarm.status}; its chat is kept for reading.
+          {swarmResult(swarm)?.text ?? `This swarm is ${swarm.status}`}. Its chat is kept for
+          reading.
         </div>
       )}
     </div>

@@ -63,6 +63,12 @@ export function ModelPicker({ current, onClose }: { current: string; onClose: ()
         <input
           autoFocus
           className="input"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="model-list"
+          aria-autocomplete="list"
+          aria-label="Search models"
+          aria-activedescendant={shown[selected] ? `model-${selected}` : undefined}
           placeholder={`Search ${models.length} models…`}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -99,9 +105,11 @@ export function ModelPicker({ current, onClose }: { current: string; onClose: ()
         <span>Context</span>
         <span>In / Out per 1M</span>
       </div>
-      <div className="model-list" ref={list}>
+      <div className="model-list" ref={list} id="model-list" role="listbox" aria-label="Models">
         {!query.trim() && (
           <button
+            role="option"
+            aria-selected={false}
             className={`model-row model-auto ${current === JEV_MODEL_ID ? 'current' : ''}`}
             onClick={() => {
               chooseJevRouter();
@@ -120,6 +128,9 @@ export function ModelPicker({ current, onClose }: { current: string; onClose: ()
         {shown.map((m, i) => (
           <button
             key={m.id}
+            id={`model-${i}`}
+            role="option"
+            aria-selected={i === selected}
             className={`model-row ${i === selected ? 'selected' : ''} ${m.id === current ? 'current' : ''}`}
             onMouseEnter={() => setSelected(i)}
             onClick={() => choose(m)}

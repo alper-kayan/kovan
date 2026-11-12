@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { t } from '../i18n';
 import { api } from '../services/api';
 import { dismissNoticeForever } from '../services/settings';
 import { activeTeamWorkspace, setState, showView, useStore } from '../store';
@@ -63,8 +64,9 @@ export function Banner() {
     return (
       <div className="banner" role="status">
         <span className="banner-text">
-          Kovan automatically shares error reports linked to your account to help fix failures.
-          Prompts and code are excluded.
+          {t(
+            'Kovan automatically shares error reports linked to your account to help fix failures. Prompts and code are excluded.',
+          )}
         </span>
         <button
           className="btn btn-sm"
@@ -85,8 +87,8 @@ export function Banner() {
     return (
       <div className="banner" role="status">
         <span className="banner-text">
-          You're working locally. Sign in to share workspaces with your team; your code never leaves
-          this machine.
+          You're working locally. Sign in to share workspaces with your team. Your repository stays
+          in your checkout either way.
         </span>
         <button className="btn btn-sm" onClick={() => dismissNoticeForever(LOCAL_NOTICE)}>
           Dismiss

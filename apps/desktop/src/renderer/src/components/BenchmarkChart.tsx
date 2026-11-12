@@ -24,6 +24,8 @@ export function BenchmarkChart() {
       </p>
     );
   }
+  // Everyone solved everything: a chart of dots on one line says nothing, the costs do.
+  const sameScore = points.every((p) => p.score === points[0]!.score);
   const maxCost = Math.max(...points.map((p) => p.costPerTask)) * 1.15 || 1;
   const minScore = Math.max(
     0,
@@ -37,47 +39,57 @@ export function BenchmarkChart() {
 
   return (
     <div className="bench">
-      <div className="bench-caption mono">
-        Fig. 01 <span>›</span> Score vs cost per task
-      </div>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="bench-svg"
-        role="img"
-        aria-label="Score versus cost per task"
-      >
-        {scoreTicks.map((s) => (
-          <g key={s}>
-            <line x1={PAD.left} x2={W - PAD.right} y1={y(s)} y2={y(s)} className="bench-grid" />
-            <text x={PAD.left - 8} y={y(s) + 3} className="bench-axis" textAnchor="end">
-              {Math.round(s)}
-            </text>
-          </g>
-        ))}
-        {ticks.map((c) => (
-          <text key={c} x={x(c)} y={H - PAD.bottom + 16} className="bench-axis" textAnchor="middle">
-            ${c < 0.01 ? c.toFixed(4) : c.toFixed(3)}
-          </text>
-        ))}
-        <text x={(W + PAD.left) / 2} y={H - 4} className="bench-axis" textAnchor="middle">
-          Cost per task
-        </text>
-        {points.map((p) => {
-          const jev = p.config === 'kovan/jevrouter';
-          return (
-            <g key={p.config} className={jev ? 'bench-jev' : 'bench-point'}>
-              <circle cx={x(p.costPerTask)} cy={y(p.score)} r={jev ? 6 : 4.5} />
-              <text
-                x={x(p.costPerTask) + (x(p.costPerTask) > W - 140 ? -10 : 10)}
-                y={y(p.score) - 8}
-                textAnchor={x(p.costPerTask) > W - 140 ? 'end' : 'start'}
-              >
-                {p.name}
+      {!sameScore && (
+        <div className="bench-caption mono">
+          Fig. 01 <span>›</span> Score vs cost per task
+        </div>
+      )}
+      {!sameScore && (
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="bench-svg"
+          role="img"
+          aria-label="Score versus cost per task"
+        >
+          {scoreTicks.map((s) => (
+            <g key={s}>
+              <line x1={PAD.left} x2={W - PAD.right} y1={y(s)} y2={y(s)} className="bench-grid" />
+              <text x={PAD.left - 8} y={y(s) + 3} className="bench-axis" textAnchor="end">
+                {Math.round(s)}
               </text>
             </g>
-          );
-        })}
-      </svg>
+          ))}
+          {ticks.map((c) => (
+            <text
+              key={c}
+              x={x(c)}
+              y={H - PAD.bottom + 16}
+              className="bench-axis"
+              textAnchor="middle"
+            >
+              ${c < 0.01 ? c.toFixed(4) : c.toFixed(3)}
+            </text>
+          ))}
+          <text x={(W + PAD.left) / 2} y={H - 4} className="bench-axis" textAnchor="middle">
+            Cost per task
+          </text>
+          {points.map((p) => {
+            const jev = p.config === 'kovan/jevrouter';
+            return (
+              <g key={p.config} className={jev ? 'bench-jev' : 'bench-point'}>
+                <circle cx={x(p.costPerTask)} cy={y(p.score)} r={jev ? 6 : 4.5} />
+                <text
+                  x={x(p.costPerTask) + (x(p.costPerTask) > W - 140 ? -10 : 10)}
+                  y={y(p.score) - 8}
+                  textAnchor={x(p.costPerTask) > W - 140 ? 'end' : 'start'}
+                >
+                  {p.name}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      )}
       <table className="models-table bench-table">
         <thead className="mono">
           <tr>
@@ -106,6 +118,13 @@ export function BenchmarkChart() {
         Kovan's own eval: {benchmark.taskCount} self-checking coding tasks (easy to hard), run{' '}
         {benchmark.date ? new Date(benchmark.date).toLocaleDateString() : ''}. Score: tasks solved.
         Cost: one full task, as billed by OpenRouter. Results vary by workload.
+      </p>
+      <p className="setting-desc">
+        JevRouter gives each step to the cheapest model likely to get it right and moves to a
+        stronger one when a step is hard.
+        {sameScore
+          ? ' On this small set every model solved every task, so a fixed cheap model cost least; JevRouter pays off on mixed work, where a cheap model alone gets stuck. If your tasks are simple, pick a cheap model in Agents.'
+          : ''}
       </p>
     </div>
   );

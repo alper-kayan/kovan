@@ -2,6 +2,10 @@ import { z } from 'zod';
 
 export const SettingsSchema = z.object({
   theme: z.enum(['system', 'dark', 'light']).default('dark'),
+  /** The app's language: the system's (when Kovan has it), or one chosen. */
+  language: z.enum(['system', 'en', 'tr']).default('system'),
+  /** How large the whole app is drawn (1 = 100%), kept across restarts. */
+  uiScale: z.number().min(0.8).max(2).default(1),
   editorFontFamily: z.string().default("'Lilex Variable', 'SF Mono', Menlo, Consolas, monospace"),
   editorFontSize: z.number().int().min(8).max(40).default(13),
   editorTabSize: z.number().int().min(1).max(8).default(2),
@@ -49,6 +53,8 @@ export const SettingsSchema = z.object({
     ]),
   /** Ask before a switch moves the conversation from a subscription to pay-per-use models. */
   agentFailoverAskPaid: z.boolean().default(true),
+  /** When an agent runs out, ask which ready agent the conversation goes on with (else the next one just does). */
+  agentFailoverChoose: z.boolean().default(true),
   /** Repositories ("owner/name") where agents create GitHub issues without asking first. */
   issueNoAsk: z.array(z.string().max(200)).max(200).default([]),
   /**

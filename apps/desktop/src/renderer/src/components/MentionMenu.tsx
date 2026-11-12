@@ -1,9 +1,19 @@
 import type { AiAgent } from '@kovan/shared';
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useState, type KeyboardEvent } from 'react';
 import { insertMention, mentionMatches, mentionQuery } from '../../../shared/mentions';
 import { loadAiAgents } from '../services/swarm';
+import { reloadMembers } from '../services/team';
 import { useStore } from '../store';
 import { Avatar } from './ui';
+
+/** Someone "@" can name: an AI teammate (called in to answer) or a person (told about it). */
+export interface MentionTarget {
+  id: string;
+  name: string;
+  kind: 'ai' | 'person';
+  hint: string;
+  avatarUrl?: string | null;
+}
 
 /** The AI teammates of a workspace that can be called in with @ (loaded once when needed). */
 export function useTeammates(workspaceId: string | null | undefined): AiAgent[] {
@@ -11,17 +21,59 @@ export function useTeammates(workspaceId: string | null | undefined): AiAgent[] 
   useEffect(() => {
     if (workspaceId && !agents) void loadAiAgents(workspaceId);
   }, [workspaceId, agents]);
-  return (agents ?? []).filter((a) => !a.archived);
+  return useMemo(() => (agents ?? []).filter((a) => !a.archived), [agents]);
+}
+
+const aiTargets = (agents: AiAgent[]): MentionTarget[] =>
+  agents.map((a) => ({
+    id: a.id,
+    name: a.name,
+    kind: 'ai',
+    hint: a.instructions?.split('\n')[0]?.slice(0, 90) || 'AI teammate',
+  }));
+
+/** What "@" lists in a chat with your agent: the AI teammates it can call in. */
+export function useAiTargets(workspaceId: string | null | undefined): MentionTarget[] {
+  const agents = useTeammates(workspaceId);
+  return useMemo(() => aiTargets(agents), [agents]);
 }
 
 /**
- * Typing "@" in a text box: the teammates whose name matches, picked with the arrows and
+ * What "@" lists in a comment: the AI teammates, then the people of the workspace (not you),
+ * who get a notification when named.
+ */
+export function useCommentTargets(workspaceId: string | null | undefined): MentionTarget[] {
+  const agents = useTeammates(workspaceId);
+  const members = useStore((s) => (workspaceId ? s.members[workspaceId] : undefined));
+  const me = useStore((s) => s.user?.id);
+  useEffect(() => {
+    if (workspaceId && !members) void reloadMembers(workspaceId);
+  }, [workspaceId, members]);
+  return useMemo(
+    () => [
+      ...aiTargets(agents),
+      ...(members?.members ?? [])
+        .filter((m) => m.kind === 'human' && m.userId !== me)
+        .map((m): MentionTarget => ({
+          id: m.userId,
+          name: m.name,
+          kind: 'person',
+          hint: m.githubLogin ? `@${m.githubLogin} · gets a notification` : 'Gets a notification',
+          avatarUrl: m.avatarUrl,
+        })),
+    ],
+    [agents, members, me],
+  );
+}
+
+/**
+ * Typing "@" in a text box: the names that match, picked with the arrows and
  * Enter or Tab. `keyDown` returns true when the menu took the key.
  */
 export function useMentionMenu(
   text: string,
   setText: (text: string) => void,
-  teammates: AiAgent[],
+  teammates: MentionTarget[],
   input: React.RefObject<HTMLTextAreaElement | null>,
 ) {
   const [caret, setCaret] = useState(0);
@@ -32,8 +84,8 @@ export function useMentionMenu(
     query !== null && closedFor !== text ? mentionMatches(query, teammates).slice(0, 8) : [];
   useEffect(() => setActive(0), [query]);
   const index = Math.min(active, Math.max(0, matches.length - 1));
-  const pick = (agent: AiAgent) => {
-    const next = insertMention(text, caret, agent.name);
+  const pick = (target: MentionTarget) => {
+    const next = insertMention(text, caret, target.name);
     setText(next.text);
     setCaret(next.caret);
     requestAnimationFrame(() => {
@@ -73,7 +125,7 @@ export function useMentionMenu(
 export function MentionMenu({ menu }: { menu: ReturnType<typeof useMentionMenu> }) {
   if (!menu.matches.length) return null;
   return (
-    <div className="menu menu-wide mention-menu" role="listbox" aria-label="Teammates">
+    <div className="menu menu-wide mention-menu" role="listbox" aria-label="Who to mention">
       {menu.matches.map((a, i) => (
         <button
           key={a.id}
@@ -85,12 +137,13 @@ export function MentionMenu({ menu }: { menu: ReturnType<typeof useMentionMenu> 
             menu.pick(a);
           }}
         >
-          <Avatar name={a.name} size={18} />
+          <Avatar name={a.name} src={a.avatarUrl ?? null} size={18} />
           <span>
-            <span className="menu-title">@{a.name}</span>
-            <span className="menu-hint">
-              {a.instructions?.split('\n')[0]?.slice(0, 90) || 'AI teammate'}
+            <span className="menu-title">
+              @{a.name}
+              {a.kind === 'ai' && <span className="ai-badge">AI</span>}
             </span>
+            <span className="menu-hint">{a.hint}</span>
           </span>
         </button>
       ))}

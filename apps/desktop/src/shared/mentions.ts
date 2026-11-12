@@ -2,6 +2,7 @@ import { foldEvents, type ConversationEvent } from './agent.js';
 
 export {
   insertMention,
+  mentionedPeople,
   mentionedTeammate,
   mentionMatches,
   mentionQuery,

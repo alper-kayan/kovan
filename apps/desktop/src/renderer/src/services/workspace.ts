@@ -1,5 +1,5 @@
 import type { WorkspaceInfo } from '../../../shared/api';
-import { getState, reportError, setState } from '../store';
+import { getState, reportError, setState, writeLocal } from '../store';
 import { loadConversations } from './agent';
 import { completeStep } from './onboarding';
 import { api } from './api';
@@ -12,6 +12,12 @@ import { loadSync } from './sync';
 async function adopt(info: WorkspaceInfo): Promise<void> {
   resetEditor();
   resetTerminals();
+  // A folder just opened shows its files, as in any editor: not the list it was picked from.
+  if (getState().sideView === 'workspaces' || getState().navCollapsed) {
+    setState({ sideView: 'explorer', navCollapsed: false });
+    writeLocal('kovan.sideView', 'explorer');
+    writeLocal('kovan.navCollapsed', false);
+  }
   setState({
     workspace: info,
     agentFiles: {},

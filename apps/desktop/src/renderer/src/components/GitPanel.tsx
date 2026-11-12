@@ -1,4 +1,5 @@
 import type { BranchInfo, FileStatus } from '@kovan/git-engine';
+import { pressable } from './ui';
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { openDiff, openFile } from '../services/editor';
@@ -46,6 +47,7 @@ function FileRow({ file, staged }: { file: FileStatus; staged: boolean }) {
       className={`change-row ${deco.className}`}
       onClick={() => openDiff(file.path, staged)}
       title={file.path}
+      {...pressable(() => openDiff(file.path, staged), `${file.path}: show the changes`)}
     >
       <span className="change-name">{name}</span>
       <span className="change-dir">{dir}</span>
@@ -321,7 +323,15 @@ export function GitPanel() {
   const files = status?.files ?? [];
   const staged = files.filter(isStaged);
   const unstaged = files.filter(isUnstaged);
-  const canCommit = staged.length > 0 && message.trim() !== '' && !busy;
+  // Nothing staged: Commit takes every change, as most people expect (staging stays optional).
+  const committing = staged.length > 0 ? staged : unstaged;
+  const canCommit = committing.length > 0 && message.trim() !== '' && !busy;
+  const whyNot =
+    busy || canCommit
+      ? null
+      : committing.length === 0
+        ? 'Nothing to commit: no changes.'
+        : `Write a commit message (or ✨ writes one) to commit ${committing.length === 1 ? 'the change' : `${committing.length} files`}.`;
 
   // A small model writes the message from the staged changes (or all of them).
   const writeMessage = async () => {
@@ -339,6 +349,10 @@ export function GitPanel() {
   const doCommit = async (andPush = false) => {
     if (!canCommit) return;
     setBusy(true);
+    if (!staged.length && !(await stage(unstaged.map((f) => f.path)))) {
+      setBusy(false);
+      return;
+    }
     if (await commit(message)) {
       setMessage('');
       if (andPush) await pushBranch();
@@ -419,12 +433,16 @@ export function GitPanel() {
                 onClick={() => void doCommit()}
               >
                 <Check size={14} /> Commit
-                {staged.length > 0 ? ` ${staged.length} file${staged.length > 1 ? 's' : ''}` : ''}
+                {staged.length > 0
+                  ? ` ${staged.length} file${staged.length > 1 ? 's' : ''}`
+                  : committing.length > 0
+                    ? ` all ${committing.length}`
+                    : ''}
               </button>
               <button
                 className="btn"
                 disabled={!canCommit}
-                title="Commit, then push with your Git credentials"
+                title={`Commit${staged.length ? '' : ' every change'}, then push with your Git credentials`}
                 onClick={() => void doCommit(true)}
               >
                 Commit &amp; Push
@@ -443,6 +461,7 @@ export function GitPanel() {
                 <ArrowUp size={13} /> Push{status && status.ahead > 0 ? ` ${status.ahead}` : ''}
               </button>
             </div>
+            {whyNot && <p className="muted small commit-why">{whyNot}</p>}
             {local && (
               <p className="muted small setup-note">
                 Kovan's agent setup files are kept local and excluded from commits.

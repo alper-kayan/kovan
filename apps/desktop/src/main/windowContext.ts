@@ -48,8 +48,15 @@ export class WindowContext {
 
   async openWorkspace(folder: string): Promise<WorkspaceInfo> {
     const absolute = resolve(folder);
-    const info = await stat(absolute);
-    if (!info.isDirectory()) throw new Error(`Not a folder: ${absolute}`);
+    const info = await stat(absolute).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT')
+        throw new Error(
+          `The folder ${basename(absolute)} isn't there any more (it was moved or deleted). It's off your recent list now; open it from where it is.`,
+          { cause: error },
+        );
+      throw error;
+    });
+    if (!info.isDirectory()) throw new Error(`${basename(absolute)} is a file, not a folder.`);
 
     const repoRoot = await findRepoRoot(absolute);
     const root = repoRoot ?? absolute;

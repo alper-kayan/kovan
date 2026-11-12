@@ -95,7 +95,7 @@ describe('CustomProviders', () => {
   it("doesn't save a provider it can't reach", async () => {
     const store = new CustomProviders(dir);
     await expect(store.save({ name: 'Down', baseUrl: 'http://down:1' })).rejects.toThrow(
-      "Down didn't list its models",
+      /^Couldn't connect to Down: Can't reach down:1/,
     );
     expect(await store.list()).toEqual([]);
   });

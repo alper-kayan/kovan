@@ -5,7 +5,7 @@ import { fuzzyFilter } from '../fuzzy';
 import { BenchmarkChart } from './BenchmarkChart';
 import { api } from '../services/api';
 import { loadModels } from '../services/agent';
-import { useStore } from '../store';
+import { setState, useStore } from '../store';
 
 type Sort = 'newest' | 'input' | 'output' | 'context' | 'name';
 
@@ -72,6 +72,12 @@ export function ModelsPage() {
   useEffect(() => {
     void api.invoke('models:checkedAt').then(setCheckedAt);
   }, [models]);
+  // Opened before the list ever loaded (right after signing in, say): load it now.
+  const [loading, setLoading] = useState(models.length === 0);
+  useEffect(() => {
+    if (models.length > 0) return setLoading(false);
+    void loadModels(true).finally(() => setLoading(false));
+  }, []);
 
   const providers = useMemo(() => [...new Set(models.map((m) => m.provider))].sort(), [models]);
   const shown = useMemo(() => {
@@ -93,8 +99,10 @@ export function ModelsPage() {
     <div className="settings-group models-page">
       <div className="models-stats">
         <div>
-          <div className="stat mono">{models.length}</div>
-          <div className="setting-desc">models with tool use</div>
+          <div className="stat mono">{loading ? '…' : models.length}</div>
+          <div className="setting-desc">
+            {loading ? 'Loading models…' : 'models that can use tools (edit files, run commands)'}
+          </div>
         </div>
         <div>
           <div className="stat mono">{providers.length}</div>
@@ -118,6 +126,18 @@ export function ModelsPage() {
           </button>
         </div>
       </div>
+      {!loading && models.length === 0 && (
+        <div className="billing-alert">
+          No models to list yet: the catalog comes from your model provider. Add an OpenRouter key
+          (or your own provider) in Model keys, or set up Kovan billing, then refresh.{' '}
+          <button
+            className="link-btn"
+            onClick={() => setState({ settingsSection: 'providers', settingsQuery: '' })}
+          >
+            Model keys
+          </button>
+        </div>
+      )}
       <h2>JevRouter</h2>
       <BenchmarkChart />
       <h2 style={{ marginTop: 24 }}>Catalog</h2>
@@ -164,11 +184,11 @@ export function ModelsPage() {
         <thead className="mono">
           <tr>
             <th>Model</th>
-            <th>Context</th>
-            <th>Input</th>
-            <th>Output</th>
-            <th>Cache read</th>
-            <th>Cache write</th>
+            <th title="How much text the model can read at once, in tokens">Context</th>
+            <th title="Per 1M tokens it reads">Input</th>
+            <th title="Per 1M tokens it writes">Output</th>
+            <th title="Per 1M tokens it reads again from its cache (cheaper)">Cached input</th>
+            <th title="Per 1M tokens put in its cache">Caching</th>
           </tr>
         </thead>
         <tbody>

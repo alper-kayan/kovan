@@ -45,6 +45,8 @@ export type ConversationEvent =
   | { type: 'auto'; to: Harness; model: string; reason: string }
   /** A line from Kovan itself, outside any turn. */
   | { type: 'notice'; tone: 'info' | 'warn'; text: string }
+  /** Nothing runs any more (a switch or its preparation ended without a turn). Sent, never kept. */
+  | { type: 'idle' }
   /** Whose account the turn that follows is billed to, in words ("your Claude subscription"). */
   | { type: 'payer'; payer: string }
   /** The person called an AI teammate in with @; it answers in this conversation. */
@@ -59,6 +61,12 @@ export type ConversationEvent =
       text: string | null;
       at: number;
     };
+
+/** What would let an agent start: where the person fixes it. */
+export type ReadyFix = 'provider' | 'billing' | 'accounts' | 'install' | 'order' | 'wait';
+
+/** Whether a conversation's agent can take a turn now, said before anything is sent. */
+export type Readiness = { ready: true } | { ready: false; why: string; fix: ReadyFix };
 
 /** Who runs the conversation: Kovan's own agent, or the user's Claude Code or Codex. */
 export type Harness = 'kovan' | 'claude-code' | 'codex';
@@ -86,7 +94,7 @@ export interface AgentOption {
 
 /**
  * A Claude Code or Codex account the person added on this machine: its own sign-in, kept in its
- * own folder (CLAUDE_CONFIG_DIR, CODEX_HOME). The CLI's usual sign-in is never used.
+ * own folder (CLAUDE_CONFIG_DIR, CODEX_HOME), or the CLI's usual sign-in when `home` is set.
  */
 export interface AgentAccount {
   id: string;
@@ -94,6 +102,11 @@ export interface AgentAccount {
   /** What the person calls it ("Work", "Personal"). */
   name: string;
   createdAt: number;
+  /**
+   * Runs as the CLI's own sign-in on this computer (~/.claude, ~/.codex), with its settings,
+   * MCP servers and instructions, instead of a sign-in of its own in Kovan's data.
+   */
+  home?: boolean;
 }
 
 export interface ConversationConfig {
@@ -374,7 +387,7 @@ export function foldEvents(events: ConversationEvent[]): ChatItem[] {
         items.push({
           kind: 'note',
           tone: 'warn',
-          text: `Usage limit hit (${e.reason}). Awaiting takeover.`,
+          text: `Usage limit hit (${e.reason}). Someone needs to take over.`,
         });
         break;
       case 'switch':

@@ -110,7 +110,7 @@ export class CustomProviders {
       models = await this.clientFor(p.baseUrl, apiKey).listModels(AbortSignal.timeout(15_000));
     } catch (error) {
       const why = error instanceof Error ? error.message : String(error);
-      throw new Error(`${p.name} didn't list its models at ${p.baseUrl}/models: ${why}`, {
+      throw new Error(`Couldn't connect to ${p.name}: ${why}`, {
         cause: error,
       });
     }

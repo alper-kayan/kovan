@@ -1,3 +1,4 @@
+import { plainGitError } from '@kovan/git-engine';
 import { discoverSkills } from '@kovan/harness';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -101,7 +102,7 @@ function git(args: string[], cwd?: string): Promise<{ stdout: string; code: numb
         const code = typeof error?.code === 'number' ? error.code : error ? -1 : 0;
         // `git diff --no-index` says 1 when there are differences.
         if (error && !(args.includes('--no-index') && code === 1))
-          fail(new Error(stderr.trim().split('\n').slice(-3).join('\n') || error.message));
+          fail(new Error(plainGitError(args, stderr.trim() || error.message)));
         else done({ stdout, code });
       },
     );
@@ -475,9 +476,12 @@ export class PluginManager {
     try {
       data = JSON.parse(await readFile(file, 'utf8')) as typeof data;
     } catch (error) {
-      throw new Error(`${MARKETPLACE} can't be read: ${(error as Error).message}`, {
-        cause: error,
-      });
+      throw new Error(
+        `This plugin source's list (${MARKETPLACE}) can't be read, so its plugins can't be shown: ${(error as Error).message}. Check the address, or tell its author.`,
+        {
+          cause: error,
+        },
+      );
     }
     const pluginRoot = str(data.metadata?.pluginRoot) ?? '';
     const plugins: { name: string; description: string; source: PluginSourceInput }[] = [];

@@ -229,5 +229,5 @@ function friendly(error: unknown): string {
   if (/code signature|not signed|signature/i.test(text))
     return 'The update did not pass its signature check, so it was not installed.';
   if (/404|Cannot find .*latest/i.test(text)) return 'No update has been published yet.';
-  return text.split('\n')[0]!.slice(0, 200);
+  return `Couldn't check for updates (${text.split('\n')[0]!.slice(0, 160)}). Kovan will try again later.`;
 }

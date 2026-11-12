@@ -17,7 +17,9 @@ export function PageHeader({ title, children }: { title: string; children?: Reac
           <PanelLeft size={15} />
         </button>
       )}
-      <h1 className="page-title">{title}</h1>
+      <h1 className="page-title" tabIndex={-1}>
+        {title}
+      </h1>
       <div className="page-actions">{children}</div>
     </div>
   );

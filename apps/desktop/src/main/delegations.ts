@@ -115,7 +115,9 @@ export class Delegations {
         ].join('\n'),
       )
       .catch((error: unknown) =>
-        this.deps.notice(`Couldn't go on with the delegated results: ${String(error)}`),
+        this.deps.notice(
+          `A helper agent's results couldn't be used (${error instanceof Error ? error.message : String(error)}). Your agent stopped here: send the task again to go on.`,
+        ),
       );
   }
 }

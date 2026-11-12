@@ -76,9 +76,9 @@ export function WorkspaceIcon({ name, color }: { name: string; color?: string | 
 export type SessionStatus = 'idle' | 'running' | 'waiting' | 'error';
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
-  idle: 'Idle',
-  running: 'Running',
-  waiting: 'Needs approval',
+  idle: 'Nothing running',
+  running: 'Working',
+  waiting: 'Needs a yes',
   error: 'Error',
 };
 
@@ -248,4 +248,21 @@ export function useFloating<T extends HTMLElement>() {
     return () => window.removeEventListener('resize', place);
   }, []);
   return ref;
+}
+
+/**
+ * A row that is clicked (it holds buttons of its own, so it can't be a button) also works from
+ * the keyboard: in the Tab order, Enter or Space does what a click does.
+ */
+export function pressable(run: () => void, label?: string) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    ...(label ? { 'aria-label': label } : {}),
+    onKeyDown: (e: React.KeyboardEvent<HTMLElement>) => {
+      if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+      e.preventDefault();
+      run();
+    },
+  };
 }

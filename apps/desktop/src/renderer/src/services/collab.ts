@@ -8,10 +8,19 @@ import type {
   StepStatus,
 } from '@kovan/shared';
 import type { HttpMethod } from '../../../shared/api';
-import { activeTeamWorkspace, getState, reportError, setState, toast, useStore } from '../store';
+import {
+  activeTeamWorkspace,
+  getState,
+  notify,
+  reportError,
+  setState,
+  toast,
+  useStore,
+} from '../store';
 import { newConversation, sendPrompt } from './agent';
 import { api } from './api';
-import { mentionedTeammate } from '../../../shared/mentions';
+import { openSession } from './sessions';
+import { mentionedPeople, mentionedTeammate } from '../../../shared/mentions';
 
 function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
   return (
@@ -85,6 +94,8 @@ function handleMessage(message: ServerMessage): void {
       return;
     case 'comment': {
       const c = message.comment;
+      const seen = getState().comments[c.workspaceId]?.some((x) => x.id === c.id);
+      if (!seen) noticeMention(c);
       setState((s) => ({
         comments: { ...s.comments, [c.workspaceId]: upsertBy(s.comments[c.workspaceId], c) },
       }));
@@ -106,6 +117,31 @@ function handleMessage(message: ServerMessage): void {
     default:
       return;
   }
+}
+
+/** A new comment by someone else that calls you by name: say so, with a way to it. */
+function noticeMention(c: Comment): void {
+  const me = getState().user;
+  if (!me || c.authorId === me.id || !c.body.includes('@')) return;
+  if (!mentionedPeople(c.body, [{ id: me.id, name: me.name }]).length) return;
+  const sessionId = c.sessionId;
+  notify({
+    kind: 'info',
+    title: `${c.authorName} mentioned you`,
+    message: c.body.length > 160 ? `${c.body.slice(0, 159)}…` : c.body,
+    sticky: true,
+    ...(sessionId
+      ? {
+          action: {
+            label: 'Open',
+            run: () => {
+              setState({ railFocus: 'comments' });
+              if (getState().room?.session?.id !== sessionId) void openSession(sessionId);
+            },
+          },
+        }
+      : {}),
+  });
 }
 
 // ---------- the plan ----------

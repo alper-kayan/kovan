@@ -49,7 +49,10 @@ export class TerminalManager {
       });
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`Could not start the terminal shell (${shell}): ${reason}`, { cause: error });
+      throw new Error(
+        `The terminal couldn't start ${shell} (${reason}). Pick another shell in Settings → Terminal.`,
+        { cause: error },
+      );
     }
     pty.onData((data) => this.sink.data(id, data));
     pty.onExit(({ exitCode }) => {

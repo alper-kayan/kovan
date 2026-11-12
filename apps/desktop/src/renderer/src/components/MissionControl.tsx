@@ -1,4 +1,6 @@
-import { can, type Session } from '@kovan/shared';
+import { can, swarmBadge, type Session, type Workspace } from '@kovan/shared';
+import { t } from '../i18n';
+import { DialogKeys } from './DialogKeys';
 import {
   ArrowUpDown,
   Check,
@@ -14,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { addWorkspace, useOrgWorkspaces } from '../services/team';
+import { addWorkspace, signIn, useOrgWorkspaces } from '../services/team';
 import {
   answerTeamApproval,
   harnessLine,
@@ -26,6 +28,74 @@ import {
   startSession,
 } from '../services/sessions';
 import { setState, useStore } from '../store';
+
+/**
+ * Why no session can be started from here, and the way to one: an account, a shared
+ * workspace, or the Editor role. Working alone needs none of it: the agent chat does.
+ */
+function NoSessionYet({
+  workspaces,
+  close,
+}: {
+  workspaces: { name: string; role: string }[];
+  close: () => void;
+}) {
+  const signedIn = useStore((s) => s.signedIn);
+  const alone = (
+    <p className="setting-desc">
+      Working alone? You don't need a session: give your agent a task in the chat on the right.
+    </p>
+  );
+  if (!signedIn)
+    return (
+      <>
+        <p className="setting-desc">
+          A session is a task you share with teammates: everyone's agents work side by side on one
+          branch, and you see each other's work live. Sessions need an account.
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            close();
+            void signIn('login');
+          }}
+        >
+          Sign in
+        </button>
+        {alone}
+      </>
+    );
+  if (workspaces.length === 0)
+    return (
+      <>
+        <p className="setting-desc">
+          Sessions live in a shared workspace: a repository your team works on together. Share a
+          folder to make one; then you can start a session in it and invite people.
+        </p>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => {
+            close();
+            void addWorkspace();
+          }}
+        >
+          Share a folder
+        </button>
+        {alone}
+      </>
+    );
+  return (
+    <>
+      <p className="setting-desc">
+        In {workspaces.map((w) => w.name).join(', ')} your role lets you watch sessions and comment,
+        not start them. Ask an owner of the workspace to make you an Editor.
+      </p>
+      {alone}
+    </>
+  );
+}
 import { acceptHandoff, declineHandoff, recordOutcome, takeOverLane } from '../services/flow';
 import { answerStepApproval } from '../services/collab';
 import { formatCost } from './AgentPanel';
@@ -33,20 +103,21 @@ import { KovanMark } from './Logo';
 import { PageHeader } from './PageHeader';
 import { AvatarStack, EmptyState, Segmented } from './ui';
 
+/** The same words as the phone: what's going on, not the state machine's names. */
 const STATE_LABEL = {
-  running: 'Running',
-  waiting: 'Needs approval',
-  awaiting: 'Awaiting takeover',
-  idle: 'Idle',
+  running: 'Working',
+  waiting: 'Needs a yes',
+  awaiting: 'Stopped: someone needs to take over',
+  idle: 'Nothing running',
   ended: 'Ended',
 } as const;
 
 function ago(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t('just now');
+  if (minutes < 60) return t('{n}m ago', { n: minutes });
   const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+  return hours < 48 ? t('{n}h ago', { n: hours }) : t('{n}d ago', { n: Math.round(hours / 24) });
 }
 
 /** The card's swarm line: its state, its tasks by state, and spend against the budget. */
@@ -65,7 +136,9 @@ function SwarmLine({ session }: { session: Session }) {
   return (
     <div className="session-card-swarm" title={swarm.pausedReason ?? undefined}>
       <div className="small">
-        <span className={`swarm-status ${swarm.status}`}>{swarm.status.toUpperCase()}</span>{' '}
+        <span className={`swarm-status ${swarmBadge(swarm).tone}`}>
+          {swarmBadge(swarm).label.toUpperCase()}
+        </span>{' '}
         <span className={t.failed || t.blocked ? 'swarm-line-bad' : 'muted'}>
           {parts.join(' · ') || 'no tasks yet'}
         </span>
@@ -101,7 +174,7 @@ function SessionCard({ session }: { session: Session }) {
         )}
       </div>
       <div className="session-card-meta mono">
-        {harnessLine(session) || 'no agents yet'}
+        {harnessLine(session) || t('no agents yet')}
         {session.branch ? ` · ${session.branch}` : ''}
       </div>
       {session.plan.total > 0 && (
@@ -232,7 +305,7 @@ function Alerts({ sessions }: { sessions: Session[] }) {
           <div className="alert-text">
             <div>
               <b>{p.name}'s</b> agent stopped:{' '}
-              {(p.awaitingReason ?? 'usage limit').replace(/\.$/, '')}. Awaiting takeover.
+              {(p.awaitingReason ?? 'usage limit').replace(/\.$/, '')}. Someone needs to take over.
             </div>
             <div className="muted small">
               {session.title} ·{' '}
@@ -338,6 +411,36 @@ function Alerts({ sessions }: { sessions: Session[] }) {
   );
 }
 
+/**
+ * What a session sends to the team's Git remote, said before it starts: the branch, and each
+ * person's checkpoints (uncommitted edits too) on hidden refs, while Git sync is on.
+ */
+function WhatGoesOut({ workspace, branch }: { workspace: Workspace; branch: string | null }) {
+  const remote = workspace.repoUrl ? workspace.repoUrl.replace(/^https?:\/\/|\.git$/g, '') : null;
+  const where = remote ? <b>{remote}</b> : "the folder's Git remote (if it has one)";
+  return (
+    <p className="small muted what-goes-out">
+      {branch ? (
+        <>
+          The branch <span className="mono">{branch}</span> is pushed to {where} so teammates start
+          from the same commit.{' '}
+        </>
+      ) : null}
+      {workspace.autoGitSync ? (
+        <>
+          While it runs, everyone's work in it (uncommitted edits too) is saved to {where} as hidden
+          checkpoints, so teammates see it and can take it over. Turn this off with <b>Git sync</b>{' '}
+          in Settings → Workspaces.
+        </>
+      ) : (
+        <>
+          Git sync is off in this workspace: work stays on each person's machine until they push it.
+        </>
+      )}
+    </p>
+  );
+}
+
 function NewSessionDialog() {
   const open = useStore((s) => s.newSessionOpen);
   const workspaces = useOrgWorkspaces();
@@ -391,6 +494,7 @@ function NewSessionDialog() {
           });
         }}
       >
+        <DialogKeys onClose={close} />
         <div className="modal-head">
           <h2 className="modal-title">New session</h2>
           <p className="modal-desc">
@@ -402,9 +506,7 @@ function NewSessionDialog() {
         </div>
         <div className="dialog-body">
           {startable.length === 0 ? (
-            <p className="setting-desc">
-              Starting a session needs the editor role in a shared workspace.
-            </p>
+            <NoSessionYet workspaces={workspaces} close={close} />
           ) : (
             <>
               <label className="field-label">
@@ -452,6 +554,9 @@ function NewSessionDialog() {
                   />
                 )}
               </div>
+              {ws && (
+                <WhatGoesOut workspace={ws} branch={branchMode === 'new' ? branchName : null} />
+              )}
             </>
           )}
         </div>
@@ -459,13 +564,17 @@ function NewSessionDialog() {
           <button type="button" className="btn" onClick={close}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={busy || !ws || !title.trim() || (branchMode === 'new' && !branchName.trim())}
-          >
-            {busy ? 'Starting…' : 'Start session'}
-          </button>
+          {startable.length > 0 && (
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={
+                busy || !ws || !title.trim() || (branchMode === 'new' && !branchName.trim())
+              }
+            >
+              {busy ? 'Starting…' : 'Start session'}
+            </button>
+          )}
         </div>
       </form>
     </div>
@@ -501,6 +610,11 @@ export function MissionControlPage() {
   }, [tab, all, history, filter, query, workspaces, multiOrg]);
 
   const filterName = filter ? workspaces.find((w) => w.id === filter)?.name : null;
+  // Filters, sorting and search over nothing are noise: they come with the first session.
+  const any =
+    Object.values(all).some((l) => l.length > 0) ||
+    Object.values(history).some((l) => l.length > 0) ||
+    Boolean(filter || query);
   const cycleFilter = () => {
     const ids = [null, ...workspaces.map((w) => w.id)];
     setState({ boardWorkspace: ids[(ids.indexOf(filter) + 1) % ids.length] ?? null });
@@ -517,16 +631,20 @@ export function MissionControlPage() {
           ]}
           onChange={(boardTab) => setState({ boardTab })}
         />
-        <button className="filter" onClick={cycleFilter} title="Filter by workspace">
-          <Layers size={13} />
-          {filterName ?? `All workspaces (${signedIn ? workspaces.length : recent})`}
-          <ChevronsUpDown size={12} />
-        </button>
-        <button className="filter" title="Sorted by last activity">
-          <ArrowUpDown size={13} />
-          Last modified
-        </button>
-        {searching ? (
+        {any && (
+          <button className="filter" onClick={cycleFilter} title="Filter by workspace">
+            <Layers size={13} />
+            {filterName ?? t('All workspaces ({n})', { n: signedIn ? workspaces.length : recent })}
+            <ChevronsUpDown size={12} />
+          </button>
+        )}
+        {any && (
+          <span className="filter" title="Sorted by last activity">
+            <ArrowUpDown size={13} />
+            Last active first
+          </span>
+        )}
+        {!any ? null : searching ? (
           <input
             className="input board-search"
             autoFocus
@@ -562,7 +680,7 @@ export function MissionControlPage() {
         >
           <p className="empty-text">
             {tab === 'active'
-              ? 'Start one to put your work on the board. Teammates join with their own agents, side by side, and everyone sees every lane live.'
+              ? 'A session is one task your team works on together. Teammates join with their own AI agents, and everyone sees what each agent does as it happens.'
               : 'Ended sessions land here with their transcript and final diff.'}
           </p>
           {tab === 'active' &&

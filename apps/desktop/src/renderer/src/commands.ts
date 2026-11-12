@@ -5,7 +5,7 @@ import { closeActiveTab, saveActive } from './services/editor';
 import { refreshGitStatus } from './services/git';
 import { newTerminal, toggleTerminal } from './services/terminal';
 import { openWorkspaceDialog } from './services/workspace';
-import { getState, setState, showView, writeLocal, type SideView } from './store';
+import { getState, setState, showView, toast, writeLocal, type SideView } from './store';
 
 export interface Command {
   id: string;
@@ -56,7 +56,23 @@ export const COMMANDS: Command[] = [
   { id: 'workspace.open', title: 'Open Repository…', run: openWorkspaceDialog },
   { id: 'go.sessions', title: 'Go to Sessions', run: () => showView('sessions') },
   { id: 'go.people', title: 'Go to People', run: () => showView('people') },
-  { id: 'go.agents', title: 'Go to Agents', run: () => showView('agents') },
+  { id: 'go.agents', title: 'Go to the Agent map', run: () => showView('agents') },
+  {
+    id: 'agent.approval',
+    title: "Go to the agent's waiting question",
+    run: () => {
+      // The newest Approve button, in your own chat first.
+      const buttons = [
+        ...document.querySelectorAll<HTMLButtonElement>(
+          '.agent-panel .approval-actions .btn-primary, .approval-actions .btn-primary',
+        ),
+      ];
+      const target = buttons.at(-1);
+      if (!target) return toast('Nothing is waiting for your answer.');
+      target.scrollIntoView({ block: 'center' });
+      target.focus();
+    },
+  },
   {
     id: 'go.workspace',
     title: 'Go to Editor',
@@ -137,6 +153,16 @@ function inTerminal(target: EventTarget | null): boolean {
   return target instanceof Element && target.closest('.xterm') !== null;
 }
 
+/**
+ * Whether Escape stops the running agent from where it was pressed: inside the agent's chat (the
+ * panel, or a session lane), or in the code view with nothing else focused.
+ */
+function escapeStopsHere(target: EventTarget | null): boolean {
+  const el = target instanceof Element ? target : null;
+  if (el?.closest('.agent-panel, .lane')) return true;
+  return getState().view === 'workspace' && (!el || el === document.body);
+}
+
 /** Global shortcuts, handled in the capture phase so they win over Monaco and xterm. */
 export function installKeybindings(): () => void {
   const onKeyDown = (event: KeyboardEvent) => {
@@ -147,11 +173,13 @@ export function installKeybindings(): () => void {
       setState(getState().palette ? { palette: null } : { gettingStartedOpen: false });
       return;
     }
-    // Escape interrupts a running agent from anywhere in the app.
+    // Escape interrupts a running agent where its chat is: typing in it, or the code view with
+    // nothing else focused. On Settings, Sessions or a page it means "back", never "stop".
     if (
       event.key === 'Escape' &&
       getState().conversation?.running &&
-      !document.querySelector('.model-picker, .menu, .overlay')
+      !document.querySelector('.model-picker, .menu, .overlay') &&
+      escapeStopsHere(event.target)
     ) {
       stopAgent();
       return;

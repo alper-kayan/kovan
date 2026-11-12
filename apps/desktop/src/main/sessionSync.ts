@@ -87,15 +87,15 @@ export function syncTrouble(error: unknown): string | null {
       .map((l) => l.replace(/^(fatal|error|remote):\s*/i, '').trim())
       .find((l) => l && !/^To /.test(l)) ?? 'the remote refused it';
   if (/GH013|rule violation|ruleset|protected|pre-receive hook declined|refusing to/i.test(text))
-    return `The repository's rules refused the sync ref: ${line}`;
+    return `The repository's rules don't let Kovan save work there, so yours isn't reaching your teammates. Ask an owner of the repository to allow refs/kovan/*, or push your branch yourself. (Git said: ${line})`;
   if (
     /Authentication failed|could not read Username|Permission denied|403|401|terminal prompts disabled|access denied|not authorized/i.test(
       text,
     )
   )
-    return `Git couldn't sign in to the remote with your credentials: ${line}`;
+    return `Git couldn't sign in to the repository with your account, so your work isn't reaching your teammates. Check that you can push to it (try a push from Source Control), then Retry. (Git said: ${line})`;
   if (/Could not resolve host|unable to access|Connection (refused|timed out)|Network/i.test(text))
-    return `The remote can't be reached: ${line}`;
+    return `Can't reach the repository's server (offline?), so your work isn't reaching your teammates. It's safe here; Retry once you're back online. (Git said: ${line})`;
   return null;
 }
 
@@ -397,7 +397,9 @@ export class SessionSync {
       const trouble = syncTrouble(error);
       a.paused = {
         kind: 'sync',
-        reason: trouble ?? `The sync couldn't push: ${(error as Error).message.split('\n')[0]}`,
+        reason:
+          trouble ??
+          `Your work couldn't be sent to your teammates (${(error as Error).message.split('\n')[0]}). It's safe here; Retry to send it again.`,
       };
       this.deps.laneEvent(a.sessionId, { type: 'paused', kind: 'sync', reason: a.paused.reason });
     } finally {

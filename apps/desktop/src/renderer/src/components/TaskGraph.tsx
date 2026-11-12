@@ -1,4 +1,4 @@
-import { can, graphColumns, type PlanStep, type Session } from '@kovan/shared';
+import { can, graphColumns, swarmBadge, type PlanStep, type Session } from '@kovan/shared';
 import { Pause, Square } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { answerStepApproval, loadPlan } from '../services/collab';
@@ -99,7 +99,7 @@ export function TaskGraph({ session }: { session: Session }) {
         <span className="spacer" />
         {swarm && (
           <span className="mono small">
-            Swarm {swarm.status} · {usd(swarm.spent)}
+            Swarm {swarmBadge(swarm).label.toLowerCase()} · {usd(swarm.spent)}
             {swarm.budget !== null ? ` of ${usd(swarm.budget)}` : ''}
           </span>
         )}

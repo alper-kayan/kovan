@@ -1,4 +1,5 @@
 import type { DetachedRun } from '@kovan/runner';
+import { mt } from './i18n.js';
 import {
   Agent,
   buildSystemPrompt,
@@ -43,6 +44,9 @@ import {
   foldEvents,
   type ReceiptLine,
   type AgentOption,
+  type Readiness,
+  type ReadyFix,
+  type Harness,
   type Attachment,
   type Conversation,
   type ConversationConfig,
@@ -55,6 +59,7 @@ import {
   HARNESS_NAMES,
   optionLabel,
   parseCustomModelId,
+  sameOption,
   withAccount,
 } from '../shared/agent.js';
 import {
@@ -148,8 +153,10 @@ interface StoredConversation extends ConversationSummary, ConversationConfig {
   beforeBuild?: string;
   /** Set when this conversation is the person's lane in a shared session. */
   session?: SessionLink;
-  /** The person agreed, in this conversation, to continue on pay-per-use models. */
+  /** Older conversations: the person agreed to continue on pay-per-use models, whoever pays. */
   paidSwitchOk?: boolean;
+  /** Who the person agreed, in this conversation, may pay for a switch (see `payerOf`). */
+  paidSwitchOkFor?: string[];
   /** Auto already chose this conversation's agent; it keeps it. */
   autoPicked?: boolean;
   /**
@@ -164,7 +171,8 @@ interface Live {
   agent: Agent | null;
   /** Kept for the whole conversation so the router remembers the current task. */
   router: JevRouter | null;
-  routerManaged?: boolean;
+  /** Who pays and which workspace the router's client files usage under; a change makes a new one. */
+  routerKey?: string;
   /** The last turn went through Kovan's managed usage (the server files its usage). */
   managed?: boolean;
   /** Set when the conversation runs on the user's Claude Code or Codex. */
@@ -192,7 +200,7 @@ function payerOf(live: Live): string {
   if (harness === 'codex') return 'your Codex (OpenAI) plan';
   const custom = parseCustomModelId(s.model);
   if (custom) return `your ${custom.provider} key`;
-  return live.managed ? 'Kovan managed usage' : 'your OpenRouter key';
+  return live.managed ? 'Kovan billing' : 'your OpenRouter key';
 }
 
 /** A copy for teammates: paths relative to the repo, since their checkout lives elsewhere. */
@@ -267,6 +275,8 @@ export interface AgentHost {
    * in), with the token that bills you; null to use your own OpenRouter key.
    */
   managed?(): Promise<{ baseUrl: string; token: string } | null>;
+  /** Why managed usage can't bill this person, in words, when signed in (null otherwise). */
+  managedWhyNot?(): Promise<string | null>;
   /** The shared workspace a folder belongs to, for filing managed usage under it. */
   workspaceOf?(root: string): Promise<string | null>;
   /** What this machine knows about each agent's account limit. */
@@ -339,10 +349,14 @@ export class AgentManager {
         }),
       };
     const apiKey = await this.keys.openRouterKey();
-    if (!apiKey)
+    if (!apiKey) {
+      const whyNot = await this.host.managedWhyNot?.();
       throw new Error(
-        'Add an OpenRouter key in Settings → Providers & spend, or sign in to use Kovan managed usage.',
+        whyNot
+          ? `${whyNot} Or add your own OpenRouter key in Settings → Model keys & spend.`
+          : 'Add an OpenRouter key in Settings → Model keys & spend, or sign in to pay through Kovan billing.',
       );
+    }
     return {
       managed: false,
       client: new OpenRouterClient({
@@ -467,13 +481,17 @@ export class AgentManager {
       timer = null;
       const ids = [...changed];
       changed.clear();
+      // Only what someone else wrote (the terminal agent, say): this app's own saves are no news.
+      const others: string[] = [];
       for (const id of ids) {
         const live = this.live.get(id);
-        if (!live || this.isRunning(live)) continue;
+        if (live && this.isRunning(live)) continue;
         const disk = (await readJson(join(dir, `${id}.json`))) as StoredConversation | undefined;
-        if (!disk || disk.updatedAt > live.stored.updatedAt) this.live.delete(id);
+        if (live && disk && disk.updatedAt <= live.stored.updatedAt) continue;
+        if (live) this.live.delete(id);
+        others.push(id);
       }
-      onChange(ids);
+      if (others.length) onChange(others);
     };
     let watcher: ReturnType<typeof watch>;
     try {
@@ -500,6 +518,21 @@ export class AgentManager {
     const stored = (await readJson(join(this.dirFor(root), `${id}.json`))) as
       StoredConversation | undefined;
     if (!stored) throw new Error('Conversation not found');
+    // Kovan was closed (or crashed) while a turn ran: nothing is running now, so close the turn
+    // and say so, instead of leaving a conversation that looks mid-work forever.
+    const open = stored.events.findLastIndex((e) => e.type === 'turn_start');
+    const started = stored.events[open];
+    if (
+      started?.type === 'turn_start' &&
+      !stored.events.slice(open).some((e) => e.type === 'turn_end')
+    )
+      stored.events.push({
+        type: 'turn_end',
+        turnId: started.turnId,
+        reason: 'error',
+        cost: 0,
+        error: 'Kovan was closed while this was running. Try again to carry on.',
+      });
     const live: Live = {
       stored,
       agent: null,
@@ -707,7 +740,9 @@ export class AgentManager {
       const byModel = made ? await classifyByModel(made.client, CLASSIFIER_MODEL, messages) : null;
       if (byModel) {
         classification = byModel.classification;
-        if (byModel.usage && !made!.managed)
+        // Shown in the turn's receipt either way: with Kovan billing it is billed too, so the
+        // receipt adds up to the invoice.
+        if (byModel.usage)
           live.routingUsage = {
             type: 'usage',
             usage: byModel.usage,
@@ -724,10 +759,11 @@ export class AgentManager {
       hasImages: attachments.some((a) => a.kind === 'image'),
       asked,
     });
-    if (!choice)
-      throw new Error(
-        'Nothing in your order is ready: install Claude Code or Codex, add a provider key, or change the order in Settings → Agents.',
-      );
+    if (!choice) {
+      // Said before sending too; this is for a send that slipped past it.
+      const why = await this.readiness({ auto: true, harness: 'kovan', model: s.model });
+      throw new Error(why.ready ? 'Nothing in your order can start yet.' : why.why);
+    }
 
     s.autoPicked = true;
     const from = s.harness ?? 'kovan';
@@ -925,7 +961,7 @@ export class AgentManager {
   /** The model client for a model id (custom provider, JevRouter or OpenRouter) and its prices. */
   private async streamerFor(
     model: string,
-    live: Pick<Live, 'router' | 'routerManaged'> | null,
+    live: Pick<Live, 'router' | 'routerKey'> | null,
     run: { id: string; root: string; label: string },
   ): Promise<{
     streamer: ModelStreamer;
@@ -952,15 +988,19 @@ export class AgentManager {
       if (model === JEV_MODEL_ID) {
         const pool = catalog.filter((m) => !parseCustomModelId(m.id));
         if (pool.length === 0)
-          throw new Error('JevRouter needs the model catalog; check your connection and try again');
-        // A router keeps its client; a new one comes when the billing source changes.
+          throw new Error(
+            "Automatic model choice (JevRouter) needs the list of models, and it couldn't be loaded. Check your connection, and that Kovan billing or your OpenRouter key is set up.",
+          );
+        // A router keeps its client; a new one comes when the billing source changes, or the
+        // folder became (part of) a shared workspace since, so usage is filed under it.
+        const key = `${managed}:${(run && (await this.host.workspaceOf?.(run.root))) ?? ''}`;
         const router =
-          live?.router && live.routerManaged === managed
+          live?.router && live.routerKey === key
             ? live.router
             : new JevRouter({ client, catalog: pool, classifierModel: CLASSIFIER_MODEL });
         if (live) {
           live.router = router;
-          live.routerManaged = managed;
+          live.routerKey = key;
         }
         streamer = router;
       }
@@ -1315,12 +1355,15 @@ export class AgentManager {
         this.notice(
           live,
           'warn',
-          `Couldn't switch agents: ${String((error as Error).message ?? error)}`,
+          `Couldn't hand the task to the next agent: ${String((error as Error).message ?? error).replace(/[.!]?\s*$/, '.')} The task isn't finished: send it again, or pick another agent below.`,
         );
         return false;
       })
       .then((continued) => {
-        if (!continued) this.settle(live, reason);
+        if (continued) return;
+        this.settle(live, reason);
+        // Whatever showed it as working (a reload during the switch) learns it stopped.
+        this.host.emit(live.stored.id, { type: 'idle' });
       });
   }
 
@@ -1349,6 +1392,127 @@ export class AgentManager {
   private async withAccount(option: AgentOption): Promise<AgentOption | null> {
     if (option.harness === 'kovan' || option.account) return option;
     return withAccount(option, await this.host.firstAccount?.(option.harness));
+  }
+
+  /**
+   * Why a step of the order can't take a turn now, in words for the person, and where that is
+   * fixed; null when it can. The same checks as `usable`, said instead of answered.
+   */
+  private async whyNot(step: AgentOption): Promise<{ why: string; fix: ReadyFix } | null> {
+    if (step.harness !== 'kovan') {
+      const name = HARNESS_NAMES[step.harness];
+      const option = await this.withAccount(step);
+      if (!option)
+        return {
+          why: mt(
+            "{name} isn't set up in Kovan yet. In Settings → Agents, use this computer's {name} sign-in, or add a separate account.",
+            { name },
+          ),
+          fix: 'accounts',
+        };
+      if (!(await this.host.limits.open(accountOf(option))))
+        return { why: mt('{name} is out of usage for now.', { name }), fix: 'wait' };
+      const harness = step.harness;
+      if (!(await this.host.accountEnv?.(harness, option.account)))
+        return {
+          why: mt("{name}'s account in Kovan needs signing in again.", { name }),
+          fix: 'accounts',
+        };
+      if ((await this.host.agentBinary(harness)) === null)
+        return { why: mt("{name} isn't installed on this computer.", { name }), fix: 'install' };
+      return null;
+    }
+    if (!(await this.host.limits.open(accountOf(step))))
+      return {
+        why: mt('{name} is out of usage for now.', { name: optionLabel(step) }),
+        fix: 'wait',
+      };
+    const custom = parseCustomModelId(step.model);
+    if (custom)
+      return (await this.custom.list()).some((p) => p.id === custom.provider)
+        ? null
+        : {
+            why: mt('The provider "{name}" isn\'t set up any more.', { name: custom.provider }),
+            fix: 'provider',
+          };
+    if ((await this.keys.openRouterKey()) || (await this.host.managed?.())) return null;
+    const managed = await this.host.managedWhyNot?.();
+    if (managed && !/doesn't (offer|sell)/.test(managed))
+      return {
+        why: mt("Kovan's agent needs a model to call. {why}", { why: managed }),
+        fix: 'billing',
+      };
+    return {
+      why: mt(
+        "Kovan's agent needs a model to call: add your OpenRouter key, or a provider of your own.",
+      ),
+      fix: 'provider',
+    };
+  }
+
+  /**
+   * Whether a conversation set up like this can take a turn now; on Auto, whether anything in the
+   * order can. Asked before sending, so a first message never fails for a missing account.
+   */
+  async readiness(choice: {
+    auto: boolean;
+    harness: Harness;
+    model: string;
+    account?: string | undefined;
+  }): Promise<Readiness> {
+    if (!choice.auto) {
+      const why = await this.whyNot({
+        harness: choice.harness,
+        model: choice.model,
+        ...(choice.account ? { account: choice.account } : {}),
+      });
+      return why ? { ready: false, ...why } : { ready: true };
+    }
+    const reasons: { why: string; fix: ReadyFix }[] = [];
+    for (const step of (await this.host.settings()).agentOrder) {
+      const why = await this.whyNot(step);
+      if (!why) return { ready: true };
+      reasons.push(why);
+    }
+    if (reasons.length === 0)
+      return {
+        ready: false,
+        why: mt('Auto has nothing to pick from: your order is empty.'),
+        fix: 'order',
+      };
+    // The quickest way to a working agent first: a model for Kovan's own, then an account.
+    const best =
+      reasons.find((r) => r.fix === 'billing') ??
+      reasons.find((r) => r.fix === 'provider') ??
+      reasons[0]!;
+    return {
+      ready: false,
+      why: mt('Nothing in your order can start yet. {why}', { why: best.why }),
+      fix: best.fix,
+    };
+  }
+
+  /**
+   * Who pays for a step's turns: a subscription account (Claude Code, Codex), a gateway of your
+   * own, Kovan managed usage or your OpenRouter key. `label` says it to the person.
+   */
+  private async payerOf(option: AgentOption): Promise<{ id: string; label: string }> {
+    if (option.harness !== 'kovan')
+      return {
+        id: `account:${option.harness}:${option.account ?? ''}`,
+        label: `your ${HARNESS_NAMES[option.harness]} account`,
+      };
+    const custom = parseCustomModelId(option.model);
+    if (custom) {
+      const name = (await this.custom.list()).find((p) => p.id === custom.provider)?.name;
+      return {
+        id: `provider:${custom.provider}`,
+        label: `your ${name ?? custom.provider} account`,
+      };
+    }
+    return (await this.host.managed?.())
+      ? { id: 'managed', label: 'Kovan billing (what the model costs × 1.05)' }
+      : { id: 'openrouter', label: 'your OpenRouter key' };
   }
 
   /** Whether a step of the order can take a turn now: installed (or keyed), not out of usage. */
@@ -1394,43 +1558,62 @@ export class AgentManager {
         );
       return false;
     }
-    const toLabel = optionLabel(to);
-
     // Held as "running" while it switches, so a prompt can't slip in and Stop works.
     const abort = new AbortController();
     live.preparing = abort;
     try {
-      // From a subscription to models paid by use: the person says yes first.
-      if (
-        to.harness === 'kovan' &&
-        from.harness !== 'kovan' &&
-        settings.agentFailoverAskPaid &&
-        !s.paidSwitchOk
-      ) {
+      // The person decides where the conversation goes on: each ready agent in turn, the
+      // next in their order first. A step onto pay-per-use models by someone other than who
+      // paid so far also says who pays, and its yes counts as the consent for that payer.
+      const candidates: AgentOption[] = [step!];
+      for (const o of settings.agentOrder)
+        if (
+          usable.get(o) === true &&
+          !sameOption(o, from) &&
+          !candidates.some((c) => sameOption(c, o))
+        )
+          candidates.push(o);
+      const choose = settings.agentFailoverChoose !== false;
+      const fromPayer = await this.payerOf(from);
+      let chosen: AgentOption | null = null;
+      for (let i = 0; i < candidates.length; i++) {
+        const cand = (await this.withAccount(candidates[i]!)) ?? candidates[i]!;
+        const candLabel = optionLabel(cand);
+        const candPayer = await this.payerOf(cand);
+        const paidAsk =
+          cand.harness === 'kovan' &&
+          candPayer.id !== fromPayer.id &&
+          settings.agentFailoverAskPaid &&
+          !s.paidSwitchOk &&
+          !s.paidSwitchOkFor?.includes(candPayer.id);
+        if (!choose && !paidAsk) {
+          chosen = cand;
+          break;
+        }
         const id = randomUUID();
-        const custom = parseCustomModelId(to.model);
-        const provider = custom
-          ? (await this.custom.list()).find((p) => p.id === custom.provider)?.name
-          : null;
-        const managed = Boolean(await this.host.managed?.());
-        const payer = provider
-          ? `your ${provider} account`
-          : managed
-            ? 'Kovan managed usage (provider cost × 1.05)'
-            : 'your OpenRouter key';
+        const others = candidates
+          .slice(i + 1)
+          .map((o) => optionLabel(o))
+          .join(', ');
         this.onAgentEvent(live, {
           type: 'tool_start',
           id,
           name: 'switch_agent',
-          summary: `Switching to ${toLabel} (pay-per-use)`,
-          args: { from: from.harness, to: to.harness, model: to.model },
+          summary: `Switching to ${candLabel}`,
+          args: { from: from.harness, to: cand.harness, model: cand.model },
         });
         const request: ApprovalRequest = {
           id,
           tool: 'switch_agent',
           kind: 'command',
-          title: `${HARNESS_NAMES[from.harness]} ran out. Continue with ${toLabel}?`,
-          detail: `Next in your order is Kovan's agent, which uses models paid by use, through ${payer}.${to.model === JEV_MODEL_ID ? ' JevRouter picks the model.' : ''} You can turn this question off in Settings → Agents.`,
+          title: `${optionLabel(from)} ran out. Continue with ${candLabel}?`,
+          detail: [
+            paidAsk
+              ? `${candLabel} uses models paid by use, through ${candPayer.label}.${cand.model === JEV_MODEL_ID ? ' JevRouter picks the model.' : ''}`
+              : `${candLabel} is next in your order.`,
+            others ? `If not, you'll be asked about: ${others}.` : 'It is the last one ready.',
+            'You can change this in Settings → Agents.',
+          ].join(' '),
         };
         this.onAgentEvent(live, { type: 'approval', request });
         const approved = await this.waitForApproval(live, request);
@@ -1439,11 +1622,25 @@ export class AgentManager {
           type: 'tool_end',
           id,
           ok: approved,
-          output: approved ? `Continuing with ${toLabel}.` : 'Declined.',
+          output: approved ? `Continuing with ${candLabel}.` : 'Declined.',
         });
-        if (!approved || abort.signal.aborted) return false;
-        s.paidSwitchOk = true;
+        if (abort.signal.aborted) return false;
+        if (approved) {
+          if (paidAsk) s.paidSwitchOkFor = [...(s.paidSwitchOkFor ?? []), candPayer.id];
+          chosen = cand;
+          break;
+        }
+        if (!choose) return false;
       }
+      if (!chosen) {
+        this.notice(
+          live,
+          'info',
+          `${optionLabel(from)} ran out and you chose not to continue elsewhere. Send the task again when it opens, or pick an agent yourself.`,
+        );
+        return false;
+      }
+      const to = chosen;
 
       const context = this.laneContext(s.id, reason);
       const turnStart = s.events.findLastIndex((e) => e.type === 'turn_start');
@@ -1478,6 +1675,8 @@ export class AgentManager {
       const start = await this.readyTurn(live, s.root, note, []);
       if (abort.signal.aborted) return false;
       live.preparing = null;
+      // The receipt that follows names who pays now, not the agent that ran out.
+      this.onAgentEvent(live, { type: 'payer', payer: payerOf(live) });
       start();
       return true;
     } finally {
@@ -1668,10 +1867,21 @@ export class AgentManager {
       }
   }
 
-  answerFromTeam(sessionId: string, requestId: string, approved: boolean): void {
+  /**
+   * A teammate (or this person, from another device) answered a lane approval. Who it was is
+   * kept in the lane, beside the step, so everyone (the owner first) can see it.
+   */
+  answerFromTeam(
+    sessionId: string,
+    requestId: string,
+    approved: boolean,
+    by: string | null = null,
+  ): void {
     for (const [id, live] of this.live)
-      if (live.stored.session?.id === sessionId && live.pending.has(requestId))
+      if (live.stored.session?.id === sessionId && live.pending.has(requestId)) {
+        if (by) this.notice(live, 'info', `${by} ${approved ? 'approved' : 'denied'} this step.`);
         this.approve(id, requestId, approved);
+      }
   }
 
   /**

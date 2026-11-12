@@ -9,7 +9,7 @@ import {
   type AgentAccount,
   type ExternalHarness,
 } from '../../../shared/agent';
-import { getState, notify, reportError, setState, writeLocal } from '../store';
+import { getState, notify, reportError, setState, writeLocal, secretStore } from '../store';
 import { api } from './api';
 import { newTerminal } from './terminal';
 
@@ -31,6 +31,11 @@ export function initAgent(): void {
     // Edits being typed show in the editor, not in the transcript.
     if (event.type === 'tool_progress') return;
     const current = getState().conversation;
+    if (event.type === 'idle') {
+      if (current?.id === id && current.running)
+        setState({ conversation: { ...current, running: false } });
+      return;
+    }
     if (current?.id !== id) {
       if (event.type === 'turn_end') void loadConversations(false);
       return;
@@ -165,7 +170,8 @@ export function stopAgent(): void {
 
 export function answerApproval(approvalId: string, approved: boolean): void {
   const c = getState().conversation;
-  if (c) void api.invoke('agent:approve', c.id, approvalId, approved);
+  // A refused answer (a role that no longer allows it, say) says why instead of doing nothing.
+  if (c) void api.invoke('agent:approve', c.id, approvalId, approved).catch(reportError);
 }
 
 export async function configureConversation(patch: Partial<ConversationConfig>): Promise<void> {
@@ -226,7 +232,7 @@ export async function saveOpenRouterKey(key: string | null): Promise<boolean> {
       notify({
         kind: 'info',
         title: 'OpenRouter connected',
-        message: 'Your key is stored in the system keychain.',
+        message: `Your key is stored in ${secretStore()}.`,
       });
       await loadModels(true);
     }
@@ -260,10 +266,16 @@ export async function loadExternalAgents(refresh = false): Promise<void> {
 }
 
 /** Another Claude Code or Codex account: made here, then signed in in a terminal. */
-export async function addAgentAccount(harness: ExternalHarness, name: string): Promise<boolean> {
+export async function addAgentAccount(
+  harness: ExternalHarness,
+  name: string,
+  home = false,
+): Promise<boolean> {
   try {
-    const account = await api.invoke('accounts:add', harness, name);
+    const account = await api.invoke('accounts:add', harness, name, home);
     setState({ agentAccounts: await api.invoke('accounts:list') });
+    // This computer's sign-in is already there (or the person signs in in their own terminal).
+    if (home) return true;
     await newTerminal(harness, {
       account: account.id,
       login: true,
@@ -279,7 +291,9 @@ export async function addAgentAccount(harness: ExternalHarness, name: string): P
 export async function removeAgentAccount(account: AgentAccount): Promise<void> {
   if (
     !window.confirm(
-      `Remove ${HARNESS_NAMES[account.harness]} (${account.name}) from Kovan? Its sign-in on this machine is deleted; the account itself stays as it is.`,
+      account.home
+        ? `Stop using this computer's ${HARNESS_NAMES[account.harness]} sign-in in Kovan? Your sign-in and settings stay as they are.`
+        : `Remove ${HARNESS_NAMES[account.harness]} (${account.name}) from Kovan? Its sign-in on this machine is deleted; the account itself stays as it is.`,
     )
   )
     return;

@@ -1,4 +1,5 @@
 import type { ReplayEvent, Session, TaskState } from '@kovan/shared';
+import { pressable } from './ui';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../services/api';
@@ -171,6 +172,11 @@ export function ReplayView({ session }: { session: Session }) {
                 setCursor(i);
                 setOpen(open === i ? null : i);
               }}
+              {...pressable(() => {
+                setCursor(i);
+                setOpen(open === i ? null : i);
+              })}
+              aria-expanded={open === i}
             >
               <span className="mono small muted replay-time">{time(e.at)}</span>
               <span className={`replay-badge ${badge(e.kind).replace(' ', '-')}`}>

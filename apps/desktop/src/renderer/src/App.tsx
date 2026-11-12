@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 import { installKeybindings } from './commands';
+import { installFocusRescue } from './focusRescue';
+import { useLocale } from './i18n';
+import { installDomTranslation } from './i18n/dom';
+import { TR } from './i18n/tr';
 import { Banner } from './components/Banner';
 import { CommandPalette } from './components/CommandPalette';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -19,7 +23,9 @@ import { SettingsView } from './components/SettingsView';
 import { SignIn } from './components/SignIn';
 import { TitleBar } from './components/TitleBar';
 import { WorkspaceView } from './components/WorkspaceView';
-import { useStore } from './store';
+import { INTRODUCED } from './services/onboarding';
+import { updateSettings } from './services/settings';
+import { setState, useStore } from './store';
 
 export function App() {
   const view = useStore((s) => s.view);
@@ -27,14 +33,27 @@ export function App() {
   const navCollapsed = useStore((s) => s.navCollapsed);
   const signInSkipped = useStore((s) => s.settings.signInSkipped);
   const signedIn = useStore((s) => s.signedIn);
+  // Keyed on the language: changing it draws every screen again in the new one.
+  const locale = useLocale();
+  useEffect(() => (locale === 'en' ? undefined : installDomTranslation(TR)), [locale]);
 
   useEffect(() => installKeybindings(), []);
+  useEffect(() => installFocusRescue(), []);
+  // The first time past the sign-in screen, the guide opens by itself (once).
+  const inApp = signedIn || signInSkipped;
+  useEffect(() => {
+    const onboarding = useStore.getState().settings.onboarding;
+    // Someone who has opened a folder before has found their way already.
+    if (!inApp || onboarding[INTRODUCED] || onboarding['start']) return;
+    setState({ gettingStartedOpen: true });
+    void updateSettings({ onboarding: { ...onboarding, [INTRODUCED]: true } });
+  }, [inApp]);
   // Teammates see which workspace this machine has open.
   useEffect(() => updatePresence(), [view, workspace?.root, signedIn]);
 
   if (!signInSkipped && !signedIn) {
     return (
-      <div className="app">
+      <div className="app" key={locale} lang={locale}>
         <TitleBar />
         <SignIn />
         <Notices />
@@ -43,7 +62,7 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" key={locale} lang={locale}>
       <TitleBar />
       {view !== 'settings' && <Banner />}
       <div className="body">

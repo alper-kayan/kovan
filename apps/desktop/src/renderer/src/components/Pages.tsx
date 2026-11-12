@@ -1,11 +1,20 @@
-import type { Participant, Session, Swarm, SwarmMessage } from '@kovan/shared';
-import { Bot, ChevronsUpDown, FolderGit2, Hexagon, Minus, Plus } from 'lucide-react';
+import {
+  swarmBadge,
+  type Participant,
+  type Session,
+  type Swarm,
+  type SwarmMessage,
+} from '@kovan/shared';
+import { t } from '../i18n';
+import { Bot, ChevronsUpDown, FolderGit2, Hexagon, Minus, Plus, Workflow } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HARNESS_NAMES, type Harness } from '../../../shared/agent';
 import { loadSessions, openSession } from '../services/sessions';
 import { loadSwarm } from '../services/swarm';
-import { useStore } from '../store';
+import { addWorkspace } from '../services/team';
+import { showView, useStore } from '../store';
 import { PageHeader } from './PageHeader';
+import { EmptyState, pressable } from './ui';
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 2;
@@ -97,6 +106,7 @@ function agentModel(p: Participant): string {
 
 export function AgentsPage() {
   const signedIn = useStore((s) => s.signedIn);
+  const isMac = useStore((s) => s.isMac);
   const workspaces = useStore((s) => s.teamWorkspaces);
   const sessions = useStore((s) => s.sessions);
   const swarms = useStore((s) => s.swarms);
@@ -139,14 +149,15 @@ export function AgentsPage() {
 
   return (
     <section className="page">
-      <PageHeader title="Agents">
+      <PageHeader title="Agent map">
         <label className="filter" style={{ minWidth: 160, justifyContent: 'space-between' }}>
           <select
             className="filter-select"
+            aria-label="Workspace"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           >
-            <option value="all">All repos ({workspaces.length})</option>
+            <option value="all">{t('All workspaces ({n})', { n: workspaces.length })}</option>
             {workspaces.map((w) => (
               <option key={w.id} value={w.id}>
                 {w.name}
@@ -157,190 +168,214 @@ export function AgentsPage() {
         </label>
       </PageHeader>
       <div className="page-rule" />
-      <div
-        className="canvas"
-        style={{
-          backgroundSize: `${size}px ${size}px`,
-          backgroundPosition: `${offset.x}px ${offset.y}px`,
-        }}
-        onPointerDown={(e) => {
-          if ((e.target as Element).closest('.node')) return;
-          drag.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
-          (e.target as Element).setPointerCapture(e.pointerId);
-        }}
-        onPointerMove={(e) => {
-          const d = drag.current;
-          if (d) setOffset({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
-        }}
-        onPointerUp={() => (drag.current = null)}
-        onWheel={(e) => {
-          if (e.metaKey || e.ctrlKey) setZoom((z) => clampZoom(z * (e.deltaY < 0 ? 1.1 : 0.9)));
-          else setOffset((o) => ({ x: o.x - e.deltaX, y: o.y - e.deltaY }));
-        }}
-      >
-        {repos.length === 0 && (
-          <div className="canvas-hint">
+      {repos.length === 0 ? (
+        <EmptyState icon={<Workflow size={40} strokeWidth={1.2} />} title="No agents at work">
+          <p className="empty-text">
             {workspaces.length === 0
-              ? 'Add a workspace to see its sessions and agents.'
-              : 'No live sessions. Start one to see its agents here.'}
-          </div>
-        )}
+              ? 'This map shows every AI agent working in your team, session by session. Add a workspace and start a session to see them here.'
+              : 'This map shows every AI agent working in your team, session by session. None is working right now.'}
+          </p>
+          {workspaces.length === 0 ? (
+            signedIn && (
+              <button className="btn btn-primary btn-sm" onClick={() => void addWorkspace()}>
+                Add a workspace
+              </button>
+            )
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={() => showView('sessions')}>
+              Go to sessions
+            </button>
+          )}
+        </EmptyState>
+      ) : (
         <div
-          className="graph-plane"
-          style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}
+          className="canvas"
+          style={{
+            backgroundSize: `${size}px ${size}px`,
+            backgroundPosition: `${offset.x}px ${offset.y}px`,
+          }}
+          onPointerDown={(e) => {
+            if ((e.target as Element).closest('.node')) return;
+            drag.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+            (e.target as Element).setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            const d = drag.current;
+            if (d) setOffset({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
+          }}
+          onPointerUp={() => (drag.current = null)}
+          onWheel={(e) => {
+            if (e.metaKey || e.ctrlKey) setZoom((z) => clampZoom(z * (e.deltaY < 0 ? 1.1 : 0.9)));
+            else setOffset((o) => ({ x: o.x - e.deltaX, y: o.y - e.deltaY }));
+          }}
         >
-          <svg className="graph-links" width={1200} height={4000}>
-            {repos.flatMap((r) =>
-              r.sessions.flatMap((s) => [
-                <path
-                  key={`r${s.session.id}`}
-                  d={link(COL.repo + W.repo, r.y + REPO_H / 2, COL.session, s.y + SESSION_H / 2)}
-                />,
-                ...s.agents.map((a) => (
+          <div
+            className="graph-plane"
+            style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})` }}
+          >
+            <svg className="graph-links" width={1200} height={4000}>
+              {repos.flatMap((r) =>
+                r.sessions.flatMap((s) => [
                   <path
-                    key={`s${a.key}`}
-                    className={a.participant.state === 'running' ? 'active' : ''}
-                    d={link(
-                      COL.session + W.session,
-                      s.y + SESSION_H / 2,
-                      COL.agent,
-                      a.y + AGENT_H / 2,
-                    )}
-                  />
-                )),
-                ...(s.swarm
-                  ? s.agents
-                      .filter((a) =>
-                        s.swarm!.swarm.agents.some((x) => x.agentId === a.participant.userId),
-                      )
-                      .map((a) => (
-                        <path
-                          key={`w${a.key}`}
-                          className="swarm"
-                          d={link(
-                            COL.agent + W.agent,
-                            a.y + AGENT_H / 2,
-                            COL.swarm,
-                            s.swarm!.y + s.swarm!.h / 2,
-                          )}
-                        />
-                      ))
-                  : []),
-              ]),
-            )}
-          </svg>
-          {repos.map((r) => (
-            <div key={r.id}>
-              <div className="node node-repo" style={{ left: COL.repo, top: r.y, width: W.repo }}>
-                <FolderGit2 size={13} />
-                <div>
-                  <div className="node-kicker">REPOSITORY</div>
-                  <div className="node-title mono">{r.name}</div>
-                </div>
-              </div>
-              {r.sessions.map((s) => (
-                <div key={s.session.id}>
-                  <button
-                    className="node node-session"
-                    style={{ left: COL.session, top: s.y, width: W.session }}
-                    onClick={() => void openSession(s.session.id)}
-                  >
-                    <div className="node-kicker">
-                      SESSION
-                      {s.session.swarm && (
-                        <span className="node-swarm-tag">
-                          <Hexagon size={9} /> Swarm
-                        </span>
+                    key={`r${s.session.id}`}
+                    d={link(COL.repo + W.repo, r.y + REPO_H / 2, COL.session, s.y + SESSION_H / 2)}
+                  />,
+                  ...s.agents.map((a) => (
+                    <path
+                      key={`s${a.key}`}
+                      className={a.participant.state === 'running' ? 'active' : ''}
+                      d={link(
+                        COL.session + W.session,
+                        s.y + SESSION_H / 2,
+                        COL.agent,
+                        a.y + AGENT_H / 2,
                       )}
-                    </div>
-                    <div className="node-title">{s.session.title}</div>
-                  </button>
-                  {s.agents.map((a) => {
-                    const p = a.participant;
-                    const active = p.state === 'running' || p.state === 'waiting';
-                    return (
-                      <div
-                        key={a.key}
-                        className={`node node-agent ${active ? 'active' : ''}`}
-                        style={{ left: COL.agent, top: a.y, width: W.agent, height: AGENT_H }}
-                        onClick={() => void openSession(s.session.id)}
-                      >
-                        <div className="node-agent-head">
-                          {p.kind === 'agent' ? <Bot size={12} className="node-ai" /> : null}
-                          <b>{p.name}</b>
-                          {p.kind === 'agent' && <span className="ai-badge">AI</span>}
-                          <span className="mono muted node-model">{agentModel(p)}</span>
-                          <span className={`node-state ${active ? 'on' : ''}`}>
-                            ● {active ? 'Active' : p.state === 'awaiting' ? 'Awaiting' : 'Idle'}
-                          </span>
-                        </div>
-                        <div className="node-text">
-                          {a.task ??
-                            (p.kind === 'agent' && p.hostName
-                              ? `Runs on ${p.hostName}'s machine`
-                              : p.state === 'waiting'
-                                ? 'Needs approval'
-                                : '')}
-                        </div>
-                      </div>
-                    );
-                  })}
-                  {s.swarm && (
-                    <div
-                      className="node node-swarm"
-                      style={{ left: COL.swarm, top: s.swarm.y, width: W.swarm }}
+                    />
+                  )),
+                  ...(s.swarm
+                    ? s.agents
+                        .filter((a) =>
+                          s.swarm!.swarm.agents.some((x) => x.agentId === a.participant.userId),
+                        )
+                        .map((a) => (
+                          <path
+                            key={`w${a.key}`}
+                            className="swarm"
+                            d={link(
+                              COL.agent + W.agent,
+                              a.y + AGENT_H / 2,
+                              COL.swarm,
+                              s.swarm!.y + s.swarm!.h / 2,
+                            )}
+                          />
+                        ))
+                    : []),
+                ]),
+              )}
+            </svg>
+            {repos.map((r) => (
+              <div key={r.id}>
+                <div className="node node-repo" style={{ left: COL.repo, top: r.y, width: W.repo }}>
+                  <FolderGit2 size={13} />
+                  <div>
+                    <div className="node-kicker">REPOSITORY</div>
+                    <div className="node-title mono">{r.name}</div>
+                  </div>
+                </div>
+                {r.sessions.map((s) => (
+                  <div key={s.session.id}>
+                    <button
+                      className="node node-session"
+                      style={{ left: COL.session, top: s.y, width: W.session }}
                       onClick={() => void openSession(s.session.id)}
                     >
-                      <div className="node-swarm-head">
-                        <Hexagon size={10} /> SWARM ·{' '}
-                        {s.swarm.swarm.status === 'running'
-                          ? 'LIVE'
-                          : s.swarm.swarm.status.toUpperCase()}
+                      <div className="node-kicker">
+                        SESSION
+                        {s.session.swarm && (
+                          <span className="node-swarm-tag">
+                            <Hexagon size={9} /> Swarm
+                          </span>
+                        )}
                       </div>
-                      {s.swarm.messages.slice(-3).map((m) => (
-                        <div key={m.id} className="node-swarm-msg">
-                          <b>{m.fromName}</b> → {m.toName ?? 'all'} {m.text}
+                      <div className="node-title">{s.session.title}</div>
+                    </button>
+                    {s.agents.map((a) => {
+                      const p = a.participant;
+                      const active = p.state === 'running' || p.state === 'waiting';
+                      return (
+                        <div
+                          key={a.key}
+                          className={`node node-agent ${active ? 'active' : ''}`}
+                          style={{ left: COL.agent, top: a.y, width: W.agent, height: AGENT_H }}
+                          onClick={() => void openSession(s.session.id)}
+                          {...pressable(
+                            () => void openSession(s.session.id),
+                            `${p.name} in ${s.session.title}: open the session`,
+                          )}
+                        >
+                          <div className="node-agent-head">
+                            {p.kind === 'agent' ? <Bot size={12} className="node-ai" /> : null}
+                            <b>{p.name}</b>
+                            {p.kind === 'agent' && <span className="ai-badge">AI</span>}
+                            <span className="mono muted node-model">{agentModel(p)}</span>
+                            <span className={`node-state ${active ? 'on' : ''}`}>
+                              ● {active ? 'Active' : p.state === 'awaiting' ? 'Awaiting' : 'Idle'}
+                            </span>
+                          </div>
+                          <div className="node-text">
+                            {a.task ??
+                              (p.kind === 'agent' && p.hostName
+                                ? `Runs on ${p.hostName}'s machine`
+                                : p.state === 'waiting'
+                                  ? 'Needs a yes'
+                                  : '')}
+                          </div>
                         </div>
-                      ))}
-                      {s.swarm.messages.length === 0 && (
-                        <div className="node-swarm-msg muted">{s.swarm.swarm.goal}</div>
-                      )}
-                      <div className="node-swarm-foot">Click to open the swarm chat</div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
+                      );
+                    })}
+                    {s.swarm && (
+                      <div
+                        className="node node-swarm"
+                        style={{ left: COL.swarm, top: s.swarm.y, width: W.swarm }}
+                        onClick={() => void openSession(s.session.id)}
+                        {...pressable(
+                          () => void openSession(s.session.id),
+                          `The swarm in ${s.session.title}: open the session`,
+                        )}
+                      >
+                        <div className="node-swarm-head">
+                          <Hexagon size={10} /> SWARM ·{' '}
+                          {s.swarm.swarm.status === 'running'
+                            ? 'LIVE'
+                            : swarmBadge(s.swarm.swarm).label.toUpperCase()}
+                        </div>
+                        {s.swarm.messages.slice(-3).map((m) => (
+                          <div key={m.id} className="node-swarm-msg">
+                            <b>{m.fromName}</b> → {m.toName ?? 'all'} {m.text}
+                          </div>
+                        ))}
+                        {s.swarm.messages.length === 0 && (
+                          <div className="node-swarm-msg muted">{s.swarm.swarm.goal}</div>
+                        )}
+                        <div className="node-swarm-foot">Click to open the swarm chat</div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+          <div className="zoom" onPointerDown={(e) => e.stopPropagation()}>
+            <button
+              className="icon-btn"
+              title="Zoom out"
+              onClick={() => setZoom((z) => clampZoom(z - 0.1))}
+            >
+              <Minus size={13} />
+            </button>
+            <span className="level">{Math.round(zoom * 100)}%</span>
+            <button
+              className="icon-btn"
+              title="Zoom in"
+              onClick={() => setZoom((z) => clampZoom(z + 0.1))}
+            >
+              <Plus size={13} />
+            </button>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setZoom(1);
+                setOffset({ x: 0, y: 0 });
+              }}
+            >
+              Fit
+            </button>
+          </div>
+          <div className="canvas-tips">
+            Drag to pan · {isMac ? '⌘' : 'Ctrl'} + scroll to zoom · click a block to open it
+          </div>
         </div>
-        <div className="zoom" onPointerDown={(e) => e.stopPropagation()}>
-          <button
-            className="icon-btn"
-            title="Zoom out"
-            onClick={() => setZoom((z) => clampZoom(z - 0.1))}
-          >
-            <Minus size={13} />
-          </button>
-          <span className="level">{Math.round(zoom * 100)}%</span>
-          <button
-            className="icon-btn"
-            title="Zoom in"
-            onClick={() => setZoom((z) => clampZoom(z + 0.1))}
-          >
-            <Plus size={13} />
-          </button>
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={() => {
-              setZoom(1);
-              setOffset({ x: 0, y: 0 });
-            }}
-          >
-            Fit
-          </button>
-        </div>
-        <div className="canvas-tips">Drag to pan · ⌘ scroll to zoom · click a block to open it</div>
-      </div>
+      )}
     </section>
   );
 }

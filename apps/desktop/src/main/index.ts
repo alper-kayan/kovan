@@ -1,4 +1,5 @@
-import { PRODUCT_NAME } from '@kovan/shared';
+import { PRODUCT_NAME, pickLocale } from '@kovan/shared';
+import { setMainLocale } from './i18n.js';
 import {
   app,
   BrowserWindow,
@@ -47,6 +48,7 @@ import { RecentWorkspaces } from './recents.js';
 import { SettingsStore } from './settingsStore.js';
 import { SkillLibrary } from './skills.js';
 import { McpRegistry } from './mcp.js';
+import type { McpServerConfig } from '@kovan/mcp-client';
 import { PluginManager } from './plugins.js';
 import { WindowContext } from './windowContext.js';
 import { BUILT_SERVER_URL, UPDATE_PUBLIC_KEY } from './buildInfo.js';
@@ -126,11 +128,17 @@ function broadcast<C extends EventChannel>(channel: C, ...args: EventContract[C]
   for (const ctx of contexts.values()) ctx.send(channel, ...args);
 }
 
+/** Set once settings are read: what a fresh sign-in sends along (the language). */
+let afterSignIn: () => void = () => undefined;
 const brain = new BrainClient(
   serverUrl,
   app.getPath('userData'),
   {
-    user: (user) => broadcast('brain:user', user),
+    user: (user) => {
+      broadcast('brain:user', user);
+      if (user) afterSignIn();
+    },
+    loginCode: (code) => broadcast('brain:loginCode', code),
     connection: (state) => {
       for (const ctx of contexts.values()) {
         ctx.connection = state;
@@ -150,6 +158,9 @@ const brain = new BrainClient(
             message.approval.sessionId,
             message.approval.requestId,
             message.approval.status === 'approved',
+            message.approval.answeredBy === brain.status().user?.id
+              ? null
+              : message.approval.answeredByName,
           );
       }
       // A teammate this person called in with @ is at work, or answered.
@@ -242,7 +253,20 @@ async function writeMcpConfig(conversationId: string | null, root: string): Prom
   const dir = join(app.getPath('userData'), 'mcp');
   await mkdir(dir, { recursive: true });
   const file = join(dir, `${conversationId ?? 'terminal'}.json`);
-  const config = { mcpServers: { kovan: mcpServerSpec(conversationId, root) } };
+  // The MCP servers the person added in Settings come along, so Claude Code has the same tools
+  // as Kovan's own agent; Kovan's server last, so its name can't be taken.
+  const personal = await mcp
+    .personal()
+    .then((p) => p.servers)
+    .catch(() => ({}) as Record<string, McpServerConfig>);
+  const servers: Record<string, unknown> = {};
+  for (const [name, c] of Object.entries(personal))
+    servers[name] =
+      c.type === 'stdio'
+        ? { command: c.command, args: c.args, env: c.env, ...(c.cwd ? { cwd: c.cwd } : {}) }
+        : { type: 'http', url: c.url, headers: c.headers };
+  servers['kovan'] = mcpServerSpec(conversationId, root);
+  const config = { mcpServers: servers };
   await writeFile(file, JSON.stringify(config, null, 2), { mode: 0o600 });
   return file;
 }
@@ -386,6 +410,8 @@ async function managedEndpoint(): Promise<{ baseUrl: string; token: string } | n
   const mode = (await settings.get()).modelBilling;
   if (mode === 'own') return null;
   if (mode === 'auto' && (await keys.openRouterKey())) return null;
+  // Signed in isn't enough: the server must offer managed usage and it must be set up.
+  if (!(await brain.managedReady())) return null;
   return brain.managedEndpoint();
 }
 
@@ -482,6 +508,16 @@ function isTrustedSender(event: IpcMainInvokeEvent): boolean {
   return typeof url === 'string' && isAppUrl(url);
 }
 
+/** Windows' minimize/maximize/close buttons over Kovan's title bar, in its colours. */
+function titleOverlay(): { color: string; symbolColor: string; height: number } {
+  const dark = nativeTheme.shouldUseDarkColors;
+  return {
+    color: dark ? '#0b0b0b' : '#f3f3f5',
+    symbolColor: dark ? '#a7a7a7' : '#52525b',
+    height: 32,
+  };
+}
+
 async function createWindow(folder: string | null = null): Promise<BrowserWindow> {
   const isMac = process.platform === 'darwin';
   const window = new BrowserWindow({
@@ -495,7 +531,14 @@ async function createWindow(folder: string | null = null): Promise<BrowserWindow
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#101010' : '#ffffff',
     ...(isMac
       ? { titleBarStyle: 'hiddenInset' as const, trafficLightPosition: { x: 14, y: 12 } }
-      : {}),
+      : process.platform === 'win32'
+        ? {
+            // One bar, Kovan's own, with Windows' buttons drawn on it: not the system title,
+            // the menu and Kovan's bar stacked on top of each other.
+            titleBarStyle: 'hidden' as const,
+            titleBarOverlay: titleOverlay(),
+          }
+        : {}),
     webPreferences: {
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
@@ -520,6 +563,8 @@ async function createWindow(folder: string | null = null): Promise<BrowserWindow
     snapshot: async (session, root) => {
       const me = brain.status().user;
       if (!me) return null;
+      // Git sync off for the workspace means nothing goes out, checkpoints included.
+      if (!(await sessionSync.enabledFor(session.workspaceId))) return null;
       return pushSnapshot(
         root,
         snapshotRef(session.id, me.id),
@@ -560,6 +605,14 @@ async function createWindow(folder: string | null = null): Promise<BrowserWindow
     mcpServer: (conversationId, root) => mcpServerSpec(conversationId, root),
     paused: (root) => sessionSync.pausedReason(root),
     managed: () => managedEndpoint(),
+    managedWhyNot: async () => {
+      if (!brain.status().signedIn) return null;
+      const status = await brain.managedStatus();
+      if (status.ready) return null;
+      return status.available
+        ? (status.reason ?? "Kovan billing isn't set up yet.")
+        : "This Kovan server doesn't sell model usage. Use your own model key instead: in the app, Settings → Model keys & spend; in the terminal, kovan setup.";
+    },
     workspaceOf: (root) => bindings.idFor(root),
     limits: agentLimits,
     settings: () => settings.get(),
@@ -616,6 +669,11 @@ async function createWindow(folder: string | null = null): Promise<BrowserWindow
 
   // The window title carries the workspace and connection state; don't let <title> replace it.
   window.on('page-title-updated', (event) => event.preventDefault());
+  // The text size chosen in Settings → General, from the first frame.
+  window.webContents.on(
+    'did-finish-load',
+    () => void settings.get().then((s) => window.webContents.setZoomFactor(s.uiScale)),
+  );
   window.once('ready-to-show', () => (debugPort && isDev ? window.showInactive() : window.show()));
   ctx.updateTitle();
 
@@ -686,8 +744,37 @@ void app.whenReady().then(async () => {
   });
   const initial = await settings.get();
   nativeTheme.themeSource = initial.theme;
+  // The language goes with every request, and is kept on the account (emails, phone pushes).
+  const localeOf = (s: typeof initial) =>
+    pickLocale(
+      s.language === 'system'
+        ? (app.getPreferredSystemLanguages()[0] ?? app.getLocale())
+        : s.language,
+    );
+  let sentLocale: string | null = null;
+  const applyLocale = (s: typeof initial) => {
+    const locale = localeOf(s);
+    brain.setLocale(locale);
+    setMainLocale(locale);
+    if (brain.status().signedIn && sentLocale !== locale)
+      void brain
+        .request('PATCH', '/api/me', { locale })
+        .then(() => (sentLocale = locale))
+        .catch(() => undefined);
+  };
+  applyLocale(initial);
+  afterSignIn = () => void settings.get().then(applyLocale);
+  // The overlay buttons follow the theme (Windows only draws them over the page).
+  if (process.platform === 'win32')
+    nativeTheme.on('updated', () => {
+      for (const ctx of contexts.values())
+        if (!ctx.window.isDestroyed()) ctx.window.setTitleBarOverlay(titleOverlay());
+    });
   settings.onChange((next) => {
     nativeTheme.themeSource = next.theme;
+    applyLocale(next);
+    for (const ctx of contexts.values())
+      if (!ctx.window.isDestroyed()) ctx.window.webContents.setZoomFactor(next.uiScale);
     updater.setAutomatic(next.autoUpdate);
     mcp.allow(next.mcpAlwaysAllow);
     for (const ctx of contexts.values()) ctx.send('settings:changed', next);
@@ -737,7 +824,7 @@ void app.whenReady().then(async () => {
     agentProgram: async (agent, root, as) => {
       const cli = (await externalAgents()).find((a) => a.id === agent && a.supported);
       if (!cli?.path) throw new Error(`${HARNESS_NAMES[agent]} is not installed on this machine.`);
-      // Only as an account the person added: the CLI's own sign-in on this computer is never used.
+      // Only as an account the person added (which may be this computer's own sign-in).
       const account =
         as?.account ??
         (as?.login ? undefined : (await agentAccounts.list()).find((a) => a.harness === agent)?.id);
@@ -748,6 +835,11 @@ void app.whenReady().then(async () => {
       const accountEnv = await agentAccounts.env(agent, account);
       if (!Object.keys(accountEnv).length)
         throw new Error(`That ${HARNESS_NAMES[agent]} account isn't on this machine any more.`);
+      // This computer's own sign-in is the person's to manage, in their own terminal.
+      if (as?.login && (await agentAccounts.list()).find((a) => a.id === account)?.home)
+        throw new Error(
+          `This account is ${HARNESS_NAMES[agent]}'s own sign-in on this computer: sign in by running ${agent === 'codex' ? '`codex login`' : '`claude` and typing /login'} in your terminal.`,
+        );
       // Signing an account in: the CLI's own sign-in, in that account's folder.
       if (as?.login)
         return {

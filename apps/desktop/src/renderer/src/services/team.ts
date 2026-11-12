@@ -1,5 +1,7 @@
 import {
+  can,
   effectiveMode,
+  ROLE_WORDS,
   type AccountDeletionPlan,
   type ApiKey,
   type ApiKeyScope,
@@ -52,15 +54,24 @@ export async function initTeam(): Promise<void> {
     serverUrl: status.serverUrl,
     connection: status.connection,
   });
+  // Signing in or out changes whether Kovan billing can pay for models: read it again.
+  const reloadProviders = () =>
+    void api
+      .invoke('providers:status')
+      .then((providers) => setState({ providers }))
+      .catch(() => undefined);
   api.on('brain:user', (user) => {
     setState({ user, signedIn: user !== null || getState().signedIn });
     if (user) void syncOnboarding(user);
     else setState({ signedIn: false, teamWorkspaces: [], orgs: [], presence: {}, members: {} });
+    reloadProviders();
   });
   api.on('brain:message', handleMessage);
+  api.on('brain:loginCode', (loginCode) => setState({ loginCode }));
   // Whatever was missed while offline (workspaces, roles) is read again on reconnect.
   api.on('connection:state', (state) => {
     if (state === 'online' && getState().signedIn) void loadTeam();
+    if (state === 'online') reloadProviders();
   });
   installErrorReporting();
   if (status.signedIn) await loadTeam();
@@ -201,19 +212,40 @@ function handleMessage(message: ServerMessage): void {
     case 'presence':
       setState((s) => ({ presence: { ...s.presence, [message.workspaceId]: message.online } }));
       return;
-    case 'membership':
+    case 'membership': {
+      const before = getState().teamWorkspaces.find((w) => w.id === message.workspaceId);
+      const lane = getState().conversation;
+      const laneHere = lane?.running === true && lane.session?.workspaceId === message.workspaceId;
       if (message.role === null) {
-        const lost = getState().teamWorkspaces.find((w) => w.id === message.workspaceId);
-        if (lost)
+        if (before)
           notify({
             kind: 'info',
-            title: 'Removed from a workspace',
-            message: `You no longer have access to ${lost.name}.`,
+            title: `Removed from ${before.name}`,
+            message: `You no longer have access to ${before.name}: its sessions and teammates are gone from here. Your own files stay as they are.`,
+            sticky: true,
           });
+        // Out of its sessions at once: a room you can't see any more doesn't stay open.
+        if (laneHere && lane) void api.invoke('agent:stop', lane.id).catch(() => undefined);
+        const room = getState().room;
+        if (room?.session?.workspaceId === message.workspaceId) {
+          setState({ room: null });
+          showView('sessions');
+        }
+      } else if (before && before.role !== message.role) {
+        const canWork = can(message.role, 'session.join');
+        if (!canWork && laneHere && lane)
+          void api.invoke('agent:stop', lane.id).catch(() => undefined);
+        notify({
+          kind: 'info',
+          title: `You're ${ROLE_WORDS[message.role].split(':')[0]} in ${before.name} now`,
+          message: `As ${ROLE_WORDS[message.role]}.${!canWork && laneHere ? ' Your agent there stopped.' : ''}`,
+          sticky: true,
+        });
       }
       void loadTeam();
       void reloadMembers(message.workspaceId);
       return;
+    }
     case 'workspace': {
       const before = getState().teamWorkspaces.find((w) => w.id === message.workspace.id);
       // The Git sync switch is shared: a teammate flipping it stops or starts it here too.
@@ -266,15 +298,8 @@ function installErrorReporting(): void {
 
 // ---------- organizations ----------
 
-/** The organization the sidebar and Sessions show: the one picked, else the person's own. */
-export function currentOrg(s: { orgs: Org[]; currentOrgId: string | null }): Org | null {
-  return (
-    s.orgs.find((o) => o.id === s.currentOrgId) ??
-    s.orgs.find((o) => o.role === 'owner') ??
-    s.orgs[0] ??
-    null
-  );
-}
+export { currentOrg } from './currentOrg';
+import { currentOrg } from './currentOrg';
 
 /** The team workspaces of the current organization (all of them for someone in just one). */
 export function useOrgWorkspaces(): Workspace[] {
@@ -321,9 +346,10 @@ export async function renameOrg(orgId: string, name: string): Promise<boolean> {
 // ---------- workspaces ----------
 
 /** Adds a repository: shared on the server when signed in, otherwise opened locally. */
-export async function addWorkspace(): Promise<void> {
+/** Makes a folder a shared workspace: the one given (a folder opened before), or one picked. */
+export async function addWorkspace(chosen?: string): Promise<void> {
   try {
-    const folder = await api.invoke('repo:choose');
+    const folder = chosen ?? (await api.invoke('repo:choose'));
     if (!folder) return;
     const info = await api.invoke('repo:inspect', folder);
     const { signedIn } = getState();
@@ -351,6 +377,21 @@ export async function addWorkspace(): Promise<void> {
         kind: 'info',
         title: 'Already shared',
         message: `${workspace.name} was already a workspace; this folder is now linked to it.`,
+      });
+    else
+      // Say what just happened: a shared workspace, by this name, in this organization.
+      notify({
+        kind: 'info',
+        title: `${workspace.name} is a workspace in ${org.name} now`,
+        message: `Your files stay on this computer; sessions, plans and comments about it are shared with the people you invite.${info.remoteUrl ? '' : ' It has no Git remote yet, so teammates can watch but not work on the same code.'} Rename it in Settings → Workspaces.`,
+        sticky: true,
+        action: {
+          label: 'Invite people',
+          run: () => {
+            showView('people');
+            setState({ inviteOpen: true });
+          },
+        },
       });
     await openWorkspace(info.root);
   } catch (error) {
@@ -444,13 +485,41 @@ export async function invite(
     );
     completeStep('invite');
     await reloadMembers(workspaceId);
-    notify({
-      kind: 'info',
-      title: result.member ? `${result.member.name} joined` : 'Invite sent',
-      message: result.member
-        ? 'They already had an account, so they were added straight away.'
-        : `They'll join when they sign in${who.githubLogin ? ` with GitHub @${who.githubLogin}` : ''}.`,
-    });
+    const link = result.invite?.link ?? null;
+    const copy = link
+      ? {
+          label: 'Copy link',
+          run: () =>
+            void navigator.clipboard
+              .writeText(link)
+              .then(() =>
+                toast('Invite link copied. Anyone with it can join, so send it only to them.'),
+              ),
+        }
+      : undefined;
+    if (result.member)
+      notify({
+        kind: 'info',
+        title: `${result.member.name} joined`,
+        message: 'They already had an account, so they were added straight away.',
+      });
+    else if (who.email)
+      notify({
+        kind: 'info',
+        title: `Invite sent to ${who.email}`,
+        message:
+          'The email has a link that joins them with any account they sign in with, an Apple private address too.',
+        ...(copy ? { action: copy } : {}),
+      });
+    else
+      // A GitHub username gets no email: the link is how they hear of it.
+      notify({
+        kind: 'info',
+        title: `Invite saved for @${who.githubLogin}`,
+        message: `No email goes to a GitHub username. They join when they sign in with GitHub @${who.githubLogin}, or with this link: send it to them yourself.`,
+        sticky: true,
+        ...(copy ? { action: copy } : {}),
+      });
     return true;
   } catch (error) {
     reportError(error);
@@ -512,10 +581,10 @@ export async function setWorkspaceMode(workspaceId: string, mode: WorkspaceMode)
   }
 }
 
-/** An owner renames a workspace, or changes its color or base branch. */
+/** An owner renames a workspace, or changes its color, base branch or who answers for agents. */
 export async function updateWorkspace(
   workspaceId: string,
-  patch: Partial<Pick<Workspace, 'name' | 'color' | 'defaultBranch'>>,
+  patch: Partial<Pick<Workspace, 'name' | 'color' | 'defaultBranch' | 'othersAgents'>>,
 ): Promise<boolean> {
   try {
     await request<{ workspace: Workspace }>('PATCH', `/api/workspaces/${workspaceId}`, patch);

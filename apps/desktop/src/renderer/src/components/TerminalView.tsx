@@ -40,6 +40,8 @@ export function TerminalView({ id, visible }: { id: number; visible: boolean }) 
       allowProposedApi: false,
       scrollback: 10_000,
       theme: theme(),
+      // With a screen reader running, the output is read out as it comes.
+      screenReaderMode: useStore.getState().appInfo?.screenReader === true,
     });
     const fitAddon = new FitAddon();
     terminal.loadAddon(fitAddon);

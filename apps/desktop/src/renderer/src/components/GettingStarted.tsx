@@ -1,11 +1,14 @@
-import { Bell, Check, FolderGit2, Mail, UserPlus, X } from 'lucide-react';
+import { ArrowRight, Bell, Bot, Check, FolderGit2, Mail, UserPlus, X } from 'lucide-react';
+import { DialogKeys } from './DialogKeys';
 import { GithubMark } from './Logo';
 import { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { completeStep, doneCount, STEPS, type StepId } from '../services/onboarding';
 import { addWorkspace, refreshUser, sendVerification, signIn } from '../services/team';
-import { notify, reportError, setState, useStore } from '../store';
+import { notify, reportError, setState, showView, useStore, type SettingsSection } from '../store';
+import type { Readiness, ReadyFix } from '../../../shared/agent';
 import { ProgressRing } from './ui';
+import { LoginCode } from './SignIn';
 
 function useCountdown(until: number): number {
   const [now, setNow] = useState(Date.now());
@@ -31,7 +34,79 @@ function SignInFirst({ what }: { what: string }) {
       <span className="callout" style={{ margin: 0 }}>
         {what} needs an account.
       </span>
+      {pending === 'login' && <LoginCode />}
     </div>
+  );
+}
+
+const FIX: Record<ReadyFix, { label: string; section: SettingsSection } | null> = {
+  provider: { label: 'Add a model key', section: 'providers' },
+  billing: { label: 'Set up Kovan billing', section: 'billing' },
+  accounts: { label: 'Add a Claude Code or Codex account', section: 'agents' },
+  install: { label: 'See what to install', section: 'agents' },
+  order: { label: 'Choose which agents to use', section: 'agents' },
+  wait: null,
+};
+
+/** Whether an agent could answer now; asked when the step shows, marked done once it can. */
+function AiStep() {
+  const [readiness, setReadiness] = useState<Readiness | null>(null);
+  useEffect(() => {
+    let live = true;
+    void api
+      .invoke('agent:readiness', { auto: true, harness: 'kovan', model: 'auto' })
+      .then((r) => {
+        if (!live) return;
+        setReadiness(r);
+        if (r.ready) completeStep('ai');
+      })
+      .catch(() => live && setReadiness(null));
+    return () => {
+      live = false;
+    };
+  }, []);
+  const go = (section: SettingsSection) => {
+    setState({ settingsSection: section, gettingStartedOpen: false });
+    showView('settings');
+  };
+  return (
+    <>
+      <h3>Get an AI agent ready</h3>
+      <p>
+        Your agent needs a model to think with. Any one of these works: a key from a model provider
+        such as OpenRouter, Kovan billing (you pay what the model costs, plus 5%), or your own
+        Claude Code or Codex account.
+      </p>
+      {readiness === null ? (
+        <p className="muted">Checking…</p>
+      ) : readiness.ready ? (
+        <div className="callout">
+          <Check size={15} /> An agent is ready. Open the chat with <Bot size={13} /> and ask it
+          something.
+        </div>
+      ) : (
+        <>
+          <div className="callout">{readiness.why}</div>
+          <div className="gs-actions">
+            {FIX[readiness.fix] && (
+              <button className="btn btn-primary" onClick={() => go(FIX[readiness.fix]!.section)}>
+                {FIX[readiness.fix]!.label}
+              </button>
+            )}
+            {readiness.fix !== 'provider' && (
+              <button className="btn" onClick={() => go('providers')}>
+                Use a model key instead
+              </button>
+            )}
+            {readiness.fix !== 'accounts' && (
+              <button className="btn" onClick={() => go('agents')}>
+                Use Claude Code or Codex
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </>
   );
 }
 
@@ -45,6 +120,8 @@ function Detail({ id }: { id: StepId }) {
   const wait = useCountdown(resendAt);
 
   switch (id) {
+    case 'ai':
+      return <AiStep />;
     case 'verify-email':
       return (
         <>
@@ -115,10 +192,13 @@ function Detail({ id }: { id: StepId }) {
     case 'start':
       return (
         <>
-          <h3>Start with Kovan</h3>
+          <h3>Open a project folder</h3>
           <p>
-            A workspace is a repository on this machine. Open one to browse its files, run a
-            terminal and review changes; sessions and agents build on it.
+            Pick the folder of a project you work on (a Git repository works best). You'll see its
+            files, a terminal and your changes, and your AI agent works in it.
+            {signedIn
+              ? ' It becomes a workspace your team can share once you invite them; the files stay on this computer.'
+              : ''}
           </p>
           <div className="gs-actions">
             <button
@@ -127,7 +207,7 @@ function Detail({ id }: { id: StepId }) {
                 void addWorkspace().then(() => setState({ gettingStartedOpen: false }))
               }
             >
-              <FolderGit2 size={14} /> {workspace ? 'Open another repository' : 'Open a repository'}
+              <FolderGit2 size={14} /> {workspace ? 'Open another folder' : 'Open a folder'}
             </button>
             {done && (
               <span className="callout" style={{ margin: 0 }}>
@@ -177,10 +257,27 @@ function Detail({ id }: { id: StepId }) {
         <>
           <h3>Start your first session</h3>
           <p>
-            A session is one task on one branch with one plan, shared by everyone in it. Each person
-            works in their own lane with their own agent, side by side.
+            A session is one task your team works on together, on its own Git branch. Everyone in it
+            brings their own AI agent, and all of them see what each agent does as it happens.
           </p>
-          <div className="callout">Shared sessions arrive after accounts and the team server.</div>
+          {!signedIn ? (
+            <SignInFirst what="A shared session" />
+          ) : (
+            <div className="gs-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  setState({ newSessionOpen: true, gettingStartedOpen: false });
+                  showView('sessions');
+                }}
+              >
+                New session
+              </button>
+              <span className="callout" style={{ margin: 0 }}>
+                Working alone? The agent chat is enough; sessions are for working with others.
+              </span>
+            </div>
+          )}
         </>
       );
     case 'invite':
@@ -217,9 +314,17 @@ function Detail({ id }: { id: StepId }) {
 export function GettingStarted() {
   const open = useStore((s) => s.gettingStartedOpen);
   const onboarding = useStore((s) => s.settings.onboarding);
-  const firstOpen = STEPS.find((s) => !onboarding[s.id])?.id ?? 'verify-email';
+  const firstOpen = STEPS.find((s) => !onboarding[s.id])?.id ?? STEPS[0]!.id;
   const [selected, setSelected] = useState<StepId>(firstOpen);
+  // Each time it opens: on the first step still to do.
+  useEffect(() => {
+    if (open) setSelected(firstOpen);
+  }, [open]);
   if (!open) return null;
+  const at = STEPS.findIndex((s) => s.id === selected);
+  const next =
+    STEPS.slice(at + 1).find((s) => !onboarding[s.id]) ??
+    STEPS.find((s, i) => i !== at && !onboarding[s.id]);
 
   const close = () => setState({ gettingStartedOpen: false });
   const groups = [
@@ -235,13 +340,14 @@ export function GettingStarted() {
         aria-label="Getting started"
         onMouseDown={(e) => e.stopPropagation()}
       >
+        <DialogKeys onClose={close} />
         <div className="modal-head">
           <h2 className="modal-title">
             Getting started <ProgressRing value={doneCount(onboarding)} total={STEPS.length} />
           </h2>
           <p className="modal-desc">
-            Kovan lets you code with AI and teammates. A workspace is a repository; a session is a
-            shared task. Agents do the work, and Swarm lets several agents coordinate.
+            A few steps to get you coding with an AI agent, then with your team. Come back any time
+            with <b>Start</b> in the left bar.
           </p>
           <button className="icon-btn modal-close" title="Close" onClick={close}>
             <X size={15} />
@@ -278,6 +384,17 @@ export function GettingStarted() {
           </div>
           <div className="gs-detail">
             <Detail id={selected} />
+            <div className="gs-next">
+              {next ? (
+                <button className="btn btn-ghost" onClick={() => setSelected(next.id)}>
+                  Next: {next.title} <ArrowRight size={13} />
+                </button>
+              ) : (
+                <button className="btn btn-ghost" onClick={close}>
+                  All done <Check size={13} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

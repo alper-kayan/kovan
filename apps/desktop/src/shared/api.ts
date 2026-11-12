@@ -30,6 +30,7 @@ import type {
   IssueEdits,
   SessionLink,
   ProviderStatus,
+  Readiness,
 } from './agent.js';
 import type { AgentLimit } from './limits.js';
 import type { Settings } from './settings.js';
@@ -60,6 +61,10 @@ export interface AppInfo {
   homeDir: string;
   /** The OS account name, used for the avatar until the person signs in. */
   userName: string;
+  /** A screen reader (or other assistive tech) is running: the terminal then reads out. */
+  screenReader?: boolean;
+  /** The system's language ("tr-TR"). */
+  locale?: string;
 }
 
 export interface WorkspaceInfo {
@@ -163,8 +168,10 @@ export type JoinCheck =
   | {
       ok: false;
       reason: string;
-      fix: 'setup' | 'provider' | 'branch' | 'checkout' | null;
+      fix: 'setup' | 'provider' | 'branch' | 'checkout' | 'watch' | null;
       branch?: string;
+      /** For 'provider': the settings page that fixes it (a key, billing, an account). */
+      section?: 'providers' | 'billing' | 'agents';
     };
 
 /** A session as the checkout code needs it. */
@@ -439,7 +446,8 @@ export interface InvokeContract {
   'terminal:kill': (id: number) => void;
   /** The person's other Claude Code and Codex accounts on this machine. */
   'accounts:list': () => AgentAccount[];
-  'accounts:add': (harness: ExternalHarness, name: string) => AgentAccount;
+  /** `home`: the CLI's own sign-in on this computer, not one kept by Kovan. */
+  'accounts:add': (harness: ExternalHarness, name: string, home?: boolean) => AgentAccount;
   'accounts:remove': (id: string) => void;
   /** Asks the CLI whether it is signed in as the account (null: the default sign-in). */
   'accounts:status': (
@@ -464,6 +472,8 @@ export interface InvokeContract {
   'bindings:set': (workspaceId: string, path: string | null) => Record<string, string>;
   'repo:choose': () => string | null;
   'repo:inspect': (path: string) => RepoInfo;
+  /** Makes the open folder a Git repository (so the agent's changes can be seen and undone). */
+  'repo:init': () => void;
   'repo:clone': (url: string, name: string) => string | null;
 
   'agent:list': () => ConversationSummary[];
@@ -471,6 +481,13 @@ export interface InvokeContract {
   'agent:open': (id: string) => Conversation;
   'agent:remove': (id: string) => void;
   'agent:configure': (id: string, patch: Partial<ConversationConfig>) => Conversation;
+  /** Whether an agent set up like this can start now, and if not why (asked before sending). */
+  'agent:readiness': (choice: {
+    auto: boolean;
+    harness: Harness;
+    model: string;
+    account?: string;
+  }) => Readiness;
   'agent:send': (id: string, text: string, attachments: Attachment[]) => void;
   'agent:stop': (id: string) => void;
   'agent:approve': (id: string, approvalId: string, approved: boolean) => void;
@@ -626,6 +643,8 @@ export interface EventContract {
   'menu:command': [commandId: string];
   'connection:state': [state: ConnectionState];
   'brain:user': [user: User | null];
+  /** While a sign-in waits: the code an emailed sign-in link asks for. */
+  'brain:loginCode': [code: string | null];
   'brain:message': [message: ServerMessage];
   'agent:event': [conversationId: string, event: ConversationEvent];
   /** Conversations of the open folder written from elsewhere (the terminal agent). */
@@ -702,12 +721,14 @@ export const INVOKE_CHANNELS = [
   'bindings:set',
   'repo:choose',
   'repo:inspect',
+  'repo:init',
   'repo:clone',
   'agent:list',
   'agent:create',
   'agent:open',
   'agent:remove',
   'agent:configure',
+  'agent:readiness',
   'agent:send',
   'agent:stop',
   'agent:approve',
@@ -802,6 +823,7 @@ export const EVENT_CHANNELS = [
   'menu:command',
   'connection:state',
   'brain:user',
+  'brain:loginCode',
   'brain:message',
   'agent:event',
   'agent:changed',

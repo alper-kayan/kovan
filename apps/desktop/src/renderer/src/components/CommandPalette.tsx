@@ -91,16 +91,28 @@ export function CommandPalette() {
 
   return (
     <div className="overlay" onMouseDown={() => setState({ palette: null })}>
-      <div className="palette" onMouseDown={(e) => e.stopPropagation()}>
+      <div
+        className="palette"
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === 'commands' ? 'Commands' : 'Go to file'}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <input
           autoFocus
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="palette-list"
+          aria-autocomplete="list"
+          aria-label={mode === 'commands' ? 'Search commands' : 'Search files by name'}
+          aria-activedescendant={items[selected] ? `palette-${selected}` : undefined}
           className="palette-input"
           placeholder={mode === 'commands' ? 'Type a command…' : 'Search files by name…'}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
         />
-        <ul className="palette-list" ref={list}>
+        <ul className="palette-list" ref={list} id="palette-list" role="listbox">
           {mode === 'files' && files === null && <li className="palette-empty">Loading files…</li>}
           {items.length === 0 && (mode === 'commands' || files !== null) && (
             <li className="palette-empty">No matches</li>
@@ -108,6 +120,9 @@ export function CommandPalette() {
           {items.map((item, i) => (
             <li
               key={item.key}
+              id={`palette-${i}`}
+              role="option"
+              aria-selected={i === selected}
               className={`palette-item ${i === selected ? 'selected' : ''}`}
               onMouseEnter={() => setSelected(i)}
               onClick={item.run}

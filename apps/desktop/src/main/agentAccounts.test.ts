@@ -44,4 +44,17 @@ describe('agent accounts', () => {
     expect(await readdir(join(dir, 'agent-accounts'))).not.toContain(work.id);
     expect(() => accounts.dirOf('../x')).toThrow('Not an account id');
   });
+
+  it("can use this computer's own sign-in: no folder, nothing pointed elsewhere, one per agent", async () => {
+    const accounts = new AgentAccounts(dir);
+    const mine = await accounts.add('claude-code', 'This computer', true);
+    expect(mine.home).toBe(true);
+    await expect(stat(accounts.dirOf(mine.id))).rejects.toThrow();
+    // Only which account runs; no CLAUDE_CONFIG_DIR, so the CLI reads its usual folder.
+    expect(await accounts.env('claude-code', mine.id)).toEqual({ KOVAN_AGENT_ACCOUNT: mine.id });
+    await expect(accounts.add('claude-code', 'Again', true)).rejects.toThrow('already in the list');
+    await accounts.add('codex', 'This computer', true);
+    await accounts.remove(mine.id);
+    expect((await accounts.list()).map((a) => a.harness)).toEqual(['codex']);
+  });
 });

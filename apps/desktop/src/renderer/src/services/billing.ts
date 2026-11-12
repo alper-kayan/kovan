@@ -1,5 +1,5 @@
 import { BILLING_CONSENT_VERSION, type BillingState } from '@kovan/shared';
-import { reportError, toast } from '../store';
+import { reportError, setState, toast } from '../store';
 import { api } from './api';
 
 const request = <T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown) =>
@@ -7,9 +7,19 @@ const request = <T>(method: 'GET' | 'POST' | 'PUT', path: string, body?: unknown
     ? api.invoke('brain:request', method, path)
     : api.invoke('brain:request', method, path, body)) as Promise<T>;
 
+/** Whether Kovan billing can pay for models changed: the chat's "ready" check reads it again. */
+const refreshProviders = () =>
+  void api
+    .invoke('providers:status')
+    .then((providers) => setState({ providers }))
+    .catch(() => undefined);
+
 export async function loadBilling(): Promise<BillingState | null> {
   return request<{ billing: BillingState }>('GET', '/api/billing')
-    .then((r) => r.billing)
+    .then((r) => {
+      refreshProviders();
+      return r.billing;
+    })
     .catch(() => null);
 }
 
@@ -24,9 +34,10 @@ export async function saveAllowance(allowance: number | null): Promise<BillingSt
     });
     toast(
       allowance === null
-        ? 'Managed usage is unlimited.'
+        ? 'Kovan billing has no monthly limit now.'
         : `Allowance set to $${allowance.toFixed(2)}.`,
     );
+    refreshProviders();
     return billing;
   } catch (error) {
     reportError(error);
@@ -52,7 +63,7 @@ export async function retryInvoice(id: string): Promise<BillingState | null> {
       `/api/billing/invoices/${id}/retry`,
     );
     toast(
-      invoice.status === 'paid' ? 'Paid. Managed usage is back on.' : 'The payment failed again.',
+      invoice.status === 'paid' ? 'Paid. Kovan billing is back on.' : 'The payment failed again.',
     );
     return loadBilling();
   } catch (error) {

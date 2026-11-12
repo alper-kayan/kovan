@@ -17,6 +17,7 @@ export const DEFAULT_KEYBINDINGS: Record<string, string> = {
   'view.agent': 'Mod+L',
   'terminal.new': 'Mod+Shift+`',
   'settings.open': 'Mod+,',
+  'agent.approval': 'Mod+Shift+A',
 };
 
 export interface KeyEventLike {

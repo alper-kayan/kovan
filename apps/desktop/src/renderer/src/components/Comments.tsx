@@ -1,4 +1,6 @@
 import { can, type Comment, type Session } from '@kovan/shared';
+import { t } from '../i18n';
+import { DialogKeys } from './DialogKeys';
 import { Bot, Check, CircleDot, ListPlus, MessageSquare, RotateCcw, Wand2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import {
@@ -11,8 +13,9 @@ import {
 import { openFile } from '../services/editor';
 import { issueFromComment } from '../services/issues';
 import { activeTeamWorkspace, getState, setState, useStore } from '../store';
+import { formatAccelerator } from '../../../shared/keybindings';
 import { Avatar } from './ui';
-import { MentionMenu, useMentionMenu, useTeammates } from './MentionMenu';
+import { MentionMenu, useCommentTargets, useMentionMenu } from './MentionMenu';
 
 // Stable empty values: a selector returning a fresh [] or {} re-renders forever.
 const NONE_LIST: never[] = [];
@@ -21,10 +24,10 @@ const EMPTY: Comment[] = [];
 
 function ago(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 1) return t('just now');
+  if (minutes < 60) return t('{n}m', { n: minutes });
   const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+  return hours < 48 ? t('{n}h', { n: hours }) : t('{n}d', { n: Math.round(hours / 24) });
 }
 
 export function CommentComposer({
@@ -38,14 +41,15 @@ export function CommentComposer({
   onSubmit: (body: string) => Promise<unknown>;
   autoFocus?: boolean;
   onCancel?: () => void;
-  /** In a session's workspace, "@" lists its AI teammates to call in. */
+  /** In a workspace, "@" lists its AI teammates to call in and its people to tell. */
   workspaceId?: string | undefined;
 }) {
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
+  const isMac = useStore((s) => s.isMac);
   const input = useRef<HTMLTextAreaElement>(null);
-  const teammates = useTeammates(workspaceId);
-  const mentions = useMentionMenu(body, setBody, teammates, input);
+  const targets = useCommentTargets(workspaceId);
+  const mentions = useMentionMenu(body, setBody, targets, input);
   const send = () => {
     if (!body.trim() || busy) return;
     setBusy(true);
@@ -62,7 +66,7 @@ export function CommentComposer({
         className="input"
         rows={2}
         autoFocus={autoFocus}
-        placeholder={teammates.length ? `${placeholder} · @ calls a teammate in` : placeholder}
+        placeholder={targets.length ? `${placeholder} · @ to mention someone` : placeholder}
         value={body}
         onChange={(e) => {
           setBody(e.target.value);
@@ -79,7 +83,9 @@ export function CommentComposer({
         }}
       />
       <div className="comment-composer-actions">
-        <span className="muted small">⌘↵ to post · comments don't use any model</span>
+        <span className="muted small">
+          {formatAccelerator('Mod+Enter', isMac)} to post · comments don't use any model
+        </span>
         {onCancel && (
           <button className="btn btn-sm" onClick={onCancel}>
             Cancel
@@ -365,6 +371,7 @@ export function TranscriptThread({
 
 /** The workspace side panel: comments on this repository's code, grouped by file. */
 export function CommentsPanel() {
+  const isMac = useStore((s) => s.isMac);
   const ws = useStore(activeTeamWorkspace);
   const all = useStore((s) => (ws ? (s.comments[ws.id] ?? EMPTY) : EMPTY));
   const [showResolved, setShowResolved] = useState(false);
@@ -399,7 +406,8 @@ export function CommentsPanel() {
       </div>
       {byFile.size === 0 && (
         <div className="panel-empty muted small">
-          Select code in the editor and press ⌥⌘M (or right-click → Comment) to comment on it.
+          Select code in the editor and press {formatAccelerator('Mod+Alt+M', isMac)} (or
+          right-click → Comment) to comment on it.
         </div>
       )}
       {[...byFile].map(([path, list]) => (
@@ -465,6 +473,7 @@ export function CommentDialog() {
           void submit();
         }}
       >
+        <DialogKeys onClose={close} />
         <div className="modal-head">
           <h2 className="modal-title">
             {kind === 'suggestion' ? 'Suggest a change' : 'Comment'} on {a.path}:{a.startLine}
