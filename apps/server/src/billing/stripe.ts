@@ -102,11 +102,27 @@ export class StripeClient {
     );
   }
 
-  createCustomer(input: { email: string | null; name: string; userId: string }) {
+  /**
+   * A customer for a person, or for an organization (the company's name, address and tax id
+   * then go on its receipts and invoices).
+   */
+  createCustomer(input: {
+    email: string | null;
+    name: string;
+    userId: string;
+    orgId?: string;
+    address?: string | null;
+    taxId?: string | null;
+  }) {
     return this.call<{ id: string }>('POST', '/v1/customers', {
       ...(input.email ? { email: input.email } : {}),
       name: input.name,
-      metadata: { kovan_user_id: input.userId },
+      ...(input.address ? { address: { line1: input.address.split('\n')[0]!.slice(0, 200) } } : {}),
+      metadata: {
+        kovan_user_id: input.userId,
+        ...(input.orgId ? { kovan_org_id: input.orgId } : {}),
+        ...(input.taxId ? { tax_id: input.taxId } : {}),
+      },
     });
   }
 

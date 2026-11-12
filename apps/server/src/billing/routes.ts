@@ -1,11 +1,16 @@
-import { BillingSettingsSchema, billedFor } from '@kovan/shared';
+import {
+  BillingSettingsSchema,
+  billedFor,
+  OrgBillingSettingsSchema,
+  OrgMemberLimitSchema,
+} from '@kovan/shared';
 import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { requireUser } from '../auth/guard.js';
 import { getRole } from '../authz.js';
 import type { AppContext } from '../context.js';
 import { forbidden } from '../errors.js';
-import type { BillingService, ManagedCall } from './service.js';
+import type { BillingService, ManagedCall, Payer } from './service.js';
 import { verifyWebhook } from './stripe.js';
 
 const page = (title: string, text: string) =>
@@ -110,6 +115,58 @@ export function registerBillingRoutes(app: FastifyInstance, ctx: AppContext): vo
     return { invoice: await billing.retry(user.id, id) };
   });
 
+  // ---------- an organization that pays for its members (owners only) ----------
+
+  const OrgParams = z.object({ id: z.string().uuid() });
+  app.get('/api/orgs/:id/billing', async (req) => {
+    const user = await requireUser(ctx, req);
+    return { billing: await billing.orgState(OrgParams.parse(req.params).id, user.id) };
+  });
+  app.put('/api/orgs/:id/billing', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { id } = OrgParams.parse(req.params);
+    const input = OrgBillingSettingsSchema.parse(req.body);
+    const state = await billing.configureOrg(id, user.id, input);
+    await ctx.audit.record({ actor: user, action: 'billing.team_settings_changed', req });
+    return { billing: state };
+  });
+  app.delete('/api/orgs/:id/billing', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { id } = OrgParams.parse(req.params);
+    const state = await billing.disableOrg(id, user.id);
+    await ctx.audit.record({ actor: user, action: 'billing.team_turned_off', req });
+    return { billing: state };
+  });
+  app.post('/api/orgs/:id/billing/setup', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { id } = OrgParams.parse(req.params);
+    await ctx.audit.record({ actor: user, action: 'billing.card_setup_started', req });
+    return billing.startOrgSetup(id, user.id);
+  });
+  app.put('/api/orgs/:id/billing/members/:userId', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { id, userId } = z
+      .object({ id: z.string().uuid(), userId: z.string().uuid() })
+      .parse(req.params);
+    const { monthlyLimit } = OrgMemberLimitSchema.parse(req.body);
+    return { billing: await billing.setMemberLimit(id, user.id, userId, monthlyLimit) };
+  });
+  app.delete('/api/orgs/:id/billing/members/:userId', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { id, userId } = z
+      .object({ id: z.string().uuid(), userId: z.string().uuid() })
+      .parse(req.params);
+    return { billing: await billing.setMemberLimit(id, user.id, userId, undefined) };
+  });
+  app.post('/api/orgs/:id/billing/invoices/:invoiceId/retry', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { id, invoiceId } = z
+      .object({ id: z.string().uuid(), invoiceId: z.string() })
+      .parse(req.params);
+    await ctx.audit.record({ actor: user, action: 'billing.payment_retried', req });
+    return { invoice: await billing.retryOrg(id, user.id, invoiceId) };
+  });
+
   // The daily charge on demand, for development and test mode only.
   app.post('/api/billing/run-charges', async (req) => {
     await requireUser(ctx, req);
@@ -121,13 +178,15 @@ export function registerBillingRoutes(app: FastifyInstance, ctx: AppContext): vo
   app.get('/billing/done', async (req, reply) => {
     const { session_id: id } = z.object({ session_id: z.string().max(200) }).parse(req.query);
     try {
-      await billing.completeCheckout(id);
+      const whose = await billing.completeCheckout(id);
       return reply
         .type('text/html')
         .send(
           page(
             'Card saved',
-            'You can close this tab and go back to Kovan. Managed usage is ready once your allowance is set.',
+            whose === 'org'
+              ? 'You can close this tab and go back to Kovan: the organization can pay for its members now.'
+              : 'You can close this tab and go back to Kovan.',
           ),
         );
     } catch {
@@ -168,9 +227,12 @@ export function registerBillingRoutes(app: FastifyInstance, ctx: AppContext): vo
   app.get('/api/inference/v1/models', async (req, reply) => {
     await requireUser(ctx, req);
     if (!config.managedEnabled)
-      return reply
-        .code(503)
-        .send({ error: { message: "This server doesn't offer managed usage." } });
+      return reply.code(503).send({
+        error: {
+          message:
+            "This Kovan server doesn't sell model usage. Use your own model key instead: in the app, Settings → Model keys & spend; in the terminal, kovan setup.",
+        },
+      });
     if (!catalog || Date.now() - catalog.at > 3_600_000) {
       const res = await fetch(`${upstream}/models`, { headers: providerHeaders() });
       if (!res.ok)
@@ -182,7 +244,6 @@ export function registerBillingRoutes(app: FastifyInstance, ctx: AppContext): vo
 
   app.post('/api/inference/v1/chat/completions', async (req, reply) => {
     const user = await requireUser(ctx, req);
-    await billing.gate(user.id);
     const body = (req.body ?? {}) as Record<string, unknown>;
     if (typeof body['model'] !== 'string')
       return reply.code(400).send({ error: { message: 'model is required' } });
@@ -200,6 +261,9 @@ export function registerBillingRoutes(app: FastifyInstance, ctx: AppContext): vo
     // Usage is only filed under a workspace the person belongs to.
     const workspaceId =
       /^[0-9a-f-]{36}$/i.test(wanted) && (await getRole(ctx.db, wanted, user.id)) ? wanted : null;
+    // Who pays (the person, or the organization that pays in its workspaces), and whether they
+    // can; the call counts as running until it is filed.
+    const { payer, done } = await billing.begin(user.id, workspaceId);
 
     const abort = new AbortController();
     // The app went away mid-answer (the person stopped the run): stop the provider too.
@@ -215,13 +279,16 @@ export function registerBillingRoutes(app: FastifyInstance, ctx: AppContext): vo
         signal: abort.signal,
       });
     } catch {
+      done();
       return reply.code(502).send({ error: { message: "The model provider can't be reached" } });
     }
+    // Filed (or given up on) either way: the call stops counting as running.
+    reply.raw.on('close', done);
     const tap = new UsageTap();
     const file = (aborted: boolean) =>
       void settle(
         billing,
-        user.id,
+        payer,
         tap,
         { workspaceId, runId, runLabel, model: body['model'] as string },
         aborted,
@@ -285,7 +352,7 @@ async function pipe(
  */
 async function settle(
   billing: BillingService,
-  userId: string,
+  payer: Payer,
   tap: UsageTap,
   call: Pick<ManagedCall, 'workspaceId' | 'runId' | 'runLabel' | 'model'>,
   aborted: boolean,
@@ -293,7 +360,7 @@ async function settle(
 ): Promise<void> {
   try {
     if (tap.usage?.cost !== null && tap.usage?.cost !== undefined && !aborted) {
-      await billing.record(userId, {
+      await billing.record(payer, {
         ...call,
         model: tap.model ?? call.model,
         generationId: tap.generationId,
@@ -317,7 +384,7 @@ async function settle(
         };
       };
       if (typeof data?.total_cost !== 'number') continue;
-      await billing.record(userId, {
+      await billing.record(payer, {
         ...call,
         model: data.model ?? tap.model ?? call.model,
         generationId: tap.generationId,

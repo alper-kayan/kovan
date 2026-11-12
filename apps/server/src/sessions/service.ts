@@ -4,6 +4,7 @@ import {
   type ReplayEvent,
   MAX_SESSION_AGENTS,
   can,
+  type Role,
   type Activity,
   type ActivityKind,
   type LaneEvent,
@@ -25,7 +26,7 @@ import type {
   SessionChangesInputSchema,
   StartSessionSchema,
 } from '@kovan/shared';
-import { authorize, getRole } from '../authz.js';
+import { authorize, authorizeLane, getRole } from '../authz.js';
 import type { Encryptor } from '../crypto.js';
 import type { Db } from '../db/client.js';
 import {
@@ -282,6 +283,7 @@ export class SessionService {
         spent: swarms.spent,
         budget: swarms.budget,
         pausedReason: swarms.pausedReason,
+        outcome: swarms.outcome,
         launchedBy: swarms.launchedBy,
       })
       .from(swarms)
@@ -382,6 +384,7 @@ export class SessionService {
                 spent: w.spent,
                 budget: w.budget,
                 pausedReason: w.pausedReason,
+                outcome: w.outcome ?? null,
                 launchedBy: w.launchedBy,
               }
             : null;
@@ -427,6 +430,7 @@ export class SessionService {
       detail: this.decryptOr(row.detailEnc, '(unreadable: the encryption key changed)'),
       status: row.status,
       answeredBy: row.answeredBy,
+      answeredByName: null,
       createdAt: row.createdAt.toISOString(),
     };
   }
@@ -672,6 +676,12 @@ export class SessionService {
           `This session is full: ${MAX_SESSION_AGENTS} agents are already working in it`,
         );
     }
+    const [before] = await this.db
+      .select({ mode: sessionParticipants.mode, leftAt: sessionParticipants.leftAt })
+      .from(sessionParticipants)
+      .where(
+        and(eq(sessionParticipants.sessionId, sessionId), eq(sessionParticipants.userId, userId)),
+      );
     await this.db
       .insert(sessionParticipants)
       .values({ sessionId, userId, mode: input.mode, harness: input.harness, model: input.model })
@@ -686,14 +696,17 @@ export class SessionService {
         },
       });
     if (input.mode === 'join' && input.model) this.lane(sessionId, userId).model = input.model;
-    await this.activity(
-      row,
-      userId,
-      'joined',
-      input.mode === 'join'
-        ? `${await this.nameOf(userId)} joined with their agent`
-        : `${await this.nameOf(userId)} is watching`,
-    );
+    // Opening the session again (or another window of it) isn't news; coming in, or switching
+    // between watching and working, is.
+    if (!before || before.leftAt || before.mode !== input.mode)
+      await this.activity(
+        row,
+        userId,
+        'joined',
+        input.mode === 'join'
+          ? `${await this.nameOf(userId)} joined with their agent`
+          : `${await this.nameOf(userId)} is watching`,
+      );
     return this.announce(sessionId);
   }
 
@@ -709,6 +722,41 @@ export class SessionService {
     await this.withLock(sessionId, () => this.flushLane(sessionId, userId));
     this.lanes.get(sessionId)?.delete(userId);
     return this.announce(sessionId);
+  }
+
+  /**
+   * Someone's role in a workspace changed: removed, they leave its live sessions at once;
+   * demoted below what working in a lane needs, their lane turns into watching. Either way the
+   * approvals waiting on their lane are closed, and everyone in the session sees it.
+   */
+  async membershipChanged(workspaceId: string, userId: string, role: Role | null): Promise<void> {
+    const rows = await this.db
+      .select({ sessionId: sessionParticipants.sessionId, mode: sessionParticipants.mode })
+      .from(sessionParticipants)
+      .innerJoin(sessions, eq(sessions.id, sessionParticipants.sessionId))
+      .where(
+        and(
+          eq(sessions.workspaceId, workspaceId),
+          eq(sessions.status, 'active'),
+          eq(sessionParticipants.userId, userId),
+          isNull(sessionParticipants.leftAt),
+        ),
+      );
+    for (const r of rows) {
+      const where = and(
+        eq(sessionParticipants.sessionId, r.sessionId),
+        eq(sessionParticipants.userId, userId),
+      );
+      if (!role) {
+        await this.db.update(sessionParticipants).set({ leftAt: new Date() }).where(where);
+      } else if (r.mode === 'join' && !can(role, 'session.join')) {
+        await this.db.update(sessionParticipants).set({ mode: 'watch' }).where(where);
+      } else continue;
+      await this.expireApprovals(r.sessionId, userId);
+      await this.withLock(r.sessionId, () => this.flushLane(r.sessionId, userId));
+      if (!role) this.lanes.get(r.sessionId)?.delete(userId);
+      await this.announce(r.sessionId);
+    }
   }
 
   async end(sessionId: string, userId: string, input: EndInput): Promise<Session> {
@@ -1159,14 +1207,15 @@ export class SessionService {
       )
       .returning();
     if (!row) return null;
-    const approval = this.toApproval(row);
+    const approval = { ...this.toApproval(row), answeredByName: await this.nameOf(by) };
     this.sendApproval(workspaceId, approval);
     return approval;
   }
 
   /**
-   * Any editor in the workspace may answer; the first valid answer wins. The answer goes to the
-   * lane owner's machine, which runs (or skips) the action.
+   * The lane's own person (or whoever runs that AI teammate) answers; so do the workspace's
+   * owners, and every editor when the workspace allows it. The first valid answer wins, and goes
+   * to the lane owner's machine, which runs (or skips) the action.
    */
   async answer(
     sessionId: string,
@@ -1176,7 +1225,19 @@ export class SessionService {
     approved: boolean,
   ): Promise<SessionApproval> {
     const row = await this.row(sessionId);
-    await authorize(this.db, row.workspaceId, userId, 'approval.answer');
+    const [lane] = await this.db
+      .select({ hostId: sessionParticipants.hostId })
+      .from(sessionParticipants)
+      .where(
+        and(
+          eq(sessionParticipants.sessionId, sessionId),
+          eq(sessionParticipants.userId, laneUserId),
+        ),
+      );
+    await authorizeLane(this.db, row.workspaceId, userId, 'approval.answer', {
+      userId: laneUserId,
+      hostId: lane?.hostId ?? null,
+    });
     if (row.status !== 'active') throw conflict('This session has ended');
     const settled = await this.settle(
       row.workspaceId,
@@ -1187,6 +1248,16 @@ export class SessionService {
       userId,
     );
     if (!settled) throw conflict('Someone already answered this');
+    // Who let an agent do something (or didn't) is part of the session's story.
+    const whose =
+      userId === laneUserId ? 'their own agent' : `${await this.nameOf(laneUserId)}'s agent`;
+    await this.activity(
+      row,
+      userId,
+      'approval_answered',
+      `${await this.nameOf(userId)} ${approved ? 'approved' : 'denied'} ${whose}: ${settled.title}`,
+      settled.detail ? redactText(settled.detail.split('\n')[0]!.slice(0, 200)) : null,
+    );
     await this.announce(sessionId);
     return settled;
   }
@@ -1475,9 +1546,18 @@ export class SessionService {
       where je.workspace_id = w.id and w.org_id = o.id
         and je.created_at < now() - make_interval(days => o.transcript_retention_days)
     `);
+    // An ended session's final diff is code too: it goes when its transcripts would.
+    const diffs = await this.db.execute(sql`
+      update sessions s set final_diff_enc = null
+      from workspaces w, orgs o
+      where s.workspace_id = w.id and w.org_id = o.id
+        and s.final_diff_enc is not null and s.ended_at is not null
+        and s.ended_at < now() - make_interval(days => o.transcript_retention_days)
+    `);
     return (
       ((result as unknown as { count?: number }).count ?? 0) +
-      ((journal as unknown as { count?: number }).count ?? 0)
+      ((journal as unknown as { count?: number }).count ?? 0) +
+      ((diffs as unknown as { count?: number }).count ?? 0)
     );
   }
 }

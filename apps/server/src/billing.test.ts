@@ -186,7 +186,7 @@ describe('managed usage', () => {
     let r = await call();
     expect(r.status).toBe(402);
     expect(((await r.json()) as { error: { message: string } }).error.message).toMatch(
-      /choose an allowance and accept/,
+      /choose a monthly allowance and accept/,
     );
 
     // Neither a silent allowance nor a missing consent is accepted.
@@ -218,7 +218,7 @@ describe('managed usage', () => {
     });
     r = await call();
     expect(((await r.json()) as { error: { message: string } }).error.message).toMatch(
-      /Add a payment method/,
+      /Add a card in Settings → Billing & usage/,
     );
 
     // The card is entered on Stripe's page; coming back saves it.
@@ -303,15 +303,16 @@ describe('managed usage', () => {
     );
   });
 
-  it('stops at the allowance, and a reset keeps unpaid usage', async () => {
+  it('stops at the monthly allowance; raising it keeps this month’s spend and unpaid usage', async () => {
     // $1 allowance: $1.05105 spent so far (six calls and the stopped one).
     const r = await call();
     expect(r.status).toBe(402);
     expect(((await r.json()) as { error: { message: string } }).error.message).toMatch(
       /allowance is used up \(\$1\.\d+ of \$1\.00\)/,
     );
-    const unbilled = (await state()).unbilled;
-    // Raising (or resetting) it starts counting afresh; usage not yet charged stays.
+    const before = await state();
+    const unbilled = before.unbilled;
+    // The month counts whole: raising it mid-month lets requests go on, from what was spent.
     const s = (
       await api('PUT', '/api/billing', {
         allowance: 2,
@@ -320,7 +321,9 @@ describe('managed usage', () => {
         consentVersion: BILLING_CONSENT_VERSION,
       })
     ).body.billing;
-    expect(s).toMatchObject({ ready: true, spent: 0 });
+    expect(s.ready).toBe(true);
+    expect(s.spent).toBeCloseTo(before.spent, 10);
+    expect(s.spent).toBeGreaterThan(1);
     expect(s.unbilled).toBeCloseTo(unbilled, 10);
   });
 
@@ -370,13 +373,17 @@ describe('managed usage', () => {
     expect(good.statusCode).toBe(200);
   });
 
-  it('removes the saved card at Stripe when the account is deleted', async () => {
-    await call(); // used, not charged yet
+  it('charges what is owed, then removes the saved card at Stripe, when the account is deleted', async () => {
+    for (let i = 0; i < 3; i++) await call(); // used, not charged yet: over the minimum
     await settle();
     const plan = (await api('GET', '/api/me/deletion')).body.plan;
     expect(plan.blocker).toBeNull();
-    expect(plan.unbilled).toBeGreaterThan(0);
+    expect(plan.unbilled).toBeGreaterThan(0.5);
+    const before = charges.length;
     expect((await api('POST', '/api/me/delete', { confirm: true })).status).toBe(200);
+    // Deleting the account doesn't skip the bill: it is charged on the way out.
+    expect(charges.length).toBe(before + 1);
+    expect(charges.at(-1)!.amount).toBe(Math.round(plan.unbilled * 100));
     expect(deletedCustomers).toEqual(['cus_1']);
   });
 });

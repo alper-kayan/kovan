@@ -18,6 +18,8 @@ import {
   type HireTeammateSchema,
   type SwarmDeliveredSchema,
   type SwarmMessageSchema,
+  type SwarmOutcome,
+  swarmResult,
   type SwarmReportSchema,
   type SwarmSettingsSchema,
   type UpdateAiAgentSchema,
@@ -476,6 +478,7 @@ export class SwarmService {
       launchedByName: row.launchedBy ? await this.sessions.nameOf(row.launchedBy) : null,
       fence: row.fence,
       pausedReason: row.pausedReason,
+      outcome: row.outcome ?? null,
       agents: agents.map(({ s, name }) => ({
         agentId: s.agentId,
         name,
@@ -671,6 +674,7 @@ export class SwarmService {
         status: 'running',
         launchedBy: runner,
         pausedReason: null,
+        outcome: null,
         updatedAt: new Date(),
         // A new run: whatever ran it before can no longer write for it.
         fence: sql`${swarms.fence} + 1`,
@@ -711,6 +715,7 @@ export class SwarmService {
     userId: string,
     status: 'paused' | 'stopped' | 'done',
     reason: string | null = null,
+    outcome: SwarmOutcome | null = null,
   ): Promise<Swarm> {
     const row = await this.swarmRow(swarmId);
     const session = await this.sessions.row(row.sessionId);
@@ -721,7 +726,12 @@ export class SwarmService {
       throw conflict(`This swarm is ${row.status} already`);
     const [updated] = await this.db
       .update(swarms)
-      .set({ status, pausedReason: status === 'paused' ? reason : null, updatedAt: new Date() })
+      .set({
+        status,
+        pausedReason: status === 'paused' ? reason : null,
+        ...(status === 'done' ? { outcome } : {}),
+        updatedAt: new Date(),
+      })
       .where(eq(swarms.id, swarmId))
       .returning();
     if (status !== 'paused')
@@ -737,6 +747,7 @@ export class SwarmService {
       launchedBy: row.launchedBy,
       actorId: userId,
       spent: updated!.spent,
+      outcome: status === 'done' ? outcome : null,
     });
     this.events.session(row.sessionId, 'swarm.status_changed', {
       swarmId,
@@ -747,12 +758,18 @@ export class SwarmService {
       by: await this.sessions.nameOf(userId),
     });
     const name = await this.sessions.nameOf(userId);
+    // Done says how the tasks went, not just that the run is over.
+    const result = swarmResult({ status, outcome });
     await this.sessions.activity(
       session,
       userId,
       status === 'done' ? 'swarm_done' : status === 'paused' ? 'swarm_paused' : 'swarm_stopped',
       status === 'done'
-        ? 'The swarm finished its goal'
+        ? result
+          ? outcome!.tasks > 0 && outcome!.done === 0
+            ? `The swarm ${result.text.charAt(0).toLowerCase()}${result.text.slice(1)}`
+            : `The swarm finished: ${result.text.charAt(0).toLowerCase()}${result.text.slice(1)}`
+          : 'The swarm finished'
         : status === 'paused'
           ? `${name} paused the swarm`
           : `${name} stopped the swarm`,

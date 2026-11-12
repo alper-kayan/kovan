@@ -8,6 +8,13 @@ const Id = z.object({ id: z.string().uuid() });
 const Machine = z.object({ machineId: z.string().min(1).max(100) });
 
 export function registerDeskRoutes(app: FastifyInstance, ctx: AppContext): void {
+  // Whether Kovan is open on one of this person's computers: the phone says so before a button
+  // that needs it is pressed.
+  app.get('/api/desk/status', async (req) => {
+    const user = await requireUser(ctx, req);
+    return { desktopOnline: ctx.desk.desktopOnline(user.id) };
+  });
+
   // The phone asks; the person's desktop claims, does and reports.
   app.post('/api/desk', async (req, reply) => {
     const user = await requireUser(ctx, req);

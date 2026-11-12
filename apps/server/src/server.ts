@@ -88,6 +88,7 @@ export async function createContext(config: Config, options: StartOptions = {}) 
     config.STRIPE_SECRET_KEY
       ? new StripeClient(config.STRIPE_SECRET_KEY, config.STRIPE_API_BASE)
       : null,
+    mailer,
   );
   billing.start();
   const audit = new AuditLog(db, (m) => console.warn(m));

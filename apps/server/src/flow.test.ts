@@ -218,6 +218,21 @@ describe('steering, locks and unknown outcomes', () => {
     for (const c of [a, b, d]) c.close();
   });
 
+  it('says once that someone joined, not each time they open the session again', async () => {
+    const { s, b } = await sessionWithBob();
+    const join = (mode: 'join' | 'watch') =>
+      api(bob, 'POST', `/api/sessions/${s.id}/join`, { mode });
+    await join('join');
+    await join('join');
+    await join('watch');
+    const joins = (await api(alice, 'GET', `/api/sessions/${s.id}/activity`)).body.activity
+      .map((a: { text: string }) => a.text)
+      .filter((t: string) => t.startsWith('bob '));
+    expect(joins.filter((t: string) => t === 'bob joined with their agent')).toHaveLength(1);
+    expect(joins).toContain('bob is watching');
+    b.close();
+  });
+
   it('holds advisory locks per session and shows them to the workspace', async () => {
     const { s, b } = await sessionWithBob();
     await api(alice, 'POST', `/api/sessions/${s.id}/locks`, { path: 'src/lobby/join.ts' });

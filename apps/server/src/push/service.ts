@@ -1,9 +1,32 @@
-import { PUSH_CATEGORY, redact, type PushData, type PushKind } from '@kovan/shared';
+import {
+  can,
+  LOCALES,
+  mayActOnLane,
+  pickLocale,
+  type Locale,
+  PUSH_CATEGORY,
+  redact,
+  swarmResult,
+  type PushData,
+  type PushKind,
+  type SwarmOutcome,
+} from '@kovan/shared';
 import { and, eq, gt, inArray, isNull } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { authSessions, pushDevices, sessionParticipants, sessions, users } from '../db/schema.js';
+import {
+  authSessions,
+  pushDevices,
+  sessionParticipants,
+  sessions,
+  users,
+  workspaceMembers,
+  workspaces,
+} from '../db/schema.js';
+import { tFor } from '../i18n/index.js';
 import type { Apns, SendResult } from './apns.js';
 import type { Fcm } from './fcm.js';
+
+type Translate = (text: string, values?: Record<string, string | number>) => string;
 
 /** Something that happened that someone away from their desk wants to know. */
 export type PushEvent =
@@ -33,9 +56,19 @@ export type PushEvent =
       launchedBy: string | null;
       actorId: string | null;
       spent: number;
+      /** How its tasks ended, when done. */
+      outcome?: SwarmOutcome | null;
     }
   | { kind: 'task'; sessionId: string; stepId: string; title: string; reason: string | null }
   | { kind: 'limit'; sessionId: string; laneUserId: string; reason: string }
+  | {
+      /** A comment in the session that calls them by name. */
+      kind: 'mention';
+      sessionId: string;
+      toUserId: string;
+      fromName: string;
+      text: string;
+    }
   | {
       kind: 'message';
       sessionId: string;
@@ -103,12 +136,88 @@ export class PushService {
   }
 
   async handle(event: PushEvent): Promise<void> {
-    const notice = await this.compose(event);
-    if (notice && notice.userIds.length) await this.deliver(notice);
+    // Each person gets it in the language they chose in an app (English when they didn't).
+    for (const locale of LOCALES) {
+      const tt = tFor(locale);
+      const notice = await this.compose(event, tt);
+      const team = await this.composeTeam(event, notice, tt);
+      for (const n of [notice, team]) {
+        if (!n?.userIds.length) continue;
+        const mine = await this.inLocale(n.userIds, locale);
+        if (mine.length) await this.deliver({ ...n, userIds: mine });
+      }
+    }
+  }
+
+  /** Who of these people reads `locale`: their saved language, English when none. */
+  private async inLocale(userIds: string[], locale: Locale): Promise<string[]> {
+    const rows = await this.db
+      .select({ id: users.id, locale: users.locale })
+      .from(users)
+      .where(inArray(users.id, userIds));
+    return userIds.filter((id) => pickLocale(rows.find((r) => r.id === id)?.locale) === locale);
+  }
+
+  /**
+   * The same question for the rest of the team who could answer it (their role, and the
+   * workspace's "others' agents" setting, allow it): sent as the "team" kind, which phones get
+   * only when the person turned it on.
+   */
+  async composeTeam(
+    event: PushEvent,
+    main: Notice | null,
+    tt: Translate = (x) => x,
+  ): Promise<Notice | null> {
+    if ((event.kind !== 'approval' && event.kind !== 'task') || !main) return null;
+    const [row] = await this.db
+      .select({ workspaceId: sessions.workspaceId, othersAgents: workspaces.othersAgents })
+      .from(sessions)
+      .innerJoin(workspaces, eq(workspaces.id, sessions.workspaceId))
+      .where(eq(sessions.id, event.sessionId));
+    if (!row) return null;
+    const members = await this.db
+      .select({ userId: workspaceMembers.userId, role: workspaceMembers.role })
+      .from(workspaceMembers)
+      .innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(and(eq(workspaceMembers.workspaceId, row.workspaceId), eq(users.kind, 'human')));
+    const already = new Set(main.userIds);
+    let to: string[];
+    if (event.kind === 'approval') {
+      const [lane] = await this.db
+        .select({ hostId: sessionParticipants.hostId })
+        .from(sessionParticipants)
+        .where(
+          and(
+            eq(sessionParticipants.sessionId, event.sessionId),
+            eq(sessionParticipants.userId, event.laneUserId),
+          ),
+        );
+      to = members
+        .filter((m) =>
+          mayActOnLane({
+            role: m.role,
+            userId: m.userId,
+            lane: { userId: event.laneUserId, hostId: lane?.hostId ?? null },
+            othersAgents: row.othersAgents,
+            action: 'approval.answer',
+          }),
+        )
+        .map((m) => m.userId);
+    } else to = members.filter((m) => can(m.role, 'approval.answer')).map((m) => m.userId);
+    const userIds = to.filter((id) => !already.has(id));
+    if (!userIds.length) return null;
+    const title =
+      event.kind === 'approval'
+        ? tt("{name}'s agent asks: {title}", {
+            name: await this.nameOf(event.laneUserId),
+            title: short(event.title, 60),
+          })
+        : main.title;
+    return { ...main, userIds, kind: 'team', title };
   }
 
   /** Whose phone it goes to and what it says. */
-  async compose(event: PushEvent): Promise<Notice | null> {
+  async compose(event: PushEvent, tt: Translate = (x) => x): Promise<Notice | null> {
     const [session] = await this.db
       .select({ title: sessions.title })
       .from(sessions)
@@ -137,14 +246,16 @@ export class PushService {
       case 'approval': {
         const owner = ownerOf(event.laneUserId);
         if (!owner) return null;
-        const whose =
-          owner === event.laneUserId ? 'Your agent' : `${await this.nameOf(event.laneUserId)}`;
+        const title = short(event.title, 60);
         return {
           ...base,
           userIds: [...new Set([owner, ...(event.askerId ? [event.askerId] : [])])],
           kind: 'approval',
-          title: `${whose} asks: ${short(event.title, 60)}`,
-          body: short(redact(event.detail.split('\n')[0] ?? ''), 160) || 'Approve or deny it.',
+          title:
+            owner === event.laneUserId
+              ? tt('Your agent asks: {title}', { title })
+              : tt('{name} asks: {title}', { name: await this.nameOf(event.laneUserId), title }),
+          body: short(redact(event.detail.split('\n')[0] ?? ''), 160) || tt('Approve or deny it.'),
           data: {
             ...base.data,
             laneUserId: event.laneUserId,
@@ -162,14 +273,14 @@ export class PushService {
             done: 'Your agent finished',
             stopped: 'Your agent stopped',
             error: 'Your agent hit an error',
-            step_limit: 'Your agent stopped at its step limit',
+            step_limit: 'Your agent stopped after too many steps',
           }[event.reason] ?? 'Your agent finished';
         return {
           ...base,
           userIds: [event.laneUserId],
           kind: 'finished',
-          title: ended,
-          body: 'Open the session to see what it did.',
+          title: tt(ended),
+          body: tt('Open the session to see what it did.'),
         };
       }
       case 'handoff':
@@ -177,8 +288,8 @@ export class PushService {
           ...base,
           userIds: [event.toUserId],
           kind: 'handoff',
-          title: `${await this.nameOf(event.fromUserId)} handed you their work`,
-          body: event.reason ? short(event.reason, 160) : 'Pick it up on your desktop.',
+          title: tt('{name} handed you their work', { name: await this.nameOf(event.fromUserId) }),
+          body: event.reason ? short(event.reason, 160) : tt('Open it to take it over.'),
         };
       case 'swarm': {
         // The launcher's own machine says done; a stop or pause they made themselves is no news.
@@ -194,14 +305,19 @@ export class PushService {
           kind: 'swarm',
           title:
             event.status === 'done'
-              ? 'Your swarm finished'
+              ? swarmResult({ status: 'done', outcome: event.outcome ?? null })?.ok === false
+                ? tt('Your swarm ended with failed tasks')
+                : tt('Your swarm finished')
               : event.status === 'stopped'
-                ? `${by ?? 'Someone'} stopped your swarm`
-                : 'Your swarm paused itself',
+                ? tt('{name} stopped your swarm', { name: by ?? tt('Someone') })
+                : tt('Your swarm paused itself'),
           body:
             event.status === 'paused'
               ? short(event.reason ?? '', 160)
-              : `Spent ${usd(event.spent)}. Its report is in the swarm chat.`,
+              : `${(() => {
+                  const r = swarmResult({ status: event.status, outcome: event.outcome ?? null });
+                  return r ? `${tt(r.text)}. ` : '';
+                })()}${tt('Spent {amount}. Its report is in the swarm chat.', { amount: usd(event.spent) })}`,
         };
       }
       case 'task': {
@@ -219,8 +335,10 @@ export class PushService {
           ...base,
           userIds: to,
           kind: 'task',
-          title: `A swarm task needs a yes: ${short(event.title, 60)}`,
-          body: event.reason ? short(event.reason, 160) : 'Approve or reject it.',
+          title: tt('A Swarm task waits for your approval: {title}', {
+            title: short(event.title, 60),
+          }),
+          body: event.reason ? short(event.reason, 160) : tt('Approve or reject it.'),
           data: { ...base.data, stepId: event.stepId },
           category: PUSH_CATEGORY.task,
           collapseId: `t:${event.stepId}`.slice(0, 64),
@@ -233,10 +351,18 @@ export class PushService {
           kind: 'message',
           title:
             event.messageKind === 'question'
-              ? `${event.fromName} asks you`
+              ? tt('{name} asks you', { name: event.fromName })
               : event.messageKind === 'blocker'
-                ? `${event.fromName} is stuck`
-                : `${event.fromName} wrote to you`,
+                ? tt('{name} is stuck', { name: event.fromName })
+                : tt('{name} wrote to you', { name: event.fromName }),
+          body: short(redact(event.text.split('\n')[0] ?? ''), 160),
+        };
+      case 'mention':
+        return {
+          ...base,
+          userIds: [event.toUserId],
+          kind: 'mention',
+          title: tt('{name} mentioned you', { name: event.fromName }),
           body: short(redact(event.text.split('\n')[0] ?? ''), 160),
         };
       case 'limit': {
@@ -248,8 +374,11 @@ export class PushService {
           ...base,
           userIds: people,
           kind: 'limit',
-          title: `${name}'s agent stopped: ${short(event.reason.replace(/\.$/, ''), 60)}`,
-          body: 'It waits for someone to take over.',
+          title: tt("{name}'s agent stopped: {reason}", {
+            name,
+            reason: short(event.reason.replace(/\.$/, ''), 60),
+          }),
+          body: tt('It waits for someone to take over.'),
           data: { ...base.data, laneUserId: event.laneUserId },
         };
       }

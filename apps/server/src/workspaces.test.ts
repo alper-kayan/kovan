@@ -74,6 +74,19 @@ describe('workspaces', () => {
   });
 });
 
+describe('what was sent, when it is wrong', () => {
+  it('says what to fix, in words', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: '/api/workspaces',
+      headers: auth(alice.token),
+      payload: { orgId: alice.orgId, name: '', repoUrl: null },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.message).toBe("Name can't be empty.");
+  });
+});
+
 describe('invites and roles', () => {
   let workspaceId: string;
 
@@ -92,7 +105,7 @@ describe('invites and roles', () => {
     });
     expect(res.statusCode).toBe(201);
     expect(res.json().member).toMatchObject({ userId: bob.id, role: 'editor' });
-    expect(lastLink(h, 'bob@example.com')).toContain('/download');
+    expect(lastLink(h, 'bob@example.com')).toContain('/docs/getting-started/');
     const list = await h.app.inject({
       method: 'GET',
       url: '/api/workspaces',
@@ -109,7 +122,10 @@ describe('invites and roles', () => {
       payload: { githubLogin: 'carol-dev', email: 'carol@example.com', role: 'commenter' },
     });
     expect(res.json().invite).toMatchObject({ githubLogin: 'carol-dev', role: 'commenter' });
-    expect(lastLink(h, 'carol@example.com')).toContain('/download');
+    expect(res.json().invite.link).toContain('/join/?t=');
+    expect(lastLink(h, 'carol@example.com')).toBe(res.json().invite.link);
+    const mail = [...h.mailer.sent].reverse().find((m) => m.to === 'carol@example.com')!;
+    expect(mail.text).toContain('a commenter: you can watch and leave comments');
 
     const carol = await oauthLogin(h, 'github', 'carol', {
       providerUserId: '3',
@@ -131,6 +147,67 @@ describe('invites and roles', () => {
       headers: auth(alice.token),
     });
     expect(members.json().invites).toEqual([]);
+  });
+
+  it('lets whoever holds the invite link join, signed in with any account, once', async () => {
+    const res = await h.app.inject({
+      method: 'POST',
+      url: `/api/workspaces/${workspaceId}/invites`,
+      headers: auth(alice.token),
+      payload: { email: 'dana@company.example', role: 'editor' },
+    });
+    const link = new URL(res.json().invite.link as string);
+    const token = link.searchParams.get('t')!;
+
+    // Before signing in, the link says whose workspace and which role.
+    const lookup = await h.app.inject({ method: 'GET', url: `/api/invites/lookup?t=${token}` });
+    expect(lookup.json()).toMatchObject({
+      status: 'pending',
+      workspaceName: 'shared',
+      repoUrl: 'github.com/acme/shared',
+      role: 'editor',
+      sentTo: 'dana@company.example',
+    });
+    expect(
+      (await h.app.inject({ method: 'GET', url: '/api/invites/lookup?t=not-a-token' })).statusCode,
+    ).toBe(404);
+
+    // Dana signs in with Apple's private address: no email match, the link still joins her.
+    const dana = await oauthLogin(h, 'github', 'dana', {
+      providerUserId: '41',
+      login: 'dana-private',
+      name: 'Dana',
+    });
+    expect((await me(dana.token)).orgs.map((o: { role: string }) => o.role)).toEqual(['owner']);
+    const accepted = await h.app.inject({
+      method: 'POST',
+      url: '/api/invites/accept',
+      headers: auth(dana.token),
+      payload: { token },
+    });
+    expect(accepted.json()).toEqual({ workspaceId, workspaceName: 'shared', role: 'editor' });
+    // Again is fine for her; nobody else gets in with the same link.
+    expect(
+      (
+        await h.app.inject({
+          method: 'POST',
+          url: '/api/invites/accept',
+          headers: auth(dana.token),
+          payload: { token },
+        })
+      ).statusCode,
+    ).toBe(200);
+    const erin = await oauthLogin(h, 'github', 'erin', { providerUserId: '42', login: 'erin' });
+    const again = await h.app.inject({
+      method: 'POST',
+      url: '/api/invites/accept',
+      headers: auth(erin.token),
+      payload: { token },
+    });
+    expect(again.statusCode).toBe(409);
+    expect(
+      (await h.app.inject({ method: 'GET', url: `/api/invites/lookup?t=${token}` })).json().status,
+    ).toBe('accepted');
   });
 
   it('enforces roles on the very next request after a downgrade', async () => {

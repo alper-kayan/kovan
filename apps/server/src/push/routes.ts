@@ -1,4 +1,9 @@
-import { RegisterDeviceSchema, UpdateDeviceSchema, type PushDevice } from '@kovan/shared';
+import {
+  PUSH_OFF_BY_DEFAULT,
+  RegisterDeviceSchema,
+  UpdateDeviceSchema,
+  type PushDevice,
+} from '@kovan/shared';
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -35,7 +40,7 @@ export function registerPushRoutes(app: FastifyInstance, ctx: AppContext): void 
       sandbox: input.sandbox,
       appVersion: input.appVersion,
       updatedAt: new Date(),
-      ...(existing && existing.userId !== user.id ? { muted: [] } : {}),
+      ...(existing && existing.userId !== user.id ? { muted: [...PUSH_OFF_BY_DEFAULT] } : {}),
     };
     const [row] = existing
       ? await ctx.db
@@ -45,7 +50,12 @@ export function registerPushRoutes(app: FastifyInstance, ctx: AppContext): void 
           .returning()
       : await ctx.db
           .insert(pushDevices)
-          .values({ ...values, platform: input.platform, token: input.token })
+          .values({
+            muted: [...PUSH_OFF_BY_DEFAULT],
+            ...values,
+            platform: input.platform,
+            token: input.token,
+          })
           .returning();
     return { device: toDevice(row!), enabled: ctx.push.enabled };
   });

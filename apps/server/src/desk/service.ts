@@ -101,6 +101,11 @@ export class DeskService {
     }
   }
 
+  /** Whether Kovan is open on one of the person's computers (a phone doesn't count). */
+  desktopOnline(userId: string): boolean {
+    return this.out.isOnline(userId);
+  }
+
   async ask(userId: string, action: DeskAction): Promise<DeskRequest> {
     await this.check(userId, action);
     const request: DeskRequest = {

@@ -1,4 +1,4 @@
-import type { ApiKeyScope, CheckResult, PluginRecommendation } from '@kovan/shared';
+import type { ApiKeyScope, CheckResult, PluginRecommendation, SwarmOutcome } from '@kovan/shared';
 import { sql } from 'drizzle-orm';
 import {
   type AnyPgColumn,
@@ -31,6 +31,8 @@ export const users = pgTable(
     githubLogin: text('github_login'),
     onboarding: jsonb('onboarding').$type<Record<string, boolean>>().notNull().default({}),
     errorReports: boolean('error_reports').notNull().default(true),
+    /** The language the person chose in an app ("tr"), for emails and pushes; null: not said. */
+    locale: text('locale'),
     lastVerificationSentAt: timestamp('last_verification_sent_at', { withTimezone: true }),
     /**
      * "agent": an AI teammate; "service": what a workspace API key acts as. Neither has
@@ -157,6 +159,8 @@ export const emailTokens = pgTable(
     createdAt: createdAt(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     usedAt: timestamp('used_at', { withTimezone: true }),
+    /** Wrong codes typed on a sign-in link's page; past a few, the link stops working. */
+    attempts: integer('attempts').notNull().default(0),
   },
   (t) => [uniqueIndex('email_tokens_hash').on(t.tokenHash)],
 );
@@ -201,6 +205,10 @@ export const workspaces = pgTable('workspaces', {
   gitSyncChangedAt: timestamp('git_sync_changed_at', { withTimezone: true }),
   /** USD a month all agent swarms of the workspace may spend; null: no limit. */
   agentMonthlyLimit: doublePrecision('agent_monthly_limit'),
+  /** Who may answer or steer an agent that isn't theirs: owners only, or every editor too. */
+  othersAgents: text('others_agents', { enum: ['owners', 'editors'] })
+    .notNull()
+    .default('owners'),
   mode: text('mode', { enum: ['solo', 'team', 'adaptive'] })
     .notNull()
     .default('adaptive'),
@@ -252,8 +260,11 @@ export const invites = pgTable(
     acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     acceptedBy: uuid('accepted_by').references(() => users.id, { onDelete: 'set null' }),
     revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    /** The invite link's secret, hashed: whoever opens the link joins with their own account. */
+    tokenHash: text('token_hash'),
   },
   (t) => [
+    uniqueIndex('invites_token_hash').on(t.tokenHash),
     index('invites_github_login').on(sql`lower(${t.githubLogin})`),
     index('invites_email').on(sql`lower(${t.email})`),
   ],
@@ -811,6 +822,8 @@ export const swarms = pgTable(
       .notNull()
       .default('allow'),
     pausedReason: text('paused_reason'),
+    /** How its tasks ended, reported by the run that finished it. */
+    outcome: jsonb('outcome').$type<SwarmOutcome>(),
     /**
      * Raised on every launch: the run that started it carries this number, and a run with an
      * older one (a machine that came back after the swarm moved on) is refused.
@@ -939,17 +952,73 @@ export const billingAccounts = pgTable('billing_accounts', {
     .notNull()
     .default('ok'),
   lastChargeAt: timestamp('last_charge_at', { withTimezone: true }),
+  /** The month ("2026-11") the person was last told their allowance ran out. */
+  noticeMonth: text('notice_month'),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
 
-/** Invoices for managed usage: one daily off-session charge each. */
+/**
+ * An organization that pays for its members' managed usage in its workspaces: what an owner
+ * agreed to, the limits, the card and the company details on its monthly invoice.
+ */
+export const orgBilling = pgTable('org_billing', {
+  orgId: uuid('org_id')
+    .primaryKey()
+    .references(() => orgs.id, { onDelete: 'cascade' }),
+  /** The owner who turned it on and agreed to pay. */
+  setupBy: uuid('setup_by').references(() => users.id, { onDelete: 'set null' }),
+  consentAt: timestamp('consent_at', { withTimezone: true }),
+  consentVersion: text('consent_version'),
+  /** USD per calendar month for the whole organization, markup included. */
+  monthlyCap: doublePrecision('monthly_cap'),
+  /** USD per month each member may use, unless set for them; null: only the cap. */
+  memberLimit: doublePrecision('member_limit'),
+  stripeCustomerId: text('stripe_customer_id'),
+  paymentMethodId: text('payment_method_id'),
+  cardBrand: text('card_brand'),
+  cardLast4: text('card_last4'),
+  status: text('status', { enum: ['ok', 'past_due'] })
+    .notNull()
+    .default('ok'),
+  companyName: text('company_name'),
+  companyAddress: text('company_address'),
+  taxId: text('tax_id'),
+  billingEmail: text('billing_email'),
+  lastChargeAt: timestamp('last_charge_at', { withTimezone: true }),
+  /** The month the owners were last told the organization's cap ran out. */
+  noticeMonth: text('notice_month'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** A member's own monthly limit in an organization that pays (the default applies without it). */
+export const orgMemberLimits = pgTable(
+  'org_member_limits',
+  {
+    orgId: uuid('org_id')
+      .notNull()
+      .references(() => orgs.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** USD per month; null: no limit of their own (the organization's cap still applies). */
+    monthlyLimit: doublePrecision('monthly_limit'),
+    /** The month they were last told their limit there ran out. */
+    noticeMonth: text('notice_month'),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.userId] })],
+);
+
+/** Invoices for managed usage: a person's daily charge, or an organization's monthly one. */
 export const invoices = pgTable(
   'invoices',
   {
     id: id(),
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Whose personal invoice it is; kept (without the person) when the account is deleted. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** The organization it bills, for team billing. */
+    orgId: uuid('org_id').references(() => orgs.id, { onDelete: 'set null' }),
+    /** For an organization's monthly invoice: the month it covers ("2026-11"). */
+    period: text('period'),
     amountCents: integer('amount_cents').notNull(),
     /** The exact usage it covers, USD. */
     usage: doublePrecision('usage').notNull(),
@@ -971,10 +1040,10 @@ export const managedUsage = pgTable(
   'managed_usage',
   {
     id: id(),
-    /** Who started the run: they pay, delegated agents and routing included. */
-    userId: uuid('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Who started the run: delegated agents and routing included. */
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    /** The organization that pays, when it pays for its members; null: the person pays. */
+    orgId: uuid('org_id').references(() => orgs.id, { onDelete: 'set null' }),
     workspaceId: uuid('workspace_id').references(() => workspaces.id, { onDelete: 'set null' }),
     runId: text('run_id').notNull(),
     /** What the run was ("Fix the lobby race"), for the usage page. */
@@ -992,6 +1061,7 @@ export const managedUsage = pgTable(
   },
   (t) => [
     index('managed_usage_user_time').on(t.userId, t.createdAt),
+    index('managed_usage_org_time').on(t.orgId, t.createdAt),
     uniqueIndex('managed_usage_generation').on(t.generationId),
   ],
 );

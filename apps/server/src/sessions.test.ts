@@ -216,7 +216,7 @@ describe('sessions', () => {
     for (const x of [a, b, c, late, again]) x.c.close();
   });
 
-  it('lets any editor answer an approval card, first answer wins, on the owner machine', async () => {
+  it('lets the agent’s person, owners and (when allowed) editors answer, first answer wins, on the owner machine', async () => {
     const s = await newSession('Approvals');
     await api(alice, 'POST', `/api/sessions/${s.id}/join`, { mode: 'join' });
     const a = await follow(alice, s.id);
@@ -260,12 +260,30 @@ describe('sessions', () => {
     c.c.send({ ...answer, approved: true });
     expect((await c.c.waitFor<Msg>((m) => m.type === 'error'))['code']).toBe('forbidden');
 
-    // Bob (an editor, not even in the session) answers first; alice's machine hears it.
+    // By default only alice and the owners answer for alice's agent: Bob (an editor) is told so.
+    b.c.send({ ...answer, approved: true });
+    const refused = await b.c.waitFor<Msg>((m) => m.type === 'error');
+    expect(refused['code']).toBe('forbidden');
+    expect(String(refused['message'])).toMatch(/only .+ and the workspace's owners answer for/);
+
+    // The owner lets editors answer too: Bob (not even in the session) answers first.
+    expect(
+      (await api(alice, 'PATCH', `/api/workspaces/${workspaceId}`, { othersAgents: 'editors' }))
+        .status,
+    ).toBe(200);
     b.c.send({ ...answer, approved: true });
     const resolved = await a.c.waitFor<Msg>(
       (m) => m.type === 'approval' && (m['approval'] as { status: string }).status !== 'pending',
     );
     expect(resolved['approval']).toMatchObject({ status: 'approved', answeredBy: bob.id });
+    // Everyone can see afterwards who let it run.
+    const feed = (await api(alice, 'GET', `/api/sessions/${s.id}/activity`)).body.activity as {
+      kind: string;
+      text: string;
+    }[];
+    expect(feed.find((x) => x.kind === 'approval_answered')?.text).toBe(
+      "bob approved alice's agent: Run this?",
+    );
 
     // A second answer loses.
     a.c.send({ ...answer, approved: false });
@@ -274,6 +292,7 @@ describe('sessions', () => {
       (await api(carol, 'GET', `/api/workspaces/${workspaceId}/approvals`)).body.approvals,
     ).toEqual([]);
 
+    await api(alice, 'PATCH', `/api/workspaces/${workspaceId}`, { othersAgents: 'owners' });
     for (const x of [a, b, c]) x.c.close();
   });
 
@@ -286,10 +305,30 @@ describe('sessions', () => {
     });
     b.c.send({ type: 'lane.events', sessionId: s.id, events: [{ type: 'text', text: 'x' }] });
     expect((await b.c.waitFor<Msg>((m) => m.type === 'error'))['code']).toBe('forbidden');
+    // Everyone sees it at once: his lane is watching now, not a lane that seems to work.
+    const seen = (await api(alice, 'GET', `/api/sessions/${s.id}`)).body.session;
+    expect(seen.participants.find((p: { userId: string }) => p.userId === bob.id)).toMatchObject({
+      mode: 'watch',
+    });
     await api(alice, 'PATCH', `/api/workspaces/${workspaceId}/members/${bob.id}`, {
       role: 'editor',
     });
     b.c.close();
+  });
+
+  it('takes someone removed from the workspace out of its live sessions', async () => {
+    const s = await newSession('Removal');
+    await api(carol, 'POST', `/api/sessions/${s.id}/join`, { mode: 'watch' });
+    const before = (await api(alice, 'GET', `/api/sessions/${s.id}`)).body.session;
+    expect(before.participants.map((p: { userId: string }) => p.userId)).toContain(carol.id);
+    await api(alice, 'DELETE', `/api/workspaces/${workspaceId}/members/${carol.id}`);
+    const after = (await api(alice, 'GET', `/api/sessions/${s.id}`)).body.session;
+    expect(after.participants.map((p: { userId: string }) => p.userId)).not.toContain(carol.id);
+    // Back in, for the tests after this one.
+    await api(alice, 'POST', `/api/workspaces/${workspaceId}/invites`, {
+      githubLogin: 'carol',
+      role: 'viewer',
+    });
   });
 
   it('ends a session into history with its transcript and final diff', async () => {
@@ -366,6 +405,24 @@ describe('sessions', () => {
     await h.ctx.sessions.sweepRetention();
     const after = await h.ctx.db.select({ n: sql<number>`count(*)::int` }).from(transcriptChunks);
     expect(after[0]!.n).toBe(0);
+  });
+
+  it('drops an ended session’s final diff past the org retention, and keeps a recent one', async () => {
+    const old = await newSession('Old work');
+    const recent = await newSession('Recent work');
+    await h.ctx.db.execute(
+      sql`update sessions set status = 'ended', final_diff_enc = 'x', ended_at = now() - interval '91 days' where id = ${old.id}`,
+    );
+    await h.ctx.db.execute(
+      sql`update sessions set status = 'ended', final_diff_enc = 'y', ended_at = now() - interval '1 day' where id = ${recent.id}`,
+    );
+    await h.ctx.sessions.sweepRetention();
+    const rows = (await h.ctx.db.execute(
+      sql`select id, final_diff_enc from sessions where id in (${old.id}, ${recent.id})`,
+    )) as unknown as { id: string; final_diff_enc: string | null }[];
+    const byId = Object.fromEntries(rows.map((r) => [r.id, r.final_diff_enc]));
+    expect(byId[old.id]).toBeNull();
+    expect(byId[recent.id]).toBe('y');
   });
 
   it("doesn't show sessions to people outside the workspace", async () => {

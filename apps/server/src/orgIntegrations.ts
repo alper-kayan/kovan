@@ -1,10 +1,10 @@
 import { CreateApiKeySchema, CreateWebhookSchema, RegisterMachineSchema } from '@kovan/shared';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { requireUser } from './auth/guard.js';
 import type { AppContext } from './context.js';
-import { workspaceMembers } from './db/schema.js';
+import { orgMembers, workspaceMembers } from './db/schema.js';
 import { badRequest, forbidden, notFound } from './errors.js';
 import { targetProblem } from './events/deliver.js';
 import { requireOrgOwner, visibleOrgWorkspaces } from './scope.js';
@@ -155,7 +155,12 @@ export function registerOrgIntegrationRoutes(app: FastifyInstance, ctx: AppConte
   app.get('/api/orgs/:id/machines', async (req) => {
     const user = await requireUser(ctx, req);
     const { id } = Org.parse(req.params);
-    await visible(id, user.id);
+    // A member of an organization without workspaces yet sees an empty list, not "not found".
+    const [member] = await db
+      .select({ role: orgMembers.role })
+      .from(orgMembers)
+      .where(and(eq(orgMembers.orgId, id), eq(orgMembers.userId, user.id)));
+    if (!member) await visible(id, user.id);
     return { machines: await machines.listOrg(id) };
   });
   // agentd with an organization's machine key.

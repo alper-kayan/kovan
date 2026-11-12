@@ -145,6 +145,7 @@ export async function deleteAccount(
       meta: { newOwner: w.owner?.name ?? null },
       ...(req ? { req } : {}),
     });
+  await ctx.billing.settleBeforeDeletion(user.id);
   await ctx.billing.forget(user.id);
   // Apple asks apps to revoke Sign in with Apple when the account goes (after it is gone here).
   const apple = await db

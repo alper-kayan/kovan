@@ -60,9 +60,15 @@ describe('work asked for on the phone, done by the desktop', () => {
   it('says so at once when none of the person’s computers is connected', async () => {
     const phone = await connect(h, alice.token, { client: 'mobile' });
     await phone.waitFor((m) => m.type === 'welcome');
+    // The phone can know before asking: a phone alone is not a computer.
+    expect((await api(alice, 'GET', '/api/desk/status')).body).toEqual({ desktopOnline: false });
     const r = await api(alice, 'POST', '/api/desk', takeover());
     expect(r.status).toBe(409);
     expect(r.body.error.message).toMatch(/computer is offline/);
+    const laptop = await connect(h, alice.token);
+    await laptop.waitFor((m) => m.type === 'welcome');
+    expect((await api(alice, 'GET', '/api/desk/status')).body).toEqual({ desktopOnline: true });
+    laptop.close();
     phone.close();
   });
 

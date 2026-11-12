@@ -112,8 +112,24 @@ export async function startLogin(
     ...(options.token ? { headers: { authorization: `Bearer ${options.token}` } } : {}),
   });
   if (res.statusCode !== 200) throw new Error(`start failed ${res.statusCode}: ${res.body}`);
-  const { loginId } = res.json() as { loginId: string };
-  return { loginId, secret };
+  const { loginId, code } = res.json() as { loginId: string; code: string };
+  return { loginId, secret, code };
+}
+
+/**
+ * Opens the newest emailed sign-in link to `to` and types the code on its page, the way a
+ * person does. Returns the page that answers the code.
+ */
+export async function finishEmailLink(h: Harness, to: string, code: string) {
+  const link = new URL(lastLink(h, to));
+  const opened = await h.app.inject({ method: 'GET', url: link.pathname + link.search });
+  if (opened.statusCode !== 200) return opened;
+  return h.app.inject({
+    method: 'POST',
+    url: '/auth/email/confirm',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    payload: `token=${encodeURIComponent(link.searchParams.get('token')!)}&code=${encodeURIComponent(code)}`,
+  });
 }
 
 export async function poll(h: Harness, loginId: string, secret: string) {

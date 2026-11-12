@@ -8,7 +8,7 @@ import type {
 } from '@kovan/shared';
 import { NO_PUSH, type PushSink } from '../push/service.js';
 import { and, asc, eq, inArray, ne } from 'drizzle-orm';
-import { authorize, getRole } from '../authz.js';
+import { authorize, authorizeLane, getRole } from '../authz.js';
 import type { Encryptor } from '../crypto.js';
 import type { Db } from '../db/client.js';
 import {
@@ -162,8 +162,6 @@ export class FlowService {
     mention?: { context: string | null; reply: MentionReply },
   ): Promise<void> {
     const row = await this.sessions.row(sessionId);
-    await authorize(this.db, row.workspaceId, fromUserId, 'agent.steer');
-    if (row.status !== 'active') throw conflict('This session has ended');
     // An AI teammate's lane runs on its host's machine: the guidance goes there.
     const [lane] = await this.db
       .select({ hostId: sessionParticipants.hostId })
@@ -174,6 +172,12 @@ export class FlowService {
           eq(sessionParticipants.userId, laneUserId),
         ),
       );
+    // Giving another person's agent work spends their account: the workspace says who may.
+    await authorizeLane(this.db, row.workspaceId, fromUserId, 'agent.steer', {
+      userId: laneUserId,
+      hostId: lane?.hostId ?? null,
+    });
+    if (row.status !== 'active') throw conflict('This session has ended');
     const machine = lane?.hostId ?? laneUserId;
     if (!this.out.isOnline(machine))
       throw conflict(

@@ -11,11 +11,15 @@ import {
   UpdateOrgSchema,
   UpdateWorkspaceSchema,
   type OrgSettings,
+  ROLE_WORDS,
   type Invite,
+  type InviteLookup,
   type Member,
   type Org,
   type Workspace,
+  LOCALES,
 } from '@kovan/shared';
+import { currentLocale, t, tFor } from '../i18n/index.js';
 import type { FastifyInstance } from 'fastify';
 import { and, count, eq, gte, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -55,6 +59,7 @@ const toWorkspace = (row: WorkspaceRow, role: Workspace['role']): Workspace => (
   gitSyncChangedBy: row.gitSyncChangedBy,
   gitSyncChangedAt: row.gitSyncChangedAt?.toISOString() ?? null,
   agentMonthlyLimit: row.agentMonthlyLimit,
+  othersAgents: row.othersAgents,
   mode: row.mode,
   recommendedPlugins: row.recommendedPlugins,
   role,
@@ -160,6 +165,7 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
         onboarding: z.record(z.string().max(40), z.boolean()),
         errorReports: z.boolean(),
         photo: z.enum(['kovan', 'github']),
+        locale: z.enum(LOCALES).nullable(),
       })
       .partial()
       .strict()
@@ -176,6 +182,7 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
       patch.avatarUrl = `https://avatars.githubusercontent.com/u/${github.id}?v=4`;
     }
     if (body.errorReports !== undefined) patch.errorReports = body.errorReports;
+    if (body.locale !== undefined) patch.locale = body.locale;
     // Onboarding steps only ever get completed, so merge rather than replace.
     if (body.onboarding) patch.onboarding = { ...user.onboarding, ...body.onboarding };
     const [updated] = await db.update(users).set(patch).where(eq(users.id, user.id)).returning();
@@ -219,10 +226,13 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
     await mailer.send(
       actionMail(
         user.email,
-        'Verify your email for Kovan',
-        'Open this link on this computer to confirm your address. Invites and session alerts go here.',
-        'Verify email',
+        t('Verify your email for Kovan'),
+        t(
+          'Open this link to confirm your address for your Kovan account. Invites and session alerts go here.',
+        ),
+        t('Verify email'),
         `${config.PUBLIC_URL}/auth/verify?token=${token}`,
+        t,
       ),
     );
     return { sentTo: user.email, retryAfter: RESEND_SECONDS };
@@ -499,13 +509,19 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
         avatarUrl: users.avatarUrl,
         role: workspaceMembers.role,
         kind: users.kind,
+        email: users.email,
       })
       .from(workspaceMembers)
       .innerJoin(users, eq(users.id, workspaceMembers.userId))
       // API keys are listed with the keys, not as people.
       .where(and(eq(workspaceMembers.workspaceId, id), ne(users.kind, 'service')))
       .orderBy(users.name);
-    const members: Member[] = rows.map((m) => ({ ...m, kind: memberKind(m.kind) }));
+    // Owners see addresses (they invite and remove people by them); others see names.
+    const members: Member[] = rows.map((m) => ({
+      ...m,
+      kind: memberKind(m.kind),
+      email: role === 'owner' && m.kind === 'human' ? m.email : null,
+    }));
     const pending =
       role === 'owner'
         ? (
@@ -539,6 +555,7 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
       .set({ role })
       .where(and(eq(workspaceMembers.workspaceId, id), eq(workspaceMembers.userId, userId)));
     await announceMembership(id, userId);
+    await ctx.sessions.membershipChanged(id, userId, role);
     if (role !== current)
       await audit.record({
         workspaceId: id,
@@ -564,6 +581,7 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
       .delete(workspaceMembers)
       .where(and(eq(workspaceMembers.workspaceId, id), eq(workspaceMembers.userId, userId)));
     await announceMembership(id, userId);
+    await ctx.sessions.membershipChanged(id, userId, null);
     await audit.record({
       workspaceId: id,
       actor: user,
@@ -583,7 +601,7 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
     const workspace = await workspaceFor(user.id, id);
     if (workspace.mode === 'solo')
       throw conflict('This is a Solo workspace: switch it to Team or Adaptive to invite people');
-    const inviteUrl = `${config.PUBLIC_URL}/download`;
+    const guideUrl = `${config.PUBLIC_URL}/docs/getting-started/`;
 
     // Someone who already has an account joins straight away.
     const matches = [];
@@ -610,13 +628,20 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
           .onConflictDoNothing();
       });
       if (existing.email) {
+        // In their language when they set one; else the inviter's (likely the team's).
+        const tt = tFor(existing.locale ?? currentLocale());
+        const v = { name: user.name, workspace: workspace.name, role: tt(ROLE_WORDS[body.role]) };
         await mailer.send(
           actionMail(
             existing.email,
-            `You joined ${workspace.name} on Kovan`,
-            `${user.name} added you to ${workspace.name} as ${body.role}.`,
-            'Open Kovan',
-            inviteUrl,
+            tt('{name} added you to {workspace} on Kovan', v),
+            tt(
+              '{name} added you to {workspace} as {role}. Open Kovan on your computer or phone: {workspace} is in your workspaces now.',
+              v,
+            ),
+            tt('How to get started'),
+            guideUrl,
+            tt,
           ),
         );
       }
@@ -641,6 +666,10 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
       });
     }
 
+    // A link anyone holding it can join with, signed in as whoever they are (an Apple private
+    // address, another email): the inviter gets it once, to send it themselves when no email can.
+    const token = randomToken();
+    const link = `${config.PUBLIC_URL}/join/?t=${token}`;
     const [invite] = await db
       .insert(invites)
       .values({
@@ -649,16 +678,28 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
         email: body.email ?? null,
         role: body.role,
         invitedBy: user.id,
+        tokenHash: sha256(token),
       })
       .returning();
     if (body.email) {
+      const v = { name: user.name, workspace: workspace.name, role: t(ROLE_WORDS[body.role]) };
       await mailer.send(
         actionMail(
           body.email,
-          `${user.name} invited you to ${workspace.name} on Kovan`,
-          `${user.name} invited you to ${workspace.name} as ${body.role}. Download Kovan and sign in${body.githubLogin ? ` with GitHub (@${body.githubLogin})` : ' with this email'} to join.`,
-          'Get Kovan',
-          inviteUrl,
+          t('{name} invited you to {workspace} on Kovan', v),
+          [
+            t('{name} invited you to work on {workspace} in Kovan, as {role}.', v),
+            t(
+              'Kovan is where a team and its AI coding agents work on the same code together; you can follow it from your phone too.',
+            ),
+            t(
+              'The page below says what you need and lets you join with the account you sign in with.',
+            ),
+            t('The invite works until it is used or {name} takes it back.', v),
+          ].join('\n\n'),
+          t('See the invite'),
+          link,
+          t,
         ),
       );
     }
@@ -671,7 +712,78 @@ export function registerApiRoutes(app: FastifyInstance, ctx: AppContext): void {
       meta: { role: body.role },
       req,
     });
-    return reply.code(201).send({ invite: toInvite(invite!) });
+    return reply.code(201).send({ invite: { ...toInvite(invite!), link } });
+  });
+
+  // ---------- invite links ----------
+
+  async function inviteByToken(token: string) {
+    const [row] = token
+      ? await db
+          .select()
+          .from(invites)
+          .where(eq(invites.tokenHash, sha256(token)))
+      : [];
+    if (!row) throw notFound('This invite link is not valid. Ask for a new one.');
+    return row;
+  }
+
+  // What an invite link shows before anyone signs in: whose workspace, which role.
+  app.get('/api/invites/lookup', async (req): Promise<InviteLookup> => {
+    const { t = '' } = req.query as { t?: string };
+    const row = await inviteByToken(t);
+    const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, row.workspaceId));
+    if (!ws) throw notFound('This workspace no longer exists.');
+    return {
+      status: row.revokedAt ? 'revoked' : row.acceptedAt ? 'accepted' : 'pending',
+      workspaceName: ws.name,
+      repoUrl: ws.repoUrl,
+      inviterName: row.invitedBy ? await nameOf(row.invitedBy) : null,
+      role: row.role,
+      sentTo: row.email ?? `@${row.githubLogin}`,
+    };
+  });
+
+  // Joins with the invite link, as whoever is signed in.
+  app.post('/api/invites/accept', async (req) => {
+    const user = await requireUser(ctx, req);
+    const { token } = z.object({ token: z.string().min(10).max(200) }).parse(req.body);
+    const row = await inviteByToken(token);
+    if (row.revokedAt) throw conflict('This invite was taken back. Ask for a new one.');
+    const [ws] = await db.select().from(workspaces).where(eq(workspaces.id, row.workspaceId));
+    if (!ws) throw notFound('This workspace no longer exists.');
+    if (row.acceptedAt && row.acceptedBy !== user.id)
+      throw conflict('Someone already joined with this invite. Ask for a new one.');
+    if (!(await getRole(db, ws.id, user.id))) {
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(workspaceMembers)
+          .values({ workspaceId: ws.id, userId: user.id, role: row.role })
+          .onConflictDoNothing();
+        await tx
+          .insert(orgMembers)
+          .values({ orgId: ws.orgId, userId: user.id, role: 'member' })
+          .onConflictDoNothing();
+        await tx
+          .update(invites)
+          .set({ acceptedAt: new Date(), acceptedBy: user.id })
+          .where(eq(invites.id, row.id));
+      });
+      await announceMembership(ws.id, user.id);
+      await audit.record({
+        workspaceId: ws.id,
+        actor: user,
+        action: 'invite.accepted',
+        target: user.name,
+        meta: { role: row.role },
+        req,
+      });
+    }
+    return {
+      workspaceId: ws.id,
+      workspaceName: ws.name,
+      role: (await getRole(db, ws.id, user.id)) ?? row.role,
+    };
   });
 
   app.delete('/api/workspaces/:id/invites/:inviteId', async (req) => {

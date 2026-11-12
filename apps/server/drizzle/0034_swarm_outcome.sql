@@ -1,0 +1,1 @@
+ALTER TABLE "swarms" ADD COLUMN "outcome" jsonb;

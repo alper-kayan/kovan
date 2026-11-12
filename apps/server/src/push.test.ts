@@ -181,7 +181,8 @@ describe('push notifications', () => {
       appVersion: '0.1.0',
     });
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ device: { platform: 'ios', muted: [] }, enabled: true });
+    // Team questions start off; everything else is on.
+    expect(r.body).toMatchObject({ device: { platform: 'ios', muted: ['team'] }, enabled: true });
     await api(alice, 'POST', '/api/push/devices', {
       platform: 'android',
       token: 'android-token-alice',
@@ -370,6 +371,71 @@ describe('push notifications', () => {
     desk.close();
   });
 
+  it('asks the rest of the team too, only on phones that turned team questions on', async () => {
+    const reg = await api(bob, 'POST', '/api/push/devices', {
+      platform: 'ios',
+      token: 'ios-token-bob-team',
+    });
+    // A new phone starts with team questions off.
+    expect(reg.body.device.muted).toContain('team');
+    const sessionId = await newSession('Team asks');
+    const desk = await awayDesktop();
+    const ask = (id: string) =>
+      desk.send({
+        type: 'lane.events',
+        sessionId,
+        events: [{ type: 'approval', request: { id, title: 'Run this?', detail: 'ls' } }],
+      });
+    await api(alice, 'PATCH', `/api/workspaces/${workspaceId}`, { othersAgents: 'editors' });
+    ask('req-team-1');
+    await until(() => apnsCalls.length >= 1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(apnsCalls.map((c) => c.path)).not.toContain('/3/device/ios-token-bob-team');
+    // Bob turns them on: an editor may answer others' agents here, so he's asked as well.
+    await api(bob, 'PATCH', '/api/push/devices', { token: 'ios-token-bob-team', muted: [] });
+    apnsCalls.length = 0;
+    ask('req-team-2');
+    await until(() => apnsCalls.some((c) => c.path === '/3/device/ios-token-bob-team'));
+    const bobs = apnsCalls.find((c) => c.path === '/3/device/ios-token-bob-team')!;
+    expect(bobs.body.aps.alert.title).toBe("alice's agent asks: Run this?");
+    expect(bobs.body.aps.category).toBe('approval');
+    // Back to owners only: Bob may not answer, so he isn't asked.
+    await api(alice, 'PATCH', `/api/workspaces/${workspaceId}`, { othersAgents: 'owners' });
+    apnsCalls.length = 0;
+    ask('req-team-3');
+    await until(() => apnsCalls.length >= 1);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(apnsCalls.map((c) => c.path)).not.toContain('/3/device/ios-token-bob-team');
+    desk.close();
+    await api(bob, 'POST', '/api/push/devices/remove', { token: 'ios-token-bob-team' });
+  });
+
+  it('tells someone a comment named them, and not the one who wrote it', async () => {
+    const sessionId = await newSession('Mentions');
+    const desk = await awayDesktop();
+    const comment = (body: string, who: Person) =>
+      api(who, 'POST', `/api/workspaces/${workspaceId}/comments`, {
+        sessionId,
+        anchor: { kind: 'session' },
+        body,
+      });
+    expect((await comment('@alice can you look at the totals?', bob)).status).toBe(200);
+    await until(() => apnsCalls.length === 1);
+    expect(apnsCalls[0]!.path).toBe('/3/device/ios-token-alice');
+    expect(apnsCalls[0]!.body.aps.alert).toMatchObject({
+      title: 'bob mentioned you',
+      body: '@alice can you look at the totals?',
+    });
+    expect(apnsCalls[0]!.body.body).toEqual({ kind: 'mention', sessionId });
+    // Naming yourself, or an address that only looks like it, tells no one.
+    apnsCalls.length = 0;
+    await comment('note to self @alice', alice);
+    await comment('mail bob@alice.dev', bob);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(apnsCalls).toHaveLength(0);
+    desk.close();
+  });
+
   it('asks the swarm owner about a task that needs a yes, with buttons', async () => {
     const sessionId = await newSession('Migration');
     const desk = await awayDesktop();
@@ -379,7 +445,10 @@ describe('push notifications', () => {
     const stepId = plan.body.plan.steps[0].id;
     await until(() => apnsCalls.length === 1);
     expect(apnsCalls[0]!.body.aps).toMatchObject({
-      alert: { title: 'A swarm task needs a yes: Add a migration', body: 'changes the database' },
+      alert: {
+        title: 'A Swarm task waits for your approval: Add a migration',
+        body: 'changes the database',
+      },
       category: 'task',
     });
     expect(apnsCalls[0]!.body.body).toEqual({ kind: 'task', sessionId, stepId });

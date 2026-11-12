@@ -279,13 +279,20 @@ describe('swarms', () => {
     expect(
       (await api(alice, 'POST', `/api/swarms/${draft.id}/status`, { status: 'done' })).status,
     ).toBe(403);
-    expect(
-      (await api(bob, 'POST', `/api/swarms/${draft.id}/status`, { status: 'done' })).body.swarm
-        .status,
-    ).toBe('done');
-    const kinds = (await api(alice, 'GET', `/api/sessions/${s.id}/activity`)).body.activity.map(
-      (a: { kind: string }) => a.kind,
+    // Done carries how the tasks went: all failed is not "finished its goal".
+    const done = (
+      await api(bob, 'POST', `/api/swarms/${draft.id}/status`, {
+        status: 'done',
+        outcome: { tasks: 2, done: 0, failed: 2 },
+      })
+    ).body.swarm;
+    expect(done.status).toBe('done');
+    expect(done.outcome).toMatchObject({ tasks: 2, done: 0, failed: 2 });
+    const activity = (await api(alice, 'GET', `/api/sessions/${s.id}/activity`)).body.activity;
+    expect(activity.find((a: { kind: string }) => a.kind === 'swarm_done').text).toBe(
+      'The swarm ended without finishing a task (2 failed)',
     );
+    const kinds = activity.map((a: { kind: string }) => a.kind);
     expect(kinds).toEqual(
       expect.arrayContaining([
         'swarm_launched',

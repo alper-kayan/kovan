@@ -138,7 +138,14 @@ export async function registerSiteRoutes(app: FastifyInstance, ctx: AppContext):
       return reply
         .code(404)
         .type('text/html; charset=utf-8')
-        .send(messagePage('Not available yet', 'This build has not been published yet.', true));
+        .send(
+          messagePage(
+            'Not available yet',
+            "This build hasn't been published yet. Another platform's may be, and the terminal agent works everywhere.",
+            true,
+            { href: '/download/', label: 'Back to downloads' },
+          ),
+        );
     });
 
   // ---------- the website ----------

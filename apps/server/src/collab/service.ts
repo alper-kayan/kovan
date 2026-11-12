@@ -1,6 +1,7 @@
 import {
   canMoveTask,
   graphProblem,
+  mentionedPeople,
   type ActivityKind,
   type TaskState,
   can,
@@ -23,7 +24,14 @@ import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { z } from 'zod';
 import { authorize, getRole } from '../authz.js';
 import type { Db } from '../db/client.js';
-import { comments, memories, planSteps, stepOffers, users } from '../db/schema.js';
+import {
+  comments,
+  memories,
+  planSteps,
+  stepOffers,
+  users,
+  workspaceMembers,
+} from '../db/schema.js';
 import { badRequest, conflict, forbidden, notFound } from '../errors.js';
 import { redactText } from '../sessions/redact.js';
 import type { SessionService } from '../sessions/service.js';
@@ -592,7 +600,32 @@ export class CollabService {
         authorId: userId,
       })
       .returning();
-    return this.sendComment(row!);
+    const comment = await this.sendComment(row!);
+    await this.mentioned(comment, userId).catch(() => undefined);
+    return comment;
+  }
+
+  /**
+   * The people a new comment calls by name ("@Bora, can you look?"): each one who can see the
+   * workspace gets a notification, on the phone when they're away from the desk. The desktop
+   * shows its own from the comment it receives.
+   */
+  private async mentioned(comment: Comment, authorId: string): Promise<void> {
+    if (!comment.sessionId || !comment.body.includes('@')) return;
+    const people = await this.db
+      .select({ id: users.id, name: users.name, kind: users.kind })
+      .from(workspaceMembers)
+      .innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(eq(workspaceMembers.workspaceId, comment.workspaceId));
+    const humans = people.filter((p) => p.kind === 'human' && p.id !== authorId);
+    for (const person of mentionedPeople(comment.body, humans))
+      this.push.emit({
+        kind: 'mention',
+        sessionId: comment.sessionId,
+        toUserId: person.id,
+        fromName: comment.authorName,
+        text: comment.body,
+      });
   }
 
   async updateComment(

@@ -1,0 +1,1 @@
+ALTER TABLE "workspaces" ADD COLUMN "others_agents" text DEFAULT 'owners' NOT NULL;

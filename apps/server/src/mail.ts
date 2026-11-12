@@ -47,15 +47,18 @@ export function actionMail(
   intro: string,
   action: string,
   url: string,
+  /** The mail's language for its own line ("If you didn't expect this…"). */
+  tr: (text: string) => string = (text) => text,
 ): Mail {
+  const ignore = tr("If you didn't expect this, you can ignore it.");
   return {
     to,
     subject,
-    text: `${intro}\n\n${action}: ${url}\n\nIf you didn't expect this, you can ignore it.`,
+    text: `${intro}\n\n${action}: ${url}\n\n${ignore}`,
     html: `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px;color:#18181b">
 <p style="font-weight:800;font-size:20px;letter-spacing:-0.04em;margin:0 0 24px">kovan</p>
 <p style="font-size:15px;line-height:1.6">${escapeHtml(intro)}</p>
 <p><a href="${escapeHtml(url)}" style="display:inline-block;background:#18181b;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-size:14px">${escapeHtml(action)}</a></p>
-<p style="font-size:12px;color:#71717a">If you didn't expect this, you can ignore it.</p></div>`,
+<p style="font-size:12px;color:#71717a">${escapeHtml(ignore)}</p></div>`,
   };
 }

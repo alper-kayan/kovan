@@ -8,6 +8,7 @@ import {
   MentionSchema,
   SwarmDeliveredSchema,
   SwarmMessageSchema,
+  SwarmOutcomeSchema,
   SwarmReportSchema,
   SwarmSettingsSchema,
   UpdateAiAgentSchema,
@@ -141,13 +142,16 @@ export function registerSwarmRoutes(app: FastifyInstance, ctx: AppContext): void
   });
   app.post('/api/swarms/:id/status', async (req) => {
     const user = await requireUser(ctx, req);
-    const { status, reason } = z
+    const { status, reason, outcome } = z
       .object({
         status: z.enum(['paused', 'stopped', 'done']),
         reason: z.string().max(300).nullable().default(null),
+        outcome: SwarmOutcomeSchema.nullable().default(null),
       })
       .parse(req.body);
-    return { swarm: await swarm.setStatus(Id.parse(req.params).id, user.id, status, reason) };
+    return {
+      swarm: await swarm.setStatus(Id.parse(req.params).id, user.id, status, reason, outcome),
+    };
   });
   app.get('/api/workspaces/:id/agent-spend', async (req) => {
     const user = await requireUser(ctx, req);
