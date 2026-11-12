@@ -36,9 +36,10 @@ companion apps).
 | Path                        | What                                                                    |
 | --------------------------- | ----------------------------------------------------------------------- |
 | `apps/desktop`              | Electron + React + Monaco app                                           |
-| `apps/server`               | "Brain": Fastify + WebSocket + PostgreSQL (Drizzle) coordination server |
+| `apps/server`               | Coordination server: Fastify + WebSocket + PostgreSQL (Drizzle)         |
 | `apps/mobile`               | Expo app for iOS and Android                                            |
 | `apps/web`                  | Website: landing page, docs, model catalog, downloads, account          |
+| `packages/cli`              | `kovan`, the terminal agent                                             |
 | `packages/harness`          | Kovan's own agent loop, tools and approvals                             |
 | `packages/runner`           | Running sessions: Claude Code and Codex lanes, Swarm, worktrees, checks |
 | `packages/agentd`           | Headless daemon that runs agents on an unattended machine               |
@@ -62,7 +63,7 @@ cp .env.example .env
 pnpm db:up        # Postgres 17 on localhost:5433
 pnpm build
 pnpm test         # server tests need the Postgres above
-pnpm --filter @kovan/server dev    # Brain server on http://localhost:4807
+pnpm --filter @kovan/server dev    # coordination server on http://localhost:4807
 pnpm --filter @kovan/desktop dev   # run the desktop app
 ```
 
