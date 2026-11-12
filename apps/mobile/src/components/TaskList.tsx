@@ -3,18 +3,34 @@ import { ScrollView, StyleSheet, View } from 'react-native';
 import { useActions } from '../lib/actions';
 import { usd } from '../lib/board';
 import { confirm } from '../lib/confirm';
+import { t, useLocale } from '../lib/i18n';
 import { colors, fonts, radius } from '../lib/theme';
 import { Act, T } from './ui';
 
-const RUN_LABEL: Record<NonNullable<PlanStep['runState']>, string> = {
-  waiting: 'waiting',
-  waiting_for_approval: 'needs approval',
-  running: 'running',
-  done: 'done',
-  failed: 'failed',
-  blocked: 'blocked',
-  cancelled: 'stopped',
-};
+function runLabel(state: NonNullable<PlanStep['runState']>): string {
+  switch (state) {
+    case 'waiting':
+      return t('waiting');
+    case 'waiting_for_approval':
+      return t('needs a yes');
+    case 'running':
+      return t('running');
+    case 'done':
+      return t('done');
+    case 'failed':
+      return t('failed');
+    case 'blocked':
+      return t('blocked');
+    case 'cancelled':
+      return t('stopped');
+  }
+}
+
+/** A plan step without a run, in words. */
+const statusLabel = (status: PlanStep['status']) =>
+  status === 'todo' ? t('to do') : status === 'doing' ? t('in progress') : t('done');
+
+const stateWord = (x: PlanStep) => (x.runState ? runLabel(x.runState) : statusLabel(x.status));
 
 function runColor(state: PlanStep['runState'] | PlanStep['status']): string {
   switch (state) {
@@ -49,32 +65,34 @@ export function TaskList({
   canApprove: boolean;
   canSteer: boolean;
 }) {
+  useLocale();
   const act = useActions();
   const live = session.status === 'active';
   const steps = plan?.steps ?? [];
   const nameOf = (id: string | null) =>
     session.participants.find((p) => p.userId === id)?.name ??
     swarm?.agents.find((a) => a.agentId === id)?.name ??
-    (id ? 'someone' : 'nobody yet');
-  const titleOf = (id: string) => steps.find((x) => x.id === id)?.title ?? 'another task';
+    (id ? t('someone') : t('nobody yet'));
+  const titleOf = (id: string) => steps.find((x) => x.id === id)?.title ?? t('another task');
   const columns = graphColumns(steps.map((x) => ({ ...x, key: x.id })));
   const counts: Record<string, number> = {};
   for (const x of steps) {
-    const k = x.runState ? RUN_LABEL[x.runState] : x.status;
+    const k = stateWord(x);
     counts[k] = (counts[k] ?? 0) + 1;
   }
 
   if (!plan)
     return (
       <T muted style={s.empty}>
-        Loading the plan…
+        {t('Loading the plan…')}
       </T>
     );
   if (steps.length === 0)
     return (
       <T muted style={s.empty}>
-        No tasks yet. A swarm&apos;s lead splits its goal into tasks here; people add plan steps on
-        the desktop.
+        {t(
+          "No tasks yet. A swarm's lead splits its goal into tasks here; people add plan steps on the desktop.",
+        )}
       </T>
     );
   return (
@@ -87,7 +105,7 @@ export function TaskList({
       {columns.map((column, i) => (
         <View key={i} style={s.stage}>
           {columns.length > 1 && (
-            <T style={s.stageLabel}>{i === 0 ? 'FIRST' : `THEN · STAGE ${i + 1}`}</T>
+            <T style={s.stageLabel}>{i === 0 ? t('FIRST') : t('THEN · STAGE {n}', { n: i + 1 })}</T>
           )}
           {column.map((x) => {
             const state = x.runState ?? x.status;
@@ -103,13 +121,11 @@ export function TaskList({
                   x.runState === 'cancelled' && { opacity: 0.6 },
                 ]}
                 accessible
-                accessibilityLabel={`${x.title}, ${x.runState ? RUN_LABEL[x.runState] : x.status}`}
+                accessibilityLabel={`${x.title}, ${stateWord(x)}`}
               >
                 <View style={s.taskHead}>
                   <View style={[s.chip, { borderColor: color }]}>
-                    <T style={[s.chipText, { color }]}>
-                      {x.runState ? RUN_LABEL[x.runState] : x.status}
-                    </T>
+                    <T style={[s.chipText, { color }]}>{stateWord(x)}</T>
                   </View>
                   <View style={{ flex: 1 }} />
                   {x.spent > 0 && (
@@ -124,12 +140,12 @@ export function TaskList({
                 </T>
                 {x.dependsOn.length > 0 && (
                   <T muted style={s.small}>
-                    After {x.dependsOn.map(titleOf).join(', ')}
+                    {t('After {tasks}', { tasks: x.dependsOn.map(titleOf).join(', ') })}
                   </T>
                 )}
                 {x.acceptance && (
                   <T muted style={s.small}>
-                    Done means: {x.acceptance}
+                    {t('Done means: {acceptance}', { acceptance: x.acceptance })}
                   </T>
                 )}
                 {x.runDetail && (
@@ -140,15 +156,21 @@ export function TaskList({
                 {x.approval === 'pending' && (
                   <>
                     <T style={[s.small, { color: colors.warn }]}>
-                      Needs a yes{x.approvalReason ? `: ${x.approvalReason}` : ''}
+                      {x.approvalReason
+                        ? t('Needs a yes: {reason}', { reason: x.approvalReason })
+                        : t('Needs a yes')}
                     </T>
                     {canApprove && live && (
                       <View style={s.actions}>
-                        <Act small title="Approve" onPress={() => act.answerTask(x.id, true)} />
+                        <Act
+                          small
+                          title={t('Approve')}
+                          onPress={() => act.answerTask(x.id, true)}
+                        />
                         <Act
                           small
                           kind="secondary"
-                          title="Reject"
+                          title={t('Reject')}
                           onPress={() => act.answerTask(x.id, false)}
                         />
                       </View>
@@ -165,12 +187,14 @@ export function TaskList({
                       <Act
                         small
                         kind="secondary"
-                        title="Stop task"
+                        title={t('Stop task')}
                         onPress={async () =>
                           (await confirm(
-                            'Stop this task?',
-                            `${nameOf(x.ownerId)} stops at its next step; the lead plans again around it.`,
-                            'Stop',
+                            t('Stop this task?'),
+                            t('{name} stops at its next step; the lead plans again around it.', {
+                              name: nameOf(x.ownerId),
+                            }),
+                            t('Stop'),
                             true,
                           )) && act.stopAgent(swarm.id, x.ownerId!, nameOf(x.ownerId))
                         }
@@ -179,7 +203,9 @@ export function TaskList({
                   )}
                 {x.approval && x.approval !== 'pending' && (
                   <T muted style={s.small}>
-                    {x.approval} by {nameOf(x.approvedBy)}
+                    {x.approval === 'approved'
+                      ? t('approved by {name}', { name: nameOf(x.approvedBy) })
+                      : t('rejected by {name}', { name: nameOf(x.approvedBy) })}
                   </T>
                 )}
               </View>

@@ -1,4 +1,4 @@
-import type { Action } from '@kovan/shared';
+import { mayActOnLane, openQuestions, type Action, type Participant } from '@kovan/shared';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { GitBranch, Plus, Radio } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -14,7 +14,8 @@ import { SwarmView } from '../../components/SwarmView';
 import { TaskList } from '../../components/TaskList';
 import { Avatar, ConnectionBar, Segmented, T } from '../../components/ui';
 import { allowed, useActions } from '../../lib/actions';
-import { sessionState, STATE_LABEL, usd } from '../../lib/board';
+import { sessionState, stateLabel, usd } from '../../lib/board';
+import { t, useLocale } from '../../lib/i18n';
 import { useLive } from '../../lib/live';
 import { useRoom } from '../../lib/room';
 import { useSession } from '../../lib/session';
@@ -24,6 +25,7 @@ type Tab = 'lanes' | 'tasks' | 'swarm' | 'changes' | 'activity';
 
 /** One session, live: every lane's agent at work, the task graph, the swarm and its chat. */
 export default function SessionScreen() {
+  useLocale();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSession();
   const { board, connection } = useLive();
@@ -64,7 +66,7 @@ export default function SessionScreen() {
   if (!session)
     return (
       <View style={s.center}>
-        <Stack.Screen options={{ title: 'Session' }} />
+        <Stack.Screen options={{ title: t('Session') }} />
         {room.error ? (
           <T style={{ color: colors.danger }}>{room.error}</T>
         ) : (
@@ -75,22 +77,38 @@ export default function SessionScreen() {
 
   const state = sessionState(session);
   const may = (action: Action) => allowed(board, session.workspaceId, action);
+  // Someone else's agent: its person and the owners (and editors, when allowed) only.
+  const ws = board.workspaces.find((w) => w.id === session.workspaceId);
+  const mayLane = (lane: Participant, action: 'approval.answer' | 'agent.steer') =>
+    mayActOnLane({
+      role: ws?.role,
+      userId: user?.id,
+      lane: { userId: lane.userId, hostId: lane.hostId ?? null },
+      othersAgents: ws?.othersAgents,
+      action,
+    });
   const lane = lanes.find((p) => p.userId === laneId) ?? null;
   const approvals = board.approvals.filter((a) => a.sessionId === session.id);
   const taskAsks = session.taskApprovals.length;
   const live = session.status === 'active';
   const canJoin = live && may('session.join');
   const mine = lanes.some((p) => p.userId === user?.id);
+  const questions = room.swarm
+    ? openQuestions(
+        room.messages,
+        room.swarm.agents.map((a) => a.agentId),
+      )
+    : [];
   const tabs: { value: Tab; label: string; badge?: number }[] = [
-    { value: 'lanes', label: 'Lanes', badge: approvals.length },
+    { value: 'lanes', label: t('Lanes'), badge: approvals.length },
     ...(room.plan?.steps.length || session.swarm
-      ? [{ value: 'tasks' as const, label: 'Tasks', badge: taskAsks }]
+      ? [{ value: 'tasks' as const, label: t('Tasks'), badge: taskAsks }]
       : []),
     ...(room.swarm || (session.status === 'active' && may('session.start'))
-      ? [{ value: 'swarm' as const, label: 'Swarm' }]
+      ? [{ value: 'swarm' as const, label: 'Swarm', badge: questions.length }]
       : []),
-    { value: 'changes', label: 'Changes' },
-    { value: 'activity', label: 'Activity' },
+    { value: 'changes', label: t('Changes') },
+    { value: 'activity', label: t('Activity') },
   ];
 
   return (
@@ -101,7 +119,7 @@ export default function SessionScreen() {
         <View style={s.summary}>
           <View style={s.line}>
             <Radio size={12} color={STATE_COLOR[state]} />
-            <T style={[s.small, { color: STATE_COLOR[state] }]}>{STATE_LABEL[state]}</T>
+            <T style={[s.small, { color: STATE_COLOR[state] }]}>{stateLabel(state)}</T>
             {session.branch && (
               <>
                 <GitBranch size={12} color={colors.fg3} />
@@ -119,6 +137,33 @@ export default function SessionScreen() {
           </View>
           <Segmented value={tab} options={tabs} onChange={setTab} />
         </View>
+        {/* A swarm agent waiting on a person says so wherever you are in the session. */}
+        {questions.length > 0 && tab !== 'swarm' && (
+          <Pressable
+            style={s.swarmAsk}
+            onPress={() => setTab('swarm')}
+            accessibilityRole="button"
+            accessibilityLabel={
+              may('agent.steer')
+                ? t('{name} asks: {text}. Open the swarm to answer.', {
+                    name: questions[0]!.fromName,
+                    text: questions[0]!.text,
+                  })
+                : t('{name} asks: {text}. Open the swarm.', {
+                    name: questions[0]!.fromName,
+                    text: questions[0]!.text,
+                  })
+            }
+          >
+            <T style={[s.small, { color: colors.warn }]} numberOfLines={2}>
+              {t('{name} asks: {text}', { name: questions[0]!.fromName, text: questions[0]!.text })}
+            </T>
+            <T muted style={s.tiny}>
+              {questions.length > 1 ? `${t('{n} questions', { n: questions.length })} · ` : ''}
+              {may('agent.steer') ? t('Answer in Swarm') : t('An editor or owner answers it')}
+            </T>
+          </Pressable>
+        )}
 
         {tab === 'lanes' && (
           <>
@@ -139,11 +184,11 @@ export default function SessionScreen() {
                     }}
                     accessibilityRole="tab"
                     accessibilityState={{ selected: !lane }}
-                    accessibilityLabel="Your lane, not started"
+                    accessibilityLabel={t('Your lane, not started')}
                     style={[s.pick, !lane && s.pickOn]}
                   >
                     <Avatar name={user.name} size={20} />
-                    <T style={[s.small, !lane && { color: colors.fg }]}>You</T>
+                    <T style={[s.small, !lane && { color: colors.fg }]}>{t('You')}</T>
                   </Pressable>
                 )}
                 {lanes.map((p) => {
@@ -158,12 +203,15 @@ export default function SessionScreen() {
                       }}
                       accessibilityRole="tab"
                       accessibilityState={{ selected: on }}
-                      accessibilityLabel={`${p.name}'s lane, ${STATE_LABEL[p.state]}`}
+                      accessibilityLabel={t("{name}'s lane, {state}", {
+                        name: p.name,
+                        state: stateLabel(p.state),
+                      })}
                       style={[s.pick, on && s.pickOn]}
                     >
                       <Avatar name={p.name} size={20} ai={p.kind === 'agent'} />
                       <T style={[s.small, on && { color: colors.fg }]}>
-                        {p.userId === user?.id ? 'You' : p.name}
+                        {p.userId === user?.id ? t('You') : p.name}
                       </T>
                       <View
                         style={[
@@ -178,11 +226,11 @@ export default function SessionScreen() {
                   <Pressable
                     onPress={() => setAdding(true)}
                     accessibilityRole="button"
-                    accessibilityLabel="Add an AI teammate"
+                    accessibilityLabel={t('Add an AI teammate')}
                     style={s.pick}
                   >
                     <Plus size={14} color={colors.fg3} style={{ marginLeft: 4 }} />
-                    <T style={s.small}>AI teammate</T>
+                    <T style={s.small}>{t('AI teammate')}</T>
                   </Pressable>
                 )}
               </ScrollView>
@@ -194,34 +242,36 @@ export default function SessionScreen() {
                   participant={lane}
                   events={room.lanes[lane.userId] ?? []}
                   approvals={approvals.filter((a) => a.laneUserId === lane.userId)}
-                  canAnswer={may('approval.answer') && session.status === 'active'}
+                  canAnswer={mayLane(lane, 'approval.answer') && session.status === 'active'}
                 />
                 <LaneControls
                   session={session}
                   participant={lane}
                   events={room.lanes[lane.userId] ?? []}
-                  canSteer={may('agent.steer')}
+                  canSteer={mayLane(lane, 'agent.steer')}
                   canTakeOver={may('agent.takeover')}
                 />
               </>
             ) : canJoin && !mine ? (
               <>
                 <T muted style={[s.empty, { flex: 1 }]}>
-                  Your agent isn&apos;t in this session yet. Ask it something: your desktop joins
-                  the session with it and runs it.
+                  {t(
+                    "Your agent isn't in this session yet. Ask it something: your desktop joins the session with it and runs it.",
+                  )}
                 </T>
                 <View style={s.ask}>
                   <Composer
-                    placeholder="Ask your agent to work here…"
-                    label="Prompt for your agent"
+                    placeholder={t('Ask your agent to work here…')}
+                    label={t('Prompt for your agent')}
                     onSend={(text) => act.prompt(session.id, text)}
                   />
                 </View>
               </>
             ) : (
               <T muted style={s.empty}>
-                No one is working in this session yet. Lanes appear when someone joins with an
-                agent.
+                {t(
+                  'No one is working in this session yet. Lanes appear when someone joins with an agent.',
+                )}
               </T>
             )}
           </>
@@ -275,6 +325,16 @@ const s = StyleSheet.create({
   line: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   small: { fontSize: 13, color: colors.fg3 },
   tiny: { fontSize: 11.5 },
+  swarmAsk: {
+    gap: 3,
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.warn,
+    backgroundColor: colors.bg3,
+  },
   pickerScroll: { flexGrow: 0, borderBottomWidth: 1, borderBottomColor: colors.line },
   picker: { paddingHorizontal: 12, paddingVertical: 8, gap: 6 },
   pick: {

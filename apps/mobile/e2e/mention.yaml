@@ -28,9 +28,9 @@ env:
     visible: '.*and the empty list case.*'
     timeout: 30000
 - extendedWaitUntil:
-    visible: "Bob's lane, Needs approval"
+    visible: "Bob's lane, Needs a yes"
     timeout: 60000
-- tapOn: "Bob's lane, Needs approval"
+- tapOn: "Bob's lane, Needs a yes"
 - extendedWaitUntil:
     visible: 'Approve'
     timeout: 10000

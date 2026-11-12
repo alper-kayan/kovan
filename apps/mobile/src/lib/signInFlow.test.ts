@@ -54,6 +54,7 @@ describe('sign-in', () => {
       loginId: 'L',
       url: '',
       secret: 's',
+      code: null,
       expiresAt: Date.now() - 1,
     });
     expect(result.status).toBe('failed');

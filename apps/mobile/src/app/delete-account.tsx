@@ -4,19 +4,20 @@ import { ActivityIndicator, Keyboard, ScrollView, StyleSheet, TextInput, View } 
 import { KeyboardScreen } from '../components/KeyboardScreen';
 import { Button, T } from '../components/ui';
 import { usd } from '../lib/board';
+import { t, useLocale } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import { colors, fonts, MAX_FONT_SCALE, radius } from '../lib/theme';
-import { ToastHost, useToast } from '../lib/toast';
-
-const WORD = 'delete';
+import { ToastHost } from '../lib/toast';
 
 /**
  * Deleting the account, from the phone: what goes and what stays is shown first (the server
  * works it out), and it takes typing a word to go ahead. It can't be undone.
  */
 export default function DeleteAccount() {
+  useLocale();
+  // The word to type, in the app's language.
+  const WORD = t('delete');
   const { api, signOut, user } = useSession();
-  const { show } = useToast();
   const [plan, setPlan] = useState<AccountDeletionPlan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [typed, setTyped] = useState('');
@@ -46,8 +47,8 @@ export default function DeleteAccount() {
     setBusy(true);
     try {
       await api('POST', '/api/me/delete', { confirm: true });
-      show('Your account was deleted.');
-      await signOut();
+      // Said on the sign-in screen that comes next, not on this one as it closes.
+      await signOut(t('Your account was deleted, with everything listed here.'));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setBusy(false);
@@ -65,52 +66,65 @@ export default function DeleteAccount() {
           onLayout={() => pinEnd.current && toEnd()}
         >
           <T style={s.lead}>
-            This deletes the Kovan account of {user?.name ?? 'this person'} for good, on every
-            device. It can&apos;t be undone.
+            {t(
+              "This deletes the Kovan account of {name} for good, on every device. It can't be undone.",
+              { name: user?.name ?? t('this person') },
+            )}
           </T>
           {!plan && !error && <ActivityIndicator color={colors.fg3} />}
           {error && <T style={s.danger}>{error}</T>}
           {plan && (
             <>
               <View style={s.card}>
-                <T style={s.title}>Deleted</T>
+                <T style={s.title}>{t('Deleted for good')}</T>
                 <T style={s.line}>
-                  Your account, its sign-ins and this phone&apos;s notifications.
+                  {t("Your account, its sign-ins and this phone's notifications.")}
                 </T>
                 {plan.deleted.length > 0 && (
                   <T style={s.line}>
-                    Workspaces only you are in, with their sessions, transcripts and AI teammates:{' '}
+                    {t(
+                      'Workspaces only you are in, with their sessions, transcripts and AI teammates:',
+                    )}{' '}
                     <T style={s.strong}>{plan.deleted.map((w) => w.name).join(', ')}</T>.
                   </T>
                 )}
                 <T style={s.line}>
-                  What you wrote in shared workspaces (your comments and your agent lanes).
+                  {t('What you wrote in shared workspaces (your comments and your agent lanes).')}
                 </T>
-                <T style={s.line}>Your saved card and billing details.</T>
+                <T style={s.line}>{t('Your saved card and billing details.')}</T>
               </View>
               {(plan.kept.length > 0 || plan.orgsKept.length > 0) && (
                 <View style={s.card}>
-                  <T style={s.title}>Stays for the others</T>
+                  <T style={s.title}>{t('Stays for the others')}</T>
                   {plan.kept.map((w) => (
                     <T key={w.id} style={s.line}>
                       <T style={s.strong}>{w.name}</T>
-                      {w.owner ? `: ${w.owner.name} becomes its owner.` : ''}
+                      {w.owner ? t(': {name} becomes its owner.', { name: w.owner.name }) : ''}
                     </T>
                   ))}
                   {plan.orgsKept
                     .filter((o) => o.owner)
-                    .map((o) => (
-                      <T key={o.id} style={s.line}>
-                        Organization <T style={s.strong}>{o.name}</T>: {o.owner!.name} becomes its
-                        owner.
-                      </T>
-                    ))}
+                    .map((o) => {
+                      const [before, after] = t('Organization {name}: {owner} becomes its owner.', {
+                        owner: o.owner!.name,
+                      }).split('{name}');
+                      return (
+                        <T key={o.id} style={s.line}>
+                          {before}
+                          <T style={s.strong}>{o.name}</T>
+                          {after}
+                        </T>
+                      );
+                    })}
                 </View>
               )}
               <T muted style={s.note}>
-                Repositories on GitHub and code on people&apos;s computers aren&apos;t touched.
+                {t("Repositories on GitHub and code on people's computers aren't touched.")}
                 {plan.unbilled > 0
-                  ? ` Managed usage not charged yet (${usd(plan.unbilled)}) won't be charged.`
+                  ? ` ${t(
+                      "Kovan billing usage not charged yet ({amount}) is charged to your card as the account is deleted (under $0.50, it's waived).",
+                      { amount: usd(plan.unbilled) },
+                    )}`
                   : ''}
               </T>
               {plan.blocker ? (
@@ -118,7 +132,9 @@ export default function DeleteAccount() {
               ) : (
                 <>
                   <T style={s.line}>
-                    Type <T style={s.strong}>{WORD}</T> to confirm.
+                    {t('Type {word} to confirm.').split('{word}')[0]}
+                    <T style={s.strong}>{WORD}</T>
+                    {t('Type {word} to confirm.').split('{word}')[1]}
                   </T>
                   <TextInput
                     value={typed}
@@ -130,11 +146,11 @@ export default function DeleteAccount() {
                     placeholder={WORD}
                     placeholderTextColor={colors.fg4}
                     style={s.input}
-                    accessibilityLabel={`Type ${WORD} to confirm`}
+                    accessibilityLabel={t('Type {word} to confirm.', { word: WORD })}
                     testID="delete-confirm"
                   />
                   <Button
-                    title="Delete my account"
+                    title={t('Delete my account')}
                     kind="danger"
                     busy={busy}
                     disabled={typed.trim().toLowerCase() !== WORD}

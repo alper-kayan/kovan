@@ -1,11 +1,17 @@
-import type {
-  Handoff,
-  Outcome,
-  ServerMessage,
-  Session,
-  SessionApproval,
-  Workspace,
+import {
+  can,
+  mayActOnLane,
+  swarmBadge,
+  type Action,
+  type Handoff,
+  type Outcome,
+  type ServerMessage,
+  type Session,
+  type SessionApproval,
+  type SwarmOutcome,
+  type Workspace,
 } from '@kovan/shared';
+import { locale, t } from './i18n';
 
 /** Everything the phone shows across workspaces, kept current by the server's live messages. */
 export interface Board {
@@ -20,34 +26,76 @@ export interface Board {
 
 export const EMPTY_BOARD: Board = { workspaces: [], sessions: {}, approvals: [], flow: {} };
 
-export type SessionState = 'running' | 'waiting' | 'awaiting' | 'idle' | 'ended';
+export type SessionState =
+  'running' | 'waiting' | 'awaiting' | 'paused' | 'review' | 'idle' | 'ended';
 
-export const STATE_LABEL: Record<SessionState, string> = {
-  running: 'Running',
-  waiting: 'Needs approval',
-  awaiting: 'Awaiting takeover',
-  idle: 'Idle',
-  ended: 'Ended',
-};
+/** A card's state in words, in the app's language. */
+export function stateLabel(state: SessionState): string {
+  switch (state) {
+    case 'running':
+      return t('Working');
+    case 'waiting':
+      return t('Needs a yes');
+    case 'awaiting':
+      return t('Stopped: someone needs to take over');
+    case 'paused':
+      return t('Swarm paused');
+    case 'review':
+      return t('Changes to review');
+    case 'idle':
+      return t('Nothing running');
+    case 'ended':
+      return t('Ended');
+  }
+}
 
 /** The card's one state, the same order of importance as the desktop board. */
 export function sessionState(session: Session): SessionState {
   if (session.status === 'ended') return 'ended';
   if (session.participants.some((p) => p.state === 'awaiting')) return 'awaiting';
-  if (session.pendingApprovals > 0) return 'waiting';
-  if (session.running.length > 0) return 'running';
+  if (session.pendingApprovals > 0 || session.taskApprovals.length > 0) return 'waiting';
+  // A swarm counts: its tasks run even when no person's lane does.
+  if (session.running.length > 0 || session.tasks.running > 0) return 'running';
+  if (session.swarm?.status === 'running') return 'running';
+  if (session.swarm?.status === 'paused') return 'paused';
+  // Quiet, with work done: not the same as nothing happening.
+  if (session.touchedFiles.length > 0 && !session.pr) return 'review';
   return 'idle';
+}
+
+/** A swarm's badge ("RUNNING", "DONE · 1 FAILED") in the app's language, in capitals. */
+export function swarmLabel(swarm: { status: string; outcome?: SwarmOutcome | null }): string {
+  const badge = swarmBadge(swarm);
+  const o = swarm.outcome;
+  const label =
+    badge.tone === 'failed' && swarm.status === 'done'
+      ? t('Failed')
+      : badge.tone === 'partial' && o
+        ? t('Done · {n} failed', { n: o.failed + o.blocked })
+        : swarm.status === 'draft'
+          ? t('Draft')
+          : swarm.status === 'running'
+            ? t('Running')
+            : swarm.status === 'paused'
+              ? t('Paused')
+              : swarm.status === 'done'
+                ? t('Done')
+                : swarm.status === 'stopped'
+                  ? t('Stopped')
+                  : badge.label;
+  return label.toLocaleUpperCase(locale());
 }
 
 export function ago(iso: string, now = Date.now()): string {
   const minutes = Math.round((now - new Date(iso).getTime()) / 60_000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return t('just now');
+  if (minutes < 60) return t('{n}m ago', { n: minutes });
   const hours = Math.round(minutes / 60);
-  return hours < 48 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+  return hours < 48 ? t('{n}h ago', { n: hours }) : t('{n}d ago', { n: Math.round(hours / 24) });
 }
 
-export const usd = (n: number) => `$${n < 1 ? n.toFixed(4) : n.toFixed(2)}`;
+/** Money for people: "$0", "< $0.01", "$0.07", "$12.40". */
+export const usd = (n: number) => (n <= 0 ? '$0' : n < 0.01 ? '< $0.01' : `$${n.toFixed(2)}`);
 
 /** Every one of the last `n` days, oldest first, with zero where nothing was spent. */
 export function lastDays(
@@ -66,7 +114,7 @@ export function lastDays(
 }
 
 export const nameOf = (session: Session | null | undefined, userId: string | null) =>
-  session?.participants.find((p) => p.userId === userId)?.name ?? 'Someone';
+  session?.participants.find((p) => p.userId === userId)?.name ?? t('Someone');
 
 const approvalKey = (a: SessionApproval) => `${a.sessionId}:${a.laneUserId}:${a.requestId}`;
 
@@ -175,16 +223,40 @@ export function alertsOf(board: Board, userId: string | null, workspaceId?: stri
     .filter(([id]) => !workspaceId || id === workspaceId)
     .flatMap(([, list]) => list);
   const find = (id: string) => sessions.find((s) => s.id === id);
+  // Only what this person can act on: a viewer's "needs you" isn't everyone else's to-do list.
+  const wsOf = (s: Session) => board.workspaces.find((w) => w.id === s.workspaceId);
+  const may = (s: Session, action: Action) => {
+    const role = wsOf(s)?.role;
+    return Boolean(role && can(role, action));
+  };
   const out: Alert[] = [];
   for (const a of board.approvals) {
     const session = find(a.sessionId);
-    if (session) out.push({ kind: 'approval', key: `a:${approvalKey(a)}`, session, approval: a });
+    if (!session) continue;
+    const ws = wsOf(session);
+    const lane = session.participants.find((p) => p.userId === a.laneUserId);
+    if (
+      !mayActOnLane({
+        role: ws?.role,
+        userId,
+        lane: { userId: a.laneUserId, hostId: lane?.hostId ?? null },
+        othersAgents: ws?.othersAgents,
+        action: 'approval.answer',
+      })
+    )
+      continue;
+    out.push({ kind: 'approval', key: `a:${approvalKey(a)}`, session, approval: a });
   }
   for (const session of sessions)
-    for (const t of session.taskApprovals)
-      out.push({ kind: 'task', key: `t:${t.stepId}`, session, ...t });
+    if (may(session, 'approval.answer'))
+      for (const task of session.taskApprovals)
+        out.push({ kind: 'task', key: `t:${task.stepId}`, session, ...task });
   for (const session of sessions)
-    if (session.swarm?.status === 'paused' && session.swarm.pausedReason)
+    if (
+      may(session, 'agent.steer') &&
+      session.swarm?.status === 'paused' &&
+      session.swarm.pausedReason
+    )
       out.push({
         kind: 'swarm',
         key: `s:${session.id}`,
@@ -193,14 +265,14 @@ export function alertsOf(board: Board, userId: string | null, workspaceId?: stri
       });
   for (const session of sessions)
     for (const p of session.participants)
-      if (p.state === 'awaiting' && p.userId !== userId)
+      if (p.state === 'awaiting' && p.userId !== userId && may(session, 'agent.takeover'))
         out.push({
           kind: 'awaiting',
           key: `w:${session.id}:${p.userId}`,
           session,
           userId: p.userId,
           name: p.name,
-          reason: (p.awaitingReason ?? 'usage limit').replace(/\.$/, ''),
+          reason: (p.awaitingReason ?? t('usage limit')).replace(/\.$/, ''),
           snapshotAt: p.snapshotAt,
         });
   for (const [id, flow] of Object.entries(board.flow)) {
@@ -212,7 +284,8 @@ export function alertsOf(board: Board, userId: string | null, workspaceId?: stri
     }
     for (const o of flow.outcomes) {
       const session = find(o.sessionId);
-      if (session) out.push({ kind: 'outcome', key: `o:${o.id}`, session, outcome: o });
+      if (session && may(session, 'approval.answer'))
+        out.push({ kind: 'outcome', key: `o:${o.id}`, session, outcome: o });
     }
   }
   return out;

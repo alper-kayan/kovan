@@ -3,16 +3,20 @@ import { ChevronRight } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { Alerts } from '../components/Alerts';
+import { NotifyPrompt } from '../components/NotifyPrompt';
 import { UpdateBanner } from '../components/UpdateBanner';
 import { Avatar, Chip, ConnectionBar, T } from '../components/ui';
 import { alertsOf, sessionState } from '../lib/board';
+import { roleName, t, useLocale } from '../lib/i18n';
 import { useLive } from '../lib/live';
 import { useSession } from '../lib/session';
 import { colors, fonts, initials, radius, workspaceColor } from '../lib/theme';
 
-const MODE_LABEL = { solo: 'Solo', team: 'Team', adaptive: 'Adaptive' } as const;
+const modeLabel = (mode: 'solo' | 'team' | 'adaptive') =>
+  mode === 'solo' ? t('Solo') : mode === 'team' ? t('Team') : t('Adaptive');
 
 export default function Workspaces() {
+  useLocale();
   const { user } = useSession();
   const { board, loaded, connection, error, reload } = useLive();
   const [refreshing, setRefreshing] = useState(false);
@@ -26,10 +30,10 @@ export default function Workspaces() {
             <Pressable
               onPress={() => router.push('/account')}
               accessibilityRole="button"
-              accessibilityLabel="Account"
+              accessibilityLabel={t('Account')}
               hitSlop={10}
             >
-              <Avatar name={user?.name ?? '?'} size={28} />
+              <Avatar name={user?.name ?? ''} size={28} />
             </Pressable>
           ),
         }}
@@ -53,6 +57,7 @@ export default function Workspaces() {
         ListHeaderComponent={
           <View style={s.head}>
             <UpdateBanner />
+            <NotifyPrompt />
             {error && (
               <View style={s.banner}>
                 <T style={{ color: colors.danger }}>{error}</T>
@@ -60,19 +65,43 @@ export default function Workspaces() {
             )}
             {alerts.length > 0 && (
               <>
-                <T style={s.section}>NEEDS YOU · {alerts.length}</T>
+                <T style={s.section}>{t('NEEDS YOU · {n}', { n: alerts.length })}</T>
                 <Alerts alerts={alerts} board={board} userId={user?.id ?? null} />
               </>
             )}
-            {board.workspaces.length > 0 && <T style={s.section}>WORKSPACES</T>}
+            {board.workspaces.length > 0 && <T style={s.section}>{t('WORKSPACES')}</T>}
           </View>
         }
         ListEmptyComponent={
           loaded ? (
             <View style={s.empty}>
-              <T muted style={{ textAlign: 'center' }}>
-                You&apos;re not in a workspace yet. Create or join one in the desktop app; it shows
-                up here.
+              <T style={s.emptyTitle}>{t('Nothing to follow yet')}</T>
+              <T muted style={s.emptyText}>
+                {t(
+                  "Here you follow your team's work: what each agent is doing, a yes when one asks for it, and work started on your computer from your phone.",
+                )}
+              </T>
+              <T muted style={s.emptyText}>
+                {t(
+                  "It fills up once you're in a workspace: when a teammate invites you, or when you share a repository from Kovan on your computer.",
+                )}
+              </T>
+              {user?.email && (
+                <T muted style={s.emptyText}>
+                  {t("Signed in as {email}. Invites to another address don't show here.", {
+                    email: user.email,
+                  })}
+                </T>
+              )}
+              {user?.email?.endsWith('@privaterelay.appleid.com') && (
+                <T style={[s.emptyText, { color: colors.warn }]}>
+                  {t(
+                    "That's the private address Apple made for you. Ask to be invited with it, or sign in another way with the address you were invited with.",
+                  )}
+                </T>
+              )}
+              <T muted style={s.emptyText}>
+                {t('Pull down to check again.')}
               </T>
             </View>
           ) : null
@@ -82,8 +111,10 @@ export default function Workspaces() {
           const running = sessions.filter((x) => sessionState(x) === 'running').length;
           const waiting = alertsOf(board, user?.id ?? null, w.id).length;
           const summary = [
-            `${sessions.length} live session${sessions.length === 1 ? '' : 's'}`,
-            running > 0 && `${running} running`,
+            sessions.length === 1
+              ? t('{n} live session', { n: sessions.length })
+              : t('{n} live sessions', { n: sessions.length }),
+            running > 0 && t('{n} running', { n: running }),
           ]
             .filter(Boolean)
             .join(' · ');
@@ -92,7 +123,7 @@ export default function Workspaces() {
               style={({ pressed }) => [s.row, pressed && { backgroundColor: colors.bg4 }]}
               onPress={() => router.push({ pathname: '/workspace/[id]', params: { id: w.id } })}
               accessibilityRole="button"
-              accessibilityLabel={`${w.name}, ${w.role}, ${summary}${waiting ? `, ${waiting} need you` : ''}`}
+              accessibilityLabel={`${w.name}, ${roleName(w.role)}, ${summary}${waiting ? `, ${t('{n} need you', { n: waiting })}` : ''}`}
             >
               <View style={[s.tile, { backgroundColor: workspaceColor(w.name, w.color) }]}>
                 <T scales={false} style={s.tileText}>
@@ -106,16 +137,19 @@ export default function Workspaces() {
                 <T muted numberOfLines={1} style={s.meta}>
                   {summary}
                   {waiting > 0 && (
-                    <T style={[s.meta, { color: colors.warn }]}> · {waiting} need you</T>
+                    <T style={[s.meta, { color: colors.warn }]}>
+                      {' · '}
+                      {t('{n} need you', { n: waiting })}
+                    </T>
                   )}
                 </T>
                 <T muted mono numberOfLines={1} style={s.repo}>
-                  {w.repoUrl ?? 'no remote'} · {w.defaultBranch}
+                  {w.repoUrl ?? t('no remote')} · {w.defaultBranch}
                 </T>
               </View>
               <View style={s.chips}>
-                <Chip>{w.role}</Chip>
-                <Chip>{MODE_LABEL[w.mode]}</Chip>
+                <Chip>{roleName(w.role)}</Chip>
+                <Chip>{modeLabel(w.mode)}</Chip>
               </View>
               <ChevronRight size={16} color={colors.fg4} />
             </Pressable>
@@ -167,5 +201,7 @@ const s = StyleSheet.create({
     borderColor: colors.line2,
     backgroundColor: colors.bg3,
   },
-  empty: { paddingVertical: 60, paddingHorizontal: 20 },
+  empty: { paddingVertical: 48, paddingHorizontal: 20, gap: 10 },
+  emptyTitle: { textAlign: 'center', fontFamily: fonts.uiMedium, fontSize: 16 },
+  emptyText: { textAlign: 'center', fontSize: 14, lineHeight: 20 },
 });

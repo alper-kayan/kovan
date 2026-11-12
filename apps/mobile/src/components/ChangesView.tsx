@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ago, usd } from '../lib/board';
 import { parseDiff, type DiffFile, type DiffLine } from '../lib/diff';
+import { t, useLocale } from '../lib/i18n';
 import { laneSpend, onCode, useChanges, useComments } from '../lib/review';
 import { useSession } from '../lib/session';
 import { colors, fonts, radius, MAX_FONT_SCALE } from '../lib/theme';
@@ -27,11 +28,21 @@ import { MentionChips } from './Composer';
 const PAGE = 300;
 
 const STATUS = {
-  added: { mark: 'A', color: colors.okSoft },
-  deleted: { mark: 'D', color: colors.danger },
-  modified: { mark: 'M', color: colors.warn },
-  renamed: { mark: 'R', color: colors.purple },
+  added: { mark: () => t('New'), word: () => t('added'), color: colors.okSoft },
+  deleted: { mark: () => t('Deleted'), word: () => t('deleted'), color: colors.danger },
+  modified: { mark: () => t('Changed'), word: () => t('modified'), color: colors.warn },
+  renamed: { mark: () => t('Renamed'), word: () => t('renamed'), color: colors.purple },
 } as const;
+
+/** A pull request's state in a word. */
+const prState = (state: string) =>
+  state === 'open'
+    ? t('open')
+    : state === 'merged'
+      ? t('merged')
+      : state === 'closed'
+        ? t('closed')
+        : state;
 
 type CodeComment = Comment & { anchor: { kind: 'file' | 'hunk'; path: string; endLine: number } };
 
@@ -58,6 +69,7 @@ export function ChangesView({
   lanes: Record<string, LaneEvent[]>;
   canComment: boolean;
 }) {
+  useLocale();
   const changes = useChanges(session);
   const { comments, add } = useComments(session.workspaceId, session.id);
   const [viewIndex, setViewIndex] = useState(0);
@@ -83,7 +95,7 @@ export function ChangesView({
         {session.pr && <PrCard pr={session.pr} />}
         {(session.cost > 0 || spend.length > 0) && (
           <View style={s.card}>
-            <T style={s.cardTitle}>Spent here: {usd(session.cost)}</T>
+            <T style={s.cardTitle}>{t('Spent here: {amount}', { amount: usd(session.cost) })}</T>
             {spend.map((r) => (
               <View key={r.userId} style={s.spendRow}>
                 <Avatar name={r.name} size={18} />
@@ -123,23 +135,37 @@ export function ChangesView({
             )}
             <T muted style={s.small}>
               {session.status === 'ended'
-                ? 'The final diff, from the machine that ended the session.'
+                ? t('The final diff, from the machine that ended the session.')
                 : view && session.machine
-                  ? `From ${session.machine.name}, ${ago(view.updatedAt)}, when its agents finished.`
+                  ? t('From {machine}, {when}, when its agents finished.', {
+                      machine: session.machine.name,
+                      when: ago(view.updatedAt),
+                    })
                   : view
-                    ? `From ${view.userName}'s desktop, ${ago(view.updatedAt)}. It updates as agents work.`
+                    ? t("From {name}'s desktop, {when}. It updates as agents work.", {
+                        name: view.userName,
+                        when: ago(view.updatedAt),
+                      })
                     : session.machine
-                      ? `Nothing has come in yet. ${session.machine.name} sends the changes when its agents finish.`
-                      : 'Nothing has come in yet. Changes show up here while agents work on a desktop.'}
+                      ? t(
+                          'Nothing has come in yet. {machine} sends the changes when its agents finish.',
+                          { machine: session.machine.name },
+                        )
+                      : t(
+                          'Nothing has come in yet. Changes show up here while agents work on a desktop.',
+                        )}
             </T>
             {view && files.length === 0 && (
               <T muted style={s.empty}>
-                No changes on this branch yet.
+                {t('No changes on this branch yet.')}
               </T>
             )}
             {files.length > 0 && (
               <T mono style={s.small}>
-                {files.length} {files.length === 1 ? 'file' : 'files'} ·{' '}
+                {files.length === 1
+                  ? t('{n} file', { n: files.length })
+                  : t('{n} files', { n: files.length })}{' '}
+                ·{' '}
                 <T mono style={[s.small, { color: colors.okSoft }]}>
                   +{added}
                 </T>{' '}
@@ -178,7 +204,7 @@ export function ChangesView({
             ))}
             {elsewhere.length > 0 && (
               <View style={{ gap: 8 }}>
-                <T style={s.section}>COMMENTS ON OTHER CODE</T>
+                <T style={s.section}>{t('COMMENTS ON OTHER CODE')}</T>
                 {elsewhere.map((c) => (
                   <Thread
                     key={c.id}
@@ -215,23 +241,27 @@ function asTarget(c: CodeComment): Target {
 }
 
 function PrCard({ pr }: { pr: NonNullable<Session['pr']> }) {
+  useLocale();
   const color =
     pr.state === 'merged' ? colors.purple : pr.state === 'open' ? colors.okSoft : colors.fg3;
   return (
     <Pressable
       onPress={() => void Linking.openURL(pr.url)}
       accessibilityRole="link"
-      accessibilityLabel={`Pull request ${pr.number}, ${pr.state}`}
+      accessibilityLabel={t('Pull request {n}, {state}', {
+        n: pr.number,
+        state: prState(pr.state),
+      })}
       style={({ pressed }) => [s.card, s.pr, pressed && { backgroundColor: colors.bg4 }]}
     >
       <GitPullRequest size={16} color={color} />
       <View style={{ flex: 1, gap: 2 }}>
-        <T>Pull request #{pr.number}</T>
+        <T>{t('Pull request #{n}', { n: pr.number })}</T>
         <T muted numberOfLines={1} style={s.small}>
           {pr.url.replace(/^https?:\/\//, '')}
         </T>
       </View>
-      <Chip color={color}>{pr.state}</Chip>
+      <Chip color={color}>{prState(pr.state)}</Chip>
       <ExternalLink size={14} color={colors.fg3} />
     </Pressable>
   );
@@ -256,6 +286,7 @@ function FileDiff({
   onLine(line: DiffLine): void;
   onReply(parent: CodeComment): void;
 }) {
+  useLocale();
   const [limit, setLimit] = useState(PAGE);
   const st = STATUS[file.status];
   const lines = file.hunks.flatMap((h) => [
@@ -278,7 +309,12 @@ function FileDiff({
         onPress={onToggle}
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
-        accessibilityLabel={`${file.path}, ${file.status}, ${file.added} added, ${file.removed} removed`}
+        accessibilityLabel={t('{path}, {status}, {added} added, {removed} removed', {
+          path: file.path,
+          status: st.word(),
+          added: file.added,
+          removed: file.removed,
+        })}
         style={s.fileHead}
       >
         {open ? (
@@ -287,7 +323,7 @@ function FileDiff({
           <ChevronRight size={14} color={colors.fg3} />
         )}
         <T mono style={[s.mark, { color: st.color }]}>
-          {st.mark}
+          {st.mark()}
         </T>
         <T mono numberOfLines={1} style={[s.path, { flex: 1 }]}>
           {file.path}
@@ -304,12 +340,12 @@ function FileDiff({
         <View style={s.body}>
           {file.oldPath && (
             <T muted mono style={[s.tiny, s.pad]}>
-              Renamed from {file.oldPath}
+              {t('Renamed from {path}', { path: file.oldPath })}
             </T>
           )}
           {file.binary && (
             <T muted style={[s.small, s.pad]}>
-              A binary file: nothing to show as text.
+              {t('A binary file: nothing to show as text.')}
             </T>
           )}
           {loose.map((c) => (
@@ -340,7 +376,12 @@ function FileDiff({
                   disabled={!can}
                   accessibilityRole={can ? 'button' : undefined}
                   accessibilityLabel={
-                    can ? `Comment on line ${l.newNo}: ${l.text.trim() || 'empty line'}` : undefined
+                    can
+                      ? t('Comment on line {n}: {text}', {
+                          n: l.newNo ?? '',
+                          text: l.text.trim() || t('empty line'),
+                        })
+                      : undefined
                   }
                   style={({ pressed }) => [
                     s.line,
@@ -381,7 +422,10 @@ function FileDiff({
           {total > limit && (
             <Pressable onPress={() => setLimit((n) => n + PAGE)} style={s.more}>
               <T muted style={s.small}>
-                Show {Math.min(PAGE, total - limit)} more of {total - limit} lines
+                {t('Show {n} more of {total} lines', {
+                  n: Math.min(PAGE, total - limit),
+                  total: total - limit,
+                })}
               </T>
             </Pressable>
           )}
@@ -403,6 +447,7 @@ function Thread({
   where?: boolean;
   onReply?: () => void;
 }) {
+  useLocale();
   const { api } = useSession();
   const { show } = useToast();
   const resolved = comment.status === 'resolved';
@@ -431,8 +476,8 @@ function Thread({
               <T muted style={s.tiny}>
                 {ago(c.createdAt)}
               </T>
-              {c.outdated && <Chip color={colors.warn}>outdated</Chip>}
-              {c.kind === 'suggestion' && <Chip>suggestion</Chip>}
+              {c.outdated && <Chip color={colors.warn}>{t('outdated')}</Chip>}
+              {c.kind === 'suggestion' && <Chip>{t('suggestion')}</Chip>}
             </View>
             <T selectable style={s.body2}>
               {c.body}
@@ -448,10 +493,10 @@ function Thread({
       {onReply && (
         <View style={s.threadActions}>
           <Pressable onPress={onReply} hitSlop={6} accessibilityRole="button">
-            <T style={s.link}>Reply</T>
+            <T style={s.link}>{t('Reply')}</T>
           </Pressable>
           <Pressable onPress={() => void toggle()} hitSlop={6} accessibilityRole="button">
-            <T style={s.link}>{resolved ? 'Reopen' : 'Resolve'}</T>
+            <T style={s.link}>{resolved ? t('Reopen') : t('Resolve')}</T>
           </Pressable>
         </View>
       )}
@@ -470,6 +515,7 @@ function CommentSheet({
   onClose(): void;
   onSaved(comment: Comment): void;
 }) {
+  useLocale();
   const { api, user } = useSession();
   const { show } = useToast();
   const insets = useSafeAreaInsets();
@@ -520,8 +566,9 @@ function CommentSheet({
           context: `A comment thread on ${where}:\n${thread}${code}`,
           reply: { kind: 'comment', commentId: target.parent?.id ?? comment.id },
         });
-        show(`Sent to ${called.name}. Its answer comes back in this thread.`);
-      } else show(target.parent ? 'Replied.' : 'Comment added. Your team sees it on the code.');
+        show(t('Sent to {name}. Its answer comes back in this thread.', { name: called.name }));
+      } else
+        show(target.parent ? t('Replied.') : t('Comment added. Your team sees it on the code.'));
     } catch (e) {
       show(e instanceof Error ? e.message : String(e), 'error');
     } finally {
@@ -535,11 +582,13 @@ function CommentSheet({
           style={s.backdrop}
           onPress={onClose}
           accessibilityRole="button"
-          accessibilityLabel="Close"
+          accessibilityLabel={t('Close')}
         />
         <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
           <T style={s.sheetTitle}>
-            {target.parent ? `Reply to ${target.parent.authorName}` : 'Comment on this line'}
+            {target.parent
+              ? t('Reply to {name}', { name: target.parent.authorName })
+              : t('Comment on this line')}
           </T>
           <T muted mono style={s.tiny}>
             {target.path}:{target.line}
@@ -570,20 +619,20 @@ function CommentSheet({
             autoFocus
             placeholder={
               teammates.length
-                ? 'What should change here, or @ a teammate to ask'
-                : "What should change here, or what's good about it"
+                ? t('What should change here, or @ a teammate to ask')
+                : t("What should change here, or what's good about it")
             }
             placeholderTextColor={colors.fg4}
             style={s.input}
-            accessibilityLabel="Your comment"
+            accessibilityLabel={t('Your comment')}
           />
           <Button
-            title={target.parent ? 'Reply' : 'Comment'}
+            title={target.parent ? t('Reply') : t('Comment')}
             busy={busy}
             disabled={!body.trim()}
             onPress={save}
           />
-          <Button title="Cancel" kind="secondary" onPress={onClose} />
+          <Button title={t('Cancel')} kind="secondary" onPress={onClose} />
         </View>
       </KeyboardAvoidingView>
       <ToastHost />
@@ -639,7 +688,7 @@ const s = StyleSheet.create({
     minHeight: 42,
     backgroundColor: colors.bg3,
   },
-  mark: { fontSize: 12, width: 12 },
+  mark: { fontSize: 11 },
   path: { fontSize: 12.5, color: colors.fg },
   body: { borderTopWidth: 1, borderTopColor: colors.line },
   pad: { padding: 10 },

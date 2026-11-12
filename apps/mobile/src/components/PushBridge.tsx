@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import * as SecureStore from 'expo-secure-store';
 import { useEffect, useRef } from 'react';
 import { AppState, Platform } from 'react-native';
+import { useLocale } from '../lib/i18n';
 import { answerFromNotification, pushData, registerForPush } from '../lib/push';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
@@ -21,14 +22,16 @@ export function PushBridge() {
   // The launching tap can come both as "the last response" and through the listener.
   const seen = useRef(new Set<string>());
   const ready = status === 'signedIn';
+  const language = useLocale();
 
-  // Register (asking for permission the first time) whenever someone signs in.
+  // Register whenever someone signs in, and again in a new language (the server writes the
+  // notifications in it); asking for permission is the home screen's card's job.
   useEffect(() => {
     if (!ready) return;
-    void registerForPush(api, true).catch((e: unknown) =>
+    void registerForPush(api, false).catch((e: unknown) =>
       console.warn("Couldn't register for notifications:", e),
     );
-  }, [ready, api]);
+  }, [ready, api, language]);
 
   useEffect(() => {
     const handle = async (response: Notifications.NotificationResponse) => {

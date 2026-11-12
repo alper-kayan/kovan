@@ -12,6 +12,8 @@ import {
 import Svg, { G, Path } from 'react-native-svg';
 import { Bot } from 'lucide-react-native';
 import { MAX_FONT_SCALE, colors, fonts, initials, personColor, radius } from '../lib/theme';
+import { t } from '../lib/i18n';
+import { useSession } from '../lib/session';
 
 /** Kovan's mark: six cells around a filled one (the same paths as the desktop and site). */
 export function LogoMark({ size = 28, color = colors.pop }: { size?: number; color?: string }) {
@@ -141,7 +143,8 @@ export function Avatar({
         height: size,
         borderRadius: size / 2,
         ...(ring ? { borderWidth: 2, borderColor: colors.bg3 } : null),
-        backgroundColor: personColor(name),
+        // Nobody known yet (still loading): neutral, not a colour that reads as a warning.
+        backgroundColor: name.trim() ? personColor(name) : colors.bg4,
         alignItems: 'center',
         justifyContent: 'center',
       }}
@@ -258,12 +261,17 @@ export function Bar({ share, budget }: { share: number; budget?: boolean }) {
 
 /** "Offline" and "Reconnecting" over a screen, quiet while connected. */
 export function ConnectionBar({ state }: { state: 'connecting' | 'online' | 'offline' }) {
+  const { server } = useSession();
   if (state === 'online') return null;
+  // The phone may well be online: it's the Kovan server that doesn't answer.
+  const host = server.replace(/^https?:\/\//, '').replace(/\/$/, '');
   return (
     <View style={styles.connection} accessibilityLiveRegion="polite">
       <ActivityIndicator size="small" color={colors.fg3} />
       <Text style={styles.connectionText}>
-        {state === 'offline' ? 'Offline. Trying again…' : 'Connecting…'}
+        {state === 'offline'
+          ? t("Can't reach Kovan ({host}). Trying again…", { host })
+          : t('Connecting…')}
       </Text>
     </View>
   );

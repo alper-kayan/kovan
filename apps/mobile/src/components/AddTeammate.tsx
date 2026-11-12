@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActions } from '../lib/actions';
+import { t, useLocale } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import { ToastHost } from '../lib/toast';
 import { colors, fonts, radius } from '../lib/theme';
@@ -27,6 +28,7 @@ export function useTeammates(workspaceId: string) {
  * anyone in the session can then message it.
  */
 export function AddTeammate({ session, onClose }: { session: Session; onClose(): void }) {
+  useLocale();
   const act = useActions();
   const insets = useSafeAreaInsets();
   const { agents, error } = useTeammates(session.workspaceId);
@@ -38,12 +40,12 @@ export function AddTeammate({ session, onClose }: { session: Session; onClose():
         style={s.backdrop}
         onPress={onClose}
         accessibilityRole="button"
-        accessibilityLabel="Close"
+        accessibilityLabel={t('Close')}
       />
       <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <T style={s.title}>Add an AI teammate</T>
+        <T style={s.title}>{t('Add an AI teammate')}</T>
         <T muted style={s.small}>
-          It gets its own lane. Your desktop runs it, on your key.
+          {t('It gets its own lane. Your desktop runs it, on your key.')}
         </T>
         {error && <T style={{ color: colors.danger }}>{error}</T>}
         {!free && !error && <ActivityIndicator color={colors.fg3} />}
@@ -53,7 +55,7 @@ export function AddTeammate({ session, onClose }: { session: Session; onClose():
               key={a.id}
               style={({ pressed }) => [s.row, pressed && { backgroundColor: colors.bg4 }]}
               accessibilityRole="button"
-              accessibilityLabel={`Add ${a.name}`}
+              accessibilityLabel={t('Add {name}', { name: a.name })}
               onPress={() => {
                 onClose();
                 void act.addTeammate(session.id, a.id, a.name);
@@ -76,12 +78,14 @@ export function AddTeammate({ session, onClose }: { session: Session; onClose():
           {free?.length === 0 && (
             <T muted style={s.small}>
               {agents?.length
-                ? 'Every AI teammate is in this session already.'
-                : 'This workspace has no AI teammates yet. Add them on the People page of the desktop app.'}
+                ? t('Every AI teammate is in this session already.')
+                : t(
+                    'This workspace has no AI teammates yet. Add them on the People page of the desktop app.',
+                  )}
             </T>
           )}
         </ScrollView>
-        <Button title="Cancel" kind="secondary" onPress={onClose} />
+        <Button title={t('Cancel')} kind="secondary" onPress={onClose} />
       </View>
       <ToastHost />
     </Modal>

@@ -1,6 +1,7 @@
 import * as Updates from 'expo-updates';
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
+import { locale, t } from './i18n';
 
 /** How often the app asks the server for a new update while it stays open. */
 export const CHECK_EVERY_MS = 30 * 60 * 1000;
@@ -62,11 +63,11 @@ export function useUpdateWatcher(): void {
 
 /** What the Account screen shows about the code the app runs. */
 export function runningUpdate(): string {
-  if (__DEV__ || !Updates.isEnabled) return 'Development';
-  if (Updates.isEmbeddedLaunch || !Updates.updateId) return 'Built in';
+  if (__DEV__ || !Updates.isEnabled) return t('Development');
+  if (Updates.isEmbeddedLaunch || !Updates.updateId) return t('Built in');
   const at = Updates.createdAt;
   const day = at
-    ? at.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
+    ? at.toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' })
     : '';
   return `${Updates.updateId.slice(0, 8)}${day ? ` · ${day}` : ''}`;
 }

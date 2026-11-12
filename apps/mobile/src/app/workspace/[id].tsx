@@ -8,12 +8,14 @@ import { SessionCard } from '../../components/SessionCard';
 import { Button, ConnectionBar, LogoMark, Segmented, T } from '../../components/ui';
 import { allowed } from '../../lib/actions';
 import { alertsOf } from '../../lib/board';
+import { t, useLocale } from '../../lib/i18n';
 import { useLive } from '../../lib/live';
 import { useSession } from '../../lib/session';
 import { colors } from '../../lib/theme';
 
 /** One workspace's board: its live sessions with what needs someone on top, or its history. */
 export default function WorkspaceBoard() {
+  useLocale();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user, api } = useSession();
   const { board, connection, reload } = useLive();
@@ -22,6 +24,8 @@ export default function WorkspaceBoard() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
+  // The sessions come first: past two waiting things, the rest fold away.
+  const [allAlerts, setAllAlerts] = useState(false);
   const workspace = board.workspaces.find((w) => w.id === id);
   const live = board.sessions[id] ?? [];
   const alerts = useMemo(() => alertsOf(board, user?.id ?? null, id), [board, user?.id, id]);
@@ -51,7 +55,7 @@ export default function WorkspaceBoard() {
 
   return (
     <>
-      <Stack.Screen options={{ title: workspace?.name ?? 'Workspace' }} />
+      <Stack.Screen options={{ title: workspace?.name ?? t('Workspace') }} />
       <ConnectionBar state={connection} />
       <FlatList
         style={s.list}
@@ -73,17 +77,35 @@ export default function WorkspaceBoard() {
             <Segmented
               value={tab}
               options={[
-                { value: 'live', label: 'Live', badge: alerts.length },
-                { value: 'history', label: 'History' },
+                { value: 'live', label: t('Live'), badge: alerts.length },
+                { value: 'history', label: t('History') },
               ]}
               onChange={setTab}
             />
-            {tab === 'live' && <Alerts alerts={alerts} board={board} userId={user?.id ?? null} />}
+            {tab === 'live' && (
+              <Alerts
+                alerts={allAlerts ? alerts : alerts.slice(0, 2)}
+                board={board}
+                userId={user?.id ?? null}
+              />
+            )}
+            {tab === 'live' && alerts.length > 2 && (
+              <Button
+                small
+                kind="secondary"
+                title={
+                  allAlerts
+                    ? t('Show fewer')
+                    : t('{n} more need you: show', { n: alerts.length - 2 })
+                }
+                onPress={() => setAllAlerts(!allAlerts)}
+              />
+            )}
             {tab === 'live' && allowed(board, id, 'session.start') && (
               <Button
                 small
                 kind="secondary"
-                title="New session"
+                title={t('New session')}
                 onPress={() => setStarting(true)}
               />
             )}
@@ -97,12 +119,14 @@ export default function WorkspaceBoard() {
             <View style={s.empty}>
               <LogoMark size={40} color={colors.fg4} />
               <T style={s.emptyTitle}>
-                {tab === 'live' ? 'No live sessions' : 'No finished sessions yet'}
+                {tab === 'live' ? t('No live sessions') : t('No finished sessions yet')}
               </T>
               <T muted style={s.emptyText}>
                 {tab === 'live'
-                  ? 'Sessions show up here as they run, with every lane live. Start one here or on a desktop.'
-                  : 'Ended sessions land here with their transcript.'}
+                  ? t(
+                      'Sessions show up here as they run, with every lane live. Start one here or on a desktop.',
+                    )
+                  : t('Ended sessions land here with their transcript.')}
               </T>
             </View>
           )

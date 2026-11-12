@@ -1,6 +1,7 @@
 import { Redirect } from 'expo-router';
 import { ActivityIndicator, View } from 'react-native';
 import { T } from '../components/ui';
+import { t, useLocale } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import { colors } from '../lib/theme';
 
@@ -9,6 +10,7 @@ import { colors } from '../lib/theme';
  * arrives before the phone has collected its token, so it waits for that, then goes on.
  */
 export default function SignedIn() {
+  useLocale();
   const { status } = useSession();
   if (status === 'loading' || status === 'signingIn')
     return (
@@ -22,7 +24,7 @@ export default function SignedIn() {
         }}
       >
         <ActivityIndicator color={colors.fg3} />
-        <T muted>Finishing sign-in…</T>
+        <T muted>{t('Finishing sign-in…')}</T>
       </View>
     );
   return <Redirect href={status === 'signedIn' ? '/' : '/sign-in'} />;

@@ -23,8 +23,8 @@ local server with the demo machine). The first version is for iPhone only
 - **Privacy policy URL:** `https://kovan.alperkayan.dev/privacy/`
 - **Support URL:** `https://kovan.alperkayan.dev/contact/`
 - **Marketing URL:** `https://kovan.alperkayan.dev/`
-- **Price:** free. No in-app purchases (managed usage is billed on the web to the organization,
-  never sold in the app).
+- **Price:** free. No in-app purchases (models paid through Kovan are billed on the web to the
+  person, or to their organization when it pays for its members; never sold in the app).
 
 ## Version text
 
@@ -56,11 +56,12 @@ local server with the demo machine). The first version is for iPhone only
 > Read a session's live diff file by file, leave comments on a line and answer your team's.
 >
 > KNOW WHAT IT COSTS
-> Spend per session, per model and per workspace, with monthly limits the owner can change.
+> Spend per session, per model and per workspace, and the monthly spending limits your
+> workspace's owner sets.
 >
 > Kovan on iPhone doesn't run agents or edit code itself: it watches, answers and steers. You
-> need a Kovan account and the Kovan desktop app (macOS, Windows, Linux) or a Kovan machine
-> for the work to run on.
+> need a Kovan account and the Kovan desktop app (macOS, Windows, Linux), or a computer of your
+> team's set up to run agents, for the work to run on.
 
 **Keywords** (100):
 
@@ -121,3 +122,20 @@ third-party advertising or analytics SDKs. Tracking: **No**.
 > The demo machine's agents can only work in a sample repository and spend at most a few
 > dollars a month. Account deletion: Account → "Delete account…" (deleting the review account
 > removes its access to the demo workspace; please tell us if you need it restored).
+
+## Screenshot captions
+
+The screenshots go out with a one-line caption each, set above the screen in the frame (Apple
+shows them small: the caption says what to look at). In `screenshots-medium/` order:
+
+| Screenshot         | Caption                                |
+| ------------------ | -------------------------------------- |
+| 01-home.png        | Everything that needs you, in one list |
+| 02-lanes.png       | Watch every agent work, live           |
+| 03-tasks.png       | See where each task stands             |
+| 04-swarm-setup.png | Give a team of AI agents one goal      |
+| 05-swarm-done.png  | Done means the checks passed           |
+| 06-changes.png     | Review the changes, comment on a line  |
+
+Retake 01 with a few waiting cards (an empty home sells nothing), 04 with only the lead marked
+"LEAD", and 03 and 05 after the cents change (amounts now read "$0.07", not "$0.0029").

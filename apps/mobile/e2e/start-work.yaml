@@ -27,13 +27,13 @@ env:
 - repeat:
     times: 20
     while:
-      notVisible: 'Idle.*'
+      notVisible: 'Nothing running.*'
     commands:
       - tapOn:
           text: 'Approve'
           optional: true
-- assertVisible: 'Idle.*'
-# Idle: the box asks the agent again (a new turn on the desktop).
+- assertVisible: 'Nothing running.*'
+# Nothing running: the box asks the agent again (a new turn on the desktop).
 - tapOn: '.*Ask your agent.*'
 - inputText: 'Do not edit anything. Reply with only the word spread written backwards in capital letters.'
 - tapOn: 'Send'

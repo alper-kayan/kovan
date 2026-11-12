@@ -1,4 +1,5 @@
 import type { LaneEvent } from '@kovan/shared';
+import { t } from './i18n';
 
 /**
  * A lane's transcript as the phone shows it: what the desktop's conversation shows, smaller.
@@ -36,6 +37,22 @@ export type LaneItem =
       error: string | null;
       cost: number;
     };
+
+/** A permission mode as the desktop's picker names it. */
+export function modeName(mode: string): string {
+  switch (mode) {
+    case 'plan':
+      return t('Plan only');
+    case 'request':
+      return t('Ask first');
+    case 'allow':
+      return t('Edit freely');
+    case 'full':
+      return t('Full access');
+    default:
+      return mode.charAt(0).toUpperCase() + mode.slice(1);
+  }
+}
 
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
@@ -79,7 +96,7 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
             kind: 'tool',
             key,
             name: str(request?.tool),
-            summary: `Asked ${str(request?.tool)}`,
+            summary: t('Asked {tool}', { tool: str(request?.tool) }),
             status: 'running',
             added: null,
             removed: null,
@@ -112,8 +129,10 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
           key,
           tone: delivered ? 'info' : 'warn',
           text: delivered
-            ? `↪ Guidance${from ? ` from ${from}` : ''}: ${str(e['text'])}`
-            : `Guidance came back (the turn ended first): ${str(e['text'])}`,
+            ? from
+              ? t('↪ Guidance from {name}: {text}', { name: from, text: str(e['text']) })
+              : t('↪ Guidance: {text}', { text: str(e['text']) })
+            : t('Guidance came back (the turn ended first): {text}', { text: str(e['text']) }),
         });
         return;
       }
@@ -122,7 +141,9 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
           kind: 'note',
           key,
           tone: 'warn',
-          text: `Outcome unknown: ${str(e['command'])} was cut off mid-flight.`,
+          text: t('Outcome unknown: {command} was cut off mid-flight.', {
+            command: str(e['command']),
+          }),
         });
         return;
       case 'limit_hit':
@@ -130,7 +151,9 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
           kind: 'note',
           key,
           tone: 'warn',
-          text: `Usage limit hit (${str(e['reason'])}). Awaiting takeover.`,
+          text: t('Usage limit hit ({reason}). Someone needs to take over.', {
+            reason: str(e['reason']),
+          }),
         });
         return;
       case 'switch':
@@ -138,7 +161,11 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
           kind: 'note',
           key,
           tone: 'info',
-          text: `Switched agents: ${str(e['reason'])} → ${str(e['to'])} · ${str(e['model'])}`,
+          text: t('Switched agents: {reason} → {to} · {model}', {
+            reason: str(e['reason']),
+            to: str(e['to']),
+            model: str(e['model']),
+          }),
         });
         return;
       case 'auto':
@@ -155,7 +182,7 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
           kind: 'note',
           key,
           tone: mode === 'full' ? 'warn' : 'info',
-          text: `Switched to ${mode.charAt(0).toUpperCase()}${mode.slice(1)} permissions`,
+          text: t('Switched to {mode}', { mode: modeName(mode) }),
         });
         return;
       }
@@ -189,7 +216,7 @@ export function foldLane(events: readonly LaneEvent[]): LaneItem[] {
         return;
       case 'turn_end': {
         // A turn that ends with a running tool never finished it.
-        for (const t of tools.values()) if (t.status === 'running') t.status = 'failed';
+        for (const tool of tools.values()) if (tool.status === 'running') tool.status = 'failed';
         const reason = e['reason'];
         items.push({
           kind: 'end',

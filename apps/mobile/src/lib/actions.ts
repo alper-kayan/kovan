@@ -9,6 +9,7 @@ import {
 } from '@kovan/shared';
 import { useMemo } from 'react';
 import type { Board } from './board';
+import { t } from './i18n';
 import { useSession } from './session';
 import { useToast } from './toast';
 
@@ -46,60 +47,60 @@ export function useActions() {
               requestId: a.requestId,
               approved,
             }),
-          approved ? 'Approved. The agent goes on.' : 'Denied. The agent skips it.',
+          approved ? t('Approved. The agent goes on.') : t('Denied. The agent skips it.'),
         ),
       answerTask: (stepId: string, approve: boolean) =>
         run(
           () => api('POST', `/api/plan-steps/${stepId}/approval`, { approve }),
-          approve ? 'Approved: an agent can start it.' : 'Rejected: no agent will start it.',
+          approve ? t('Approved: an agent can start it.') : t('Rejected: no agent will start it.'),
         ),
       steer: (
         sessionId: string,
         laneUserId: string,
         text: string,
-        done = 'Sent. The agent gets it at its next step.',
+        done = t('Sent. The agent gets it at its next step.'),
       ) => run(() => api('POST', `/api/sessions/${sessionId}/steer`, { laneUserId, text }), done),
       recordOutcome: (o: Outcome, status: 'succeeded' | 'failed' | 'not_run') =>
-        run(() => api('POST', `/api/outcomes/${o.id}`, { status }), 'Recorded.'),
+        run(() => api('POST', `/api/outcomes/${o.id}`, { status }), t('Recorded.')),
       declineHandoff: (h: Handoff) =>
-        run(() => api('POST', `/api/handoffs/${h.id}/decline`), 'Declined.'),
+        run(() => api('POST', `/api/handoffs/${h.id}/decline`), t('Declined.')),
       setSwarmStatus: (swarmId: string, status: 'paused' | 'stopped') =>
         run(
           () => api('POST', `/api/swarms/${swarmId}/status`, { status, reason: null }),
           status === 'paused'
-            ? 'Paused. Running tasks stop at their next step.'
-            : 'Stopped. Its agents stop at their next step.',
+            ? t('Paused. Running tasks stop at their next step.')
+            : t('Stopped. Its agents stop at their next step.'),
         ),
       stopAgent: (swarmId: string, agentId: string, name: string) =>
         run(
           () => api('POST', `/api/swarms/${swarmId}/control`, { action: 'stop', agentId }),
-          `Asked ${name} to stop.`,
+          t('Asked {name} to stop.', { name }),
         ),
       desk: (action: DeskAction) =>
         run(
           () => api('POST', '/api/desk', { action }),
           // A swarm may start on the workspace's machine instead; the answer says where.
           action.kind === 'launch' || action.kind === 'resume'
-            ? 'Starting…'
-            : 'Sent to your desktop…',
+            ? t('Starting…')
+            : t('Sent to your desktop…'),
         ),
       /** Calls an AI teammate in with @: it reads the conversation and answers in it. */
       mention: (sessionId: string, name: string, mention: Mention) =>
         run(
           () => api('POST', `/api/sessions/${sessionId}/mention`, mention),
-          `Sent to ${name}. Its answer comes back here.`,
+          t('Sent to {name}. Its answer comes back here.', { name }),
         ),
       /** Your own agent: a new turn on your desktop, or guidance when it is working. */
       prompt: (sessionId: string, text: string) =>
         run(
           () => api('POST', '/api/desk', { action: { kind: 'prompt', sessionId, text } }),
-          'Sent to your desktop…',
+          t('Sent to your desktop…'),
         ),
       /** An AI teammate gets a lane in the session, run by your desktop on your key. */
       addTeammate: (sessionId: string, agentId: string, name: string) =>
         run(
           () => api('POST', `/api/sessions/${sessionId}/agents`, { agentId }),
-          `${name} joined. Message it below; your desktop runs it.`,
+          t('{name} joined. Message it below; your desktop runs it.', { name }),
         ),
     };
   }, [api, show]);

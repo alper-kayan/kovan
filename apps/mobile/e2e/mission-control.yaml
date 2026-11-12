@@ -11,7 +11,7 @@ env:
     timeout: 15000
 - assertVisible: 'History'
 # A session card reads "<title>, <state>".
-- tapOn: '.*, (Running|Idle|Needs approval|Awaiting takeover)'
+- tapOn: '.*, (Working|Nothing running|Needs a yes|Changes to review|Swarm paused|Stopped: someone needs to take over).*'
 - extendedWaitUntil:
     visible: 'Lanes.*'
     timeout: 15000

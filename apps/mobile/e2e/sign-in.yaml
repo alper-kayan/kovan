@@ -21,6 +21,11 @@ env:
     element: 'Sign out'
     direction: DOWN
 - tapOn: 'Sign out'
+# It asks first; the dialog's own button.
+- assertVisible: 'Sign out\?'
+- tapOn:
+    text: 'Sign out'
+    index: 1
 - extendedWaitUntil:
     visible: '(Sign in|Other ways to sign in)'
     timeout: 15000

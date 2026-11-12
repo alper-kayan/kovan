@@ -1,4 +1,5 @@
 import { Alert } from 'react-native';
+import { t } from './i18n';
 
 /** The platform's own yes/no dialog, for actions that are hard to take back. */
 export function confirm(
@@ -12,7 +13,7 @@ export function confirm(
       title,
       message,
       [
-        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: t('Cancel'), style: 'cancel', onPress: () => resolve(false) },
         {
           text: action,
           style: destructive ? 'destructive' : 'default',

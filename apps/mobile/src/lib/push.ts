@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { locale, t } from './i18n';
 
 const TOKEN_KEY = 'kovan.pushToken';
 
@@ -19,15 +20,17 @@ type Api = <T>(method: 'POST' | 'PATCH', path: string, body?: unknown) => Promis
  */
 const OPENS_APP = Platform.OS === 'ios';
 
-let configured = false;
+/** The language the buttons and channels were last set up in. */
+let configured: string | null = null;
 
 /**
  * How notifications look and which buttons they carry. Approve and Deny don't open the app: the
  * answer goes from the notification (after unlocking the phone, since it acts for the person).
  */
 export async function configureNotifications(): Promise<void> {
-  if (configured) return;
-  configured = true;
+  // Set up again when the language changes: the buttons carry words.
+  if (configured === locale()) return;
+  configured = locale();
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowBanner: true,
@@ -39,7 +42,7 @@ export async function configureNotifications(): Promise<void> {
   const yesNo = (no: string) => [
     {
       identifier: ACTION.approve,
-      buttonTitle: 'Approve',
+      buttonTitle: t('Approve'),
       options: { opensAppToForeground: OPENS_APP, isAuthenticationRequired: true },
     },
     {
@@ -54,18 +57,18 @@ export async function configureNotifications(): Promise<void> {
   ];
   // One after the other: iOS keeps categories as one set that each call reads and rewrites, so
   // two at once lose one of them (and its notifications show no buttons).
-  await Notifications.setNotificationCategoryAsync(PUSH_CATEGORY.approval, yesNo('Deny'));
-  await Notifications.setNotificationCategoryAsync(PUSH_CATEGORY.task, yesNo('Reject'));
+  await Notifications.setNotificationCategoryAsync(PUSH_CATEGORY.approval, yesNo(t('Deny')));
+  await Notifications.setNotificationCategoryAsync(PUSH_CATEGORY.task, yesNo(t('Reject')));
   if (Platform.OS === 'android') {
     // The server picks the channel: questions ring, updates don't.
     await Notifications.setNotificationChannelAsync('asks', {
-      name: 'Approvals',
-      description: 'An agent waits for your yes.',
+      name: t('Approvals'),
+      description: t('An agent waits for your yes.'),
       importance: Notifications.AndroidImportance.HIGH,
     });
     await Notifications.setNotificationChannelAsync('updates', {
-      name: 'Updates',
-      description: 'Agents finished, work handed to you, swarms.',
+      name: t('Updates'),
+      description: t('Agents finished, work handed to you, swarms.'),
       importance: Notifications.AndroidImportance.DEFAULT,
     });
   }
@@ -180,5 +183,5 @@ export async function answerFromNotification(
     await api('POST', `/api/plan-steps/${data.stepId}/approval`, { approve: yes });
   else return null;
   await Notifications.dismissNotificationAsync(id).catch(() => undefined);
-  return yes ? 'Approved from the notification.' : 'Denied from the notification.';
+  return yes ? t('Approved from the notification.') : t('Denied from the notification.');
 }

@@ -24,12 +24,12 @@ env:
 - repeat:
     times: 20
     while:
-      notVisible: 'Idle.*'
+      notVisible: 'Nothing running.*'
     commands:
       - tapOn:
           text: 'Approve'
           optional: true
-- assertVisible: 'Idle.*'
+- assertVisible: 'Nothing running.*'
 # The desktop sends its view of the changes; with one file, its diff is open.
 - tapOn: 'Changes'
 - extendedWaitUntil:

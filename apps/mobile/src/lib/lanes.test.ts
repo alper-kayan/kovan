@@ -60,7 +60,7 @@ describe('a lane on the phone', () => {
     ]);
     expect(items.map((i) => (i.kind === 'note' ? [i.tone, i.text] : i.kind))).toEqual([
       ['info', '↪ Guidance from Bob: Use the cache'],
-      ['warn', 'Usage limit hit (weekly limit). Awaiting takeover.'],
+      ['warn', 'Usage limit hit (weekly limit). Someone needs to take over.'],
       ['warn', 'Checkout is behind'],
     ]);
   });

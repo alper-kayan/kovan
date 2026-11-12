@@ -4,6 +4,7 @@ import { Check, Minus, Plus } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Switch, TextInput, View } from 'react-native';
 import { useActions } from '../lib/actions';
+import { t, useLocale } from '../lib/i18n';
 import { useLive } from '../lib/live';
 import { useSession } from '../lib/session';
 import { colors, fonts, radius, MAX_FONT_SCALE } from '../lib/theme';
@@ -26,6 +27,7 @@ export function SwarmSetup({
   draft: Swarm | null;
   onCancel?: () => void;
 }) {
+  useLocale();
   const { api } = useSession();
   const { board } = useLive();
   const act = useActions();
@@ -54,8 +56,9 @@ export function SwarmSetup({
   if (agents.length === 0)
     return (
       <T muted style={s.note}>
-        A swarm puts several AI teammates on one goal: a lead splits it, the others work in
-        parallel. Add AI teammates on the People page of the desktop app first.
+        {t(
+          'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Add AI teammates on the People page of the desktop app first.',
+        )}
       </T>
     );
 
@@ -66,15 +69,15 @@ export function SwarmSetup({
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
   // JevRouter's free rules size the goal; the teammates whose instructions fit it are picked.
   const suggest = () => {
-    const t = suggestTeam(goal, agents, solo ? { maxWorkers: 2 } : {});
-    if (!t) return;
-    setPicked([t.leadId, ...t.workerIds]);
-    setLead(t.leadId);
-    setParallel(Math.min(4, t.maxParallel));
+    const team = suggestTeam(goal, agents, solo ? { maxWorkers: 2 } : {});
+    if (!team) return;
+    setPicked([team.leadId, ...team.workerIds]);
+    setLead(team.leadId);
+    setParallel(Math.min(4, team.maxParallel));
     setWhy(
-      t.small
-        ? `${t.reason}. One agent is enough here: you can also just ask your own agent in the Lanes tab.`
-        : `${t.reason}${solo ? ' · Solo workspace: at most two workers' : ''}`,
+      team.small
+        ? `${team.reason}. ${t('One agent is enough here: you can also just ask your own agent in the Lanes tab.')}`
+        : `${team.reason}${solo ? ` · ${t('Solo workspace: at most two workers')}` : ''}`,
     );
   };
   const launch = async () => {
@@ -100,24 +103,24 @@ export function SwarmSetup({
 
   return (
     <View style={s.box}>
-      <T style={s.title}>Start a swarm</T>
+      <T style={s.title}>{t('Start a swarm')}</T>
       <TextInput
         maxFontSizeMultiplier={MAX_FONT_SCALE}
         value={goal}
         onChangeText={setGoal}
         multiline
-        placeholder="The shared goal, e.g. Add median and mode helpers with tests"
+        placeholder={t('The shared goal, e.g. Add median and mode helpers with tests')}
         placeholderTextColor={colors.fg4}
         // One paragraph: Return puts the keyboard away instead of starting a new line.
         returnKeyType="done"
         submitBehavior="blurAndSubmit"
         style={[s.input, s.goal]}
-        accessibilityLabel="The swarm's goal"
+        accessibilityLabel={t("The swarm's goal")}
       />
       <Button
         small
         kind="secondary"
-        title="Suggest a team"
+        title={t('Suggest a team')}
         disabled={!goal.trim()}
         onPress={suggest}
       />
@@ -127,7 +130,7 @@ export function SwarmSetup({
         </T>
       )}
 
-      <T style={s.section}>TEAM</T>
+      <T style={s.section}>{t('TEAM')}</T>
       <View style={s.list}>
         {agents.map((a) => {
           const on = picked.includes(a.id);
@@ -158,11 +161,11 @@ export function SwarmSetup({
                   onPress={() => setLead(a.id)}
                   accessibilityRole="radio"
                   accessibilityState={{ selected: isLead }}
-                  accessibilityLabel={`${a.name} leads`}
+                  accessibilityLabel={t('{name} leads', { name: a.name })}
                   hitSlop={6}
                   style={[s.lead, isLead && s.leadOn]}
                 >
-                  <T style={[s.leadText, isLead && { color: colors.fg }]}>LEAD</T>
+                  <T style={[s.leadText, isLead && { color: colors.fg }]}>{t('LEAD')}</T>
                 </Pressable>
               )}
             </View>
@@ -171,7 +174,7 @@ export function SwarmSetup({
       </View>
 
       <View style={s.row}>
-        <T style={{ flex: 1 }}>Budget</T>
+        <T style={{ flex: 1 }}>{t('Budget')}</T>
         <T muted>$</T>
         <TextInput
           maxFontSizeMultiplier={MAX_FONT_SCALE}
@@ -181,15 +184,15 @@ export function SwarmSetup({
           // Typing replaces the amount rather than adding to it.
           selectTextOnFocus
           style={[s.input, s.amount]}
-          accessibilityLabel="Budget in dollars"
+          accessibilityLabel={t('Budget in dollars')}
         />
       </View>
       <View style={s.row}>
-        <T style={{ flex: 1 }}>At once</T>
+        <T style={{ flex: 1 }}>{t('At once')}</T>
         <Pressable
           onPress={() => setParallel((n) => Math.max(1, n - 1))}
           accessibilityRole="button"
-          accessibilityLabel="Fewer at once"
+          accessibilityLabel={t('Fewer at once')}
           hitSlop={6}
           style={s.step}
         >
@@ -201,7 +204,7 @@ export function SwarmSetup({
         <Pressable
           onPress={() => setParallel((n) => Math.min(6, n + 1))}
           accessibilityRole="button"
-          accessibilityLabel="More at once"
+          accessibilityLabel={t('More at once')}
           hitSlop={6}
           style={s.step}
         >
@@ -209,20 +212,22 @@ export function SwarmSetup({
         </Pressable>
       </View>
       <View style={s.row}>
-        <T style={{ flex: 1 }}>Review each task before it joins</T>
+        <T style={{ flex: 1 }}>{t('Review each task before it joins')}</T>
         <Switch
           value={review}
           onValueChange={setReview}
+          accessibilityLabel={t('Review each task before it joins')}
           trackColor={{ true: colors.pop, false: colors.bg4 }}
         />
       </View>
 
       <T muted style={s.note}>
-        It runs on your desktop, on your key; with your desktop off, on a machine of this workspace.
-        Its agents act without asking.
+        {t(
+          'It runs on your desktop, on your key; with your desktop off, on a machine of this workspace. Its agents act without asking.',
+        )}
       </T>
-      <Button title="Launch" busy={busy} disabled={!valid} onPress={launch} />
-      {onCancel && <Button title="Cancel" kind="secondary" onPress={onCancel} />}
+      <Button title={t('Launch')} busy={busy} disabled={!valid} onPress={launch} />
+      {onCancel && <Button title={t('Cancel')} kind="secondary" onPress={onCancel} />}
     </View>
   );
 }

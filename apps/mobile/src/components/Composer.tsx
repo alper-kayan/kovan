@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { t } from '../lib/i18n';
 import { colors, fonts, radius, MAX_FONT_SCALE } from '../lib/theme';
 import { T } from './ui';
 
@@ -71,7 +72,7 @@ export function Composer({
           onPress={() => void send()}
           disabled={off}
           accessibilityRole="button"
-          accessibilityLabel="Send"
+          accessibilityLabel={t('Send')}
           style={[s.send, off && { opacity: 0.4 }]}
         >
           {sending ? (
@@ -105,14 +106,14 @@ export function MentionChips({
       horizontal
       keyboardShouldPersistTaps="always"
       contentContainerStyle={s.mentions}
-      accessibilityLabel="Teammates to call in"
+      accessibilityLabel={t('Teammates to call in')}
     >
       {matches.map((m) => (
         <Pressable
           key={m.id}
           onPress={() => onPick(insertMention(text, caret, m.name))}
           accessibilityRole="button"
-          accessibilityLabel={`Call ${m.name} in`}
+          accessibilityLabel={t('Call {name} in', { name: m.name })}
           style={s.mention}
         >
           <T style={s.mentionText}>@{m.name}</T>

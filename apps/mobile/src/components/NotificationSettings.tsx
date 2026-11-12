@@ -1,6 +1,7 @@
 import { PUSH_KINDS, type PushKind } from '@kovan/shared';
 import { useEffect, useState } from 'react';
 import { Linking, StyleSheet, Switch, View } from 'react-native';
+import { t, useLocale } from '../lib/i18n';
 import { registerForPush, setMuted, type PushStatus } from '../lib/push';
 import { useSession } from '../lib/session';
 import { useToast } from '../lib/toast';
@@ -9,6 +10,7 @@ import { Button, T } from './ui';
 
 /** Which notifications this phone gets; off for a kind on this phone only. */
 export function NotificationSettings() {
+  useLocale();
   const { api } = useSession();
   const { show } = useToast();
   const [status, setStatus] = useState<PushStatus | null>(null);
@@ -36,28 +38,29 @@ export function NotificationSettings() {
 
   return (
     <View style={s.box}>
-      <T style={s.title}>Notifications</T>
+      <T style={s.title}>{t('Notifications')}</T>
       {status === null ? null : status.state === 'denied' ? (
         <>
           <T muted style={s.note}>
-            Notifications are off for Kovan. Turn them on in Settings to hear about approvals and
-            your agents while you are away.
+            {t(
+              'Notifications are off for Kovan. Turn them on in Settings to hear about approvals and your agents while you are away.',
+            )}
           </T>
           <Button
             small
             kind="secondary"
-            title="Open Settings"
+            title={t('Open Settings')}
             onPress={() => void Linking.openSettings()}
           />
         </>
       ) : status.state === 'unavailable' ? (
         <T muted style={s.note}>
-          This device can&apos;t receive push notifications.
+          {t("This device can't receive push notifications.")}
         </T>
       ) : status.state === 'off' ? (
         <Button
           small
-          title="Turn on notifications"
+          title={t('Turn on notifications')}
           onPress={() =>
             void registerForPush(api, true).then((s) => {
               setStatus(s);
@@ -69,25 +72,25 @@ export function NotificationSettings() {
         <>
           {!status.serverReady && (
             <T style={[s.note, { color: colors.warn }]}>
-              This server can&apos;t send notifications yet.
+              {t("This server can't send notifications yet.")}
             </T>
           )}
           <T muted style={s.note}>
-            Sent only while you are away from your desktop.
+            {t('Sent only while you are away from your desktop.')}
           </T>
           {PUSH_KINDS.map((k) => (
             <View key={k.kind} style={s.row}>
               <View style={{ flex: 1, gap: 2 }}>
-                <T>{k.label}</T>
+                <T>{t(k.label)}</T>
                 <T muted style={s.detail}>
-                  {k.detail}
+                  {t(k.detail)}
                 </T>
               </View>
               <Switch
                 value={!muted.includes(k.kind)}
                 onValueChange={(on) => void toggle(k.kind, on)}
                 trackColor={{ true: colors.ok, false: colors.bg4 }}
-                accessibilityLabel={k.label}
+                accessibilityLabel={t(k.label)}
               />
             </View>
           ))}

@@ -1,6 +1,7 @@
 import type { Activity } from '@kovan/shared';
 import { FlatList, StyleSheet, View } from 'react-native';
 import { ago } from '../lib/board';
+import { t, useLocale } from '../lib/i18n';
 import { colors } from '../lib/theme';
 import { T } from './ui';
 
@@ -18,6 +19,7 @@ const WARN = new Set([
 
 /** The session's activity feed, newest first, as the server keeps it. */
 export function ActivityList({ activity }: { activity: Activity[] }) {
+  useLocale();
   return (
     <FlatList
       style={s.list}
@@ -26,7 +28,7 @@ export function ActivityList({ activity }: { activity: Activity[] }) {
       keyExtractor={(a) => a.id}
       ListEmptyComponent={
         <T muted style={s.empty}>
-          Nothing has happened here yet.
+          {t('Nothing has happened here yet.')}
         </T>
       }
       renderItem={({ item: a }) => (

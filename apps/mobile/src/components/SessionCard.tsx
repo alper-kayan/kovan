@@ -1,31 +1,32 @@
-import type { Session } from '@kovan/shared';
+import { swarmBadge, type Session } from '@kovan/shared';
 import { router } from 'expo-router';
 import { Eye, FileCode2, Radio } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { ago, harnessLine, nameOf, sessionState, STATE_LABEL, usd } from '../lib/board';
+import { ago, harnessLine, nameOf, sessionState, stateLabel, swarmLabel, usd } from '../lib/board';
+import { t, useLocale } from '../lib/i18n';
 import { colors, fonts, radius, STATE_COLOR } from '../lib/theme';
 import { Avatar, Bar, T } from './ui';
 
 /** The swarm's line on a card: its state, its tasks by state, and spend against the budget. */
 function SwarmLine({ session }: { session: Session }) {
   const swarm = session.swarm!;
-  const t = session.tasks;
+  const tasks = session.tasks;
   const parts = [
-    t.running && `${t.running} running`,
-    t.waiting && `${t.waiting} waiting`,
-    session.taskApprovals.length && `${session.taskApprovals.length} need approval`,
-    t.done && `${t.done} done`,
-    t.failed && `${t.failed} failed`,
-    t.blocked && `${t.blocked} blocked`,
+    tasks.running && t('{n} running', { n: tasks.running }),
+    tasks.waiting && t('{n} waiting', { n: tasks.waiting }),
+    session.taskApprovals.length && t('{n} need approval', { n: session.taskApprovals.length }),
+    tasks.done && t('{n} done', { n: tasks.done }),
+    tasks.failed && t('{n} failed', { n: tasks.failed }),
+    tasks.blocked && t('{n} blocked', { n: tasks.blocked }),
   ].filter(Boolean);
   return (
     <View style={s.block}>
       <T style={s.small}>
-        <T style={[s.swarmStatus, { color: swarmColor(swarm.status) }]}>
-          {swarm.status.toUpperCase()}
+        <T style={[s.swarmStatus, { color: swarmColor(swarmBadge(swarm).tone) }]}>
+          {swarmLabel(swarm)}
         </T>{' '}
-        <T style={[s.small, { color: t.failed || t.blocked ? colors.danger : colors.fg3 }]}>
-          {parts.join(' · ') || 'no tasks yet'}
+        <T style={[s.small, { color: tasks.failed || tasks.blocked ? colors.danger : colors.fg3 }]}>
+          {parts.join(' · ') || t('no tasks yet')}
         </T>
       </T>
       <View style={s.barRow}>
@@ -40,6 +41,8 @@ function SwarmLine({ session }: { session: Session }) {
 }
 
 export function swarmColor(status: string): string {
+  if (status === 'failed') return colors.danger;
+  if (status === 'partial') return colors.warn;
   if (status === 'running') return colors.okSoft;
   if (status === 'paused') return colors.warn;
   if (status === 'done') return colors.purple;
@@ -47,6 +50,7 @@ export function swarmColor(status: string): string {
 }
 
 export function SessionCard({ session }: { session: Session }) {
+  useLocale();
   const state = sessionState(session);
   const sponsors = session.running.map((r) => nameOf(session, r.userId));
   const joined = session.participants.filter((p) => p.mode === 'join');
@@ -58,7 +62,23 @@ export function SessionCard({ session }: { session: Session }) {
       style={({ pressed }) => [s.card, pressed && { backgroundColor: colors.bg4 }]}
       onPress={() => router.push({ pathname: '/session/[id]', params: { id: session.id } })}
       accessibilityRole="button"
-      accessibilityLabel={`${session.title}, ${STATE_LABEL[state]}`}
+      accessibilityLabel={[
+        session.title,
+        stateLabel(state),
+        sponsors.length ? t('running: {names}', { names: sponsors.join(', ') }) : null,
+        joined.length
+          ? t('working: {names}', {
+              names: joined
+                .map((p) =>
+                  p.kind === 'agent' ? t('{name} (AI teammate)', { name: p.name }) : p.name,
+                )
+                .join(', '),
+            })
+          : null,
+        watching.length ? t('{n} watching', { n: watching.length }) : null,
+      ]
+        .filter(Boolean)
+        .join(', ')}
     >
       <T style={s.title} numberOfLines={2}>
         {session.title}
@@ -66,18 +86,21 @@ export function SessionCard({ session }: { session: Session }) {
       <View style={s.status}>
         <Radio size={12} color={STATE_COLOR[state]} />
         <T style={[s.small, { color: STATE_COLOR[state] }]} numberOfLines={1}>
-          {STATE_LABEL[state]}
+          {stateLabel(state)}
           {sponsors.length > 0 && (
             <T muted style={s.small}>
-              {' '}
-              · on {sponsors.map((n) => `${n}'s`).join(', ')} account
-              {sponsors.length > 1 ? 's' : ''}
+              {' · '}
+              {sponsors.length > 1
+                ? t('on {names} accounts', {
+                    names: sponsors.map((name) => t("{name}'s", { name })).join(', '),
+                  })
+                : t("on {name}'s account", { name: sponsors[0]! })}
             </T>
           )}
         </T>
       </View>
       <T muted mono numberOfLines={1} style={s.tiny}>
-        {harnessLine(session) || 'no agents yet'}
+        {harnessLine(session) || t('no agents yet')}
         {session.branch ? ` · ${session.branch}` : ''}
       </T>
       {session.plan.total > 0 && (
@@ -102,7 +125,7 @@ export function SessionCard({ session }: { session: Session }) {
         <View style={s.avatars}>
           {joined.slice(0, 5).map((p, i) => (
             <View key={p.userId} style={i > 0 && { marginLeft: -6 }}>
-              <Avatar name={p.name} size={22} ring />
+              <Avatar name={p.name} size={22} ring ai={p.kind === 'agent'} />
             </View>
           ))}
         </View>

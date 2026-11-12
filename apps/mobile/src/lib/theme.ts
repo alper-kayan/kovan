@@ -11,8 +11,9 @@ export const colors = {
   line2: '#303030',
   fg: '#d8d8d8',
   fg2: '#a7a7a7',
-  fg3: '#858585',
-  fg4: '#676767',
+  fg3: '#999999',
+  /** The faintest text still reads (4.5:1 on the page and on cards). */
+  fg4: '#828282',
   chip: '#1a1a1a',
   pop: '#e8e8e8',
   popfg: '#111111',
@@ -28,7 +29,7 @@ export const colors = {
  * How far text grows with the system's text size. Large accessibility sizes still apply, up to
  * where rows, pills and tabs keep their shape.
  */
-export const MAX_FONT_SCALE = 1.6;
+export const MAX_FONT_SCALE = 2.2;
 
 /** Washes the desktop mixes from a colour and the card background (color-mix 7%, 45%). */
 export const tint = {
@@ -43,6 +44,8 @@ export const STATE_COLOR = {
   running: colors.okSoft,
   waiting: colors.warn,
   awaiting: colors.danger,
+  paused: colors.warn,
+  review: '#4dabf7',
   idle: colors.fg3,
   ended: colors.fg3,
 } as const;

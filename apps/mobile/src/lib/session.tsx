@@ -16,6 +16,7 @@ import {
 import { Platform } from 'react-native';
 import { ApiError, DEFAULT_SERVER, request, STORE_KEYS as KEYS } from './api';
 import { unregisterPush } from './push';
+import { t } from './i18n';
 import { pollSignIn, startSignIn } from './signInFlow';
 
 const POLL_MS = 1500;
@@ -33,12 +34,19 @@ interface SessionState {
   orgs: Org[];
   /** Why the last sign-in didn't work, shown on the sign-in screen. */
   error: string | null;
+  /** While a sign-in waits: the code an emailed link's page asks for. */
+  loginCode: string | null;
   setServer(server: string): Promise<void>;
   signIn(): Promise<void>;
   /** Sign in with Apple (iPhone): no browser, Apple's sheet and the server. */
   signInWithApple(): Promise<void>;
   cancelSignIn(): void;
-  signOut(): Promise<void>;
+  /** `farewell`: a line the sign-in screen shows next ("Your account was deleted."). */
+  signOut(farewell?: string): Promise<void>;
+  /** What the last sign-out left to say, until the next sign-in. */
+  farewell: string | null;
+  /** The name teammates see; returns whether it was saved. */
+  rename(name: string): Promise<void>;
   /** A request to Kovan's server as this person. */
   api<T>(
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
@@ -71,6 +79,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [orgs, setOrgs] = useState<Org[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loginCode, setLoginCode] = useState<string | null>(null);
+  const [farewell, setFarewell] = useState<string | null>(null);
   const attempt = useRef(0);
 
   const loadMe = useCallback(async (at: string, tok: string) => {
@@ -100,6 +110,13 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     })();
   }, [loadMe]);
 
+  // Started while the server didn't answer: who you are comes in once it does.
+  useEffect(() => {
+    if (status !== 'signedIn' || user || !token) return;
+    const retry = setInterval(() => void loadMe(server, token).catch(() => undefined), 8_000);
+    return () => clearInterval(retry);
+  }, [status, user, token, server, loadMe]);
+
   const setServer = useCallback(async (next: string) => {
     // The choice holds for this run even if it can't be saved for the next one.
     setServerState(next);
@@ -126,6 +143,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setStatus('signingIn');
     try {
       const pending = await startSignIn(server, nativeCrypto, RETURN_TO);
+      setLoginCode(pending.code);
       // The browser sits on top while the phone polls. iOS closes it once the server says done;
       // Android can't, so there it's an auth session that closes on the redirect to the app.
       const browser =
@@ -161,6 +179,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     }
   }, [server, adopt]);
 
+  // The code belongs to a sign-in that is waiting; any other state has none.
+  useEffect(() => {
+    if (status !== 'signingIn') setLoginCode(null);
+  }, [status]);
+
   const signInWithApple = useCallback(async () => {
     const mine = ++attempt.current;
     setError(null);
@@ -186,12 +209,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         // Apple's own errors say little ("failed for an unknown reason"); most often the phone
         // isn't signed in to an Apple Account.
         throw new Error(
-          "Sign in with Apple didn't work. Check that this iPhone is signed in to an Apple Account, or use another way.",
+          t(
+            "Sign in with Apple didn't work. Check that this iPhone is signed in to an Apple Account, or use another way.",
+          ),
           { cause: e },
         );
       }
       if (!credential.identityToken)
-        throw new Error("Apple didn't confirm who you are. Try again.");
+        throw new Error(t("Apple didn't confirm who you are. Try again."));
       const result = await request<{ token: string; user: User }>(
         server,
         null,
@@ -228,18 +253,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setStatus('signedOut');
   }, []);
 
-  const signOut = useCallback(async () => {
-    if (token) {
-      // This phone stops getting their notifications before the sign-in goes.
-      await unregisterPush((method, path, body) => request(server, token, method, path, body));
-      await request(server, token, 'POST', '/auth/logout').catch(() => undefined);
-    }
-    await SecureStore.deleteItemAsync(KEYS.token);
-    setToken(null);
-    setUser(null);
-    setOrgs([]);
-    setStatus('signedOut');
-  }, [server, token]);
+  const signOut = useCallback(
+    async (note?: string) => {
+      setFarewell(note ?? null);
+      if (token) {
+        // This phone stops getting their notifications before the sign-in goes.
+        await unregisterPush((method, path, body) => request(server, token, method, path, body));
+        await request(server, token, 'POST', '/auth/logout').catch(() => undefined);
+      }
+      await SecureStore.deleteItemAsync(KEYS.token);
+      setToken(null);
+      setUser(null);
+      setOrgs([]);
+      setStatus('signedOut');
+    },
+    [server, token],
+  );
 
   const api = useCallback(
     async <T,>(method: Parameters<SessionState['api']>[0], path: string, body?: unknown) => {
@@ -257,6 +286,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [server, token],
   );
 
+  const rename = useCallback(
+    async (name: string) => {
+      const r = await api<{ user: User }>('PATCH', '/api/me', { name });
+      setUser(r.user);
+    },
+    [api],
+  );
+
   const value = useMemo<SessionState>(
     () => ({
       status,
@@ -265,11 +302,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       user,
       orgs,
       error,
+      loginCode,
       setServer,
       signIn,
       signInWithApple,
       cancelSignIn,
       signOut,
+      farewell,
+      rename,
       api,
     }),
     [
@@ -279,11 +319,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       user,
       orgs,
       error,
+      loginCode,
       setServer,
       signIn,
       signInWithApple,
       cancelSignIn,
       signOut,
+      farewell,
+      rename,
       api,
     ],
   );

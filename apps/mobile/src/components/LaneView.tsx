@@ -2,7 +2,8 @@ import type { LaneEvent, Participant, SessionApproval } from '@kovan/shared';
 import { Check, CircleAlert, CircleHelp, LoaderCircle, Minus, X } from 'lucide-react-native';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, View } from 'react-native';
-import { harnessName, STATE_LABEL, usd } from '../lib/board';
+import { harnessName, stateLabel, usd } from '../lib/board';
+import { t, useLocale } from '../lib/i18n';
 import { foldLane, type LaneItem, toolLabel } from '../lib/lanes';
 import { colors, fonts, radius, STATE_COLOR, tint } from '../lib/theme';
 import { useActions } from '../lib/actions';
@@ -23,30 +24,45 @@ const TOOL_ICON = {
   denied: { Icon: Minus, color: colors.fg4 },
 } as const;
 
+const toolStatusWord = (status: keyof typeof TOOL_ICON) =>
+  status === 'running'
+    ? t('working')
+    : status === 'waiting'
+      ? t('waiting for approval')
+      : status === 'ok'
+        ? t('done')
+        : status === 'failed'
+          ? t('failed')
+          : t('denied');
+
 function Reasoning({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
     <Pressable
       onPress={() => setOpen(!open)}
       accessibilityRole="button"
-      accessibilityHint="Shows the agent's thinking"
+      accessibilityHint={t("Shows the agent's thinking")}
     >
       <T muted numberOfLines={open ? undefined : 2} style={s.reasoning}>
-        Thinking: {text.trim()}
+        {t('Thinking: {text}', { text: text.trim() })}
       </T>
     </Pressable>
   );
 }
 
-const TEAMMATE_STATUS = {
-  working: 'looking into it…',
-  answered: 'answered',
-  changed: 'answered · its change joined',
-  failed: "couldn't finish",
-  stopped: 'stopped',
-} as const;
+const teammateStatus = (status: Extract<LaneItem, { kind: 'teammate' }>['status']) =>
+  status === 'working'
+    ? t('looking into it…')
+    : status === 'answered'
+      ? t('answered')
+      : status === 'changed'
+        ? t('answered · its change joined')
+        : status === 'failed'
+          ? t("couldn't finish")
+          : t('stopped');
 
 const Item = memo(function Item({ item }: { item: LaneItem }) {
+  useLocale();
   switch (item.kind) {
     case 'prompt':
       return (
@@ -66,8 +82,17 @@ const Item = memo(function Item({ item }: { item: LaneItem }) {
       return <Reasoning text={item.text} />;
     case 'tool': {
       const { Icon, color } = TOOL_ICON[item.status];
+      // Read as one sentence: what it did, to what, how much, and how it went.
+      const spoken = [
+        `${toolLabel(item.name)} ${item.summary}`,
+        item.added !== null ? t('{n} lines added', { n: item.added }) : null,
+        item.removed !== null ? t('{n} removed', { n: item.removed }) : null,
+        toolStatusWord(item.status),
+      ]
+        .filter(Boolean)
+        .join(', ');
       return (
-        <View style={s.tool}>
+        <View style={s.tool} accessible accessibilityLabel={spoken}>
           <Icon size={13} color={color} />
           <T style={s.toolName}>{toolLabel(item.name)}</T>
           <T muted mono numberOfLines={1} style={s.toolSummary}>
@@ -90,7 +115,7 @@ const Item = memo(function Item({ item }: { item: LaneItem }) {
       return (
         <View style={s.prompt}>
           <T muted style={s.mentionTo}>
-            to @{item.name}
+            {t('to @{name}', { name: item.name })}
           </T>
           <T selectable style={s.promptText}>
             {item.text}
@@ -104,9 +129,9 @@ const Item = memo(function Item({ item }: { item: LaneItem }) {
           <View style={s.teammateHead}>
             <Avatar name={item.name} size={18} ai />
             <T style={s.teammateName}>{item.name}</T>
-            <T style={s.aiTag}>AI</T>
+            <T style={s.aiTag}>{t('AI')}</T>
             <T muted style={s.mentionTo}>
-              {TEAMMATE_STATUS[item.status]}
+              {teammateStatus(item.status)}
             </T>
           </View>
           {item.text && (
@@ -128,12 +153,14 @@ const Item = memo(function Item({ item }: { item: LaneItem }) {
             numberOfLines={3}
           >
             {item.reason === 'done'
-              ? 'Done'
+              ? t('Done')
               : item.reason === 'stopped'
-                ? 'Stopped'
+                ? t('Stopped')
                 : item.reason === 'step_limit'
-                  ? 'Stopped at the step limit'
-                  : `Error${item.error ? `: ${item.error}` : ''}`}
+                  ? t('Stopped at the step limit')
+                  : item.error
+                    ? t('Error: {error}', { error: item.error })
+                    : t('Error')}
             {item.cost > 0 ? ` · ${usd(item.cost)}` : ''}
           </T>
         </View>
@@ -143,6 +170,7 @@ const Item = memo(function Item({ item }: { item: LaneItem }) {
 
 /** The approval card a lane waits on; anyone allowed may answer, the first answer wins. */
 function Waiting({ approval, canAnswer }: { approval: SessionApproval; canAnswer: boolean }) {
+  useLocale();
   const act = useActions();
   return (
     <View style={s.waiting}>
@@ -155,17 +183,17 @@ function Waiting({ approval, canAnswer }: { approval: SessionApproval; canAnswer
       </T>
       {canAnswer ? (
         <View style={s.waitingActions}>
-          <Act small title="Approve" onPress={() => act.answerApproval(approval, true)} />
+          <Act small title={t('Approve')} onPress={() => act.answerApproval(approval, true)} />
           <Act
             small
             kind="secondary"
-            title="Deny"
+            title={t('Deny')}
             onPress={() => act.answerApproval(approval, false)}
           />
         </View>
       ) : (
         <T muted style={{ fontSize: 12.5 }}>
-          Your role can watch; an editor answers it.
+          {t('Your role can watch; an editor answers it.')}
         </T>
       )}
     </View>
@@ -187,7 +215,9 @@ export function LaneView({
   /** The registered machine running the session (agentd), when one does. */
   machine?: string | null;
 }) {
-  const items = useMemo(() => foldLane(events), [events]);
+  // The transcript's notes are written in the app's language: folded again when it changes.
+  const language = useLocale();
+  const items = useMemo(() => foldLane(events), [events, language]);
   // An inverted list keeps the newest in view without measuring anything.
   const reversed = useMemo(() => [...items].reverse(), [items]);
   const list = useRef<FlatList<LaneItem>>(null);
@@ -200,17 +230,23 @@ export function LaneView({
     <View style={s.lane}>
       <View style={s.head}>
         <T style={[s.state, { color: STATE_COLOR[participant.state] }]}>
-          {STATE_LABEL[participant.state]}
+          {stateLabel(participant.state)}
         </T>
         <T muted mono numberOfLines={1} style={s.agent}>
-          {participant.mode === 'watch' ? 'watching' : agentLine(participant) || 'no agent yet'}
+          {participant.mode === 'watch'
+            ? t('watching')
+            : agentLine(participant) || t('no agent yet')}
           {participant.kind === 'agent' && (machine || participant.hostName)
-            ? ` · on ${machine ?? `${participant.hostName}'s machine`}`
+            ? ` · ${
+                machine
+                  ? t('on {machine}', { machine })
+                  : t("on {name}'s machine", { name: participant.hostName ?? '' })
+              }`
             : ''}
         </T>
       </View>
       {participant.awaitingReason && participant.state === 'awaiting' && (
-        <T style={s.awaiting}>Stopped: {participant.awaitingReason}</T>
+        <T style={s.awaiting}>{t('Stopped: {reason}', { reason: participant.awaitingReason })}</T>
       )}
       <FlatList
         ref={list}
@@ -232,15 +268,15 @@ export function LaneView({
           ) : participant.state === 'running' ? (
             <View style={s.workingRow}>
               <LoaderCircle size={13} color={colors.okSoft} />
-              <T style={{ color: colors.okSoft, fontSize: 13 }}>Working…</T>
+              <T style={{ color: colors.okSoft, fontSize: 13 }}>{t('Working…')}</T>
             </View>
           ) : null
         }
         ListEmptyComponent={
           <T muted style={s.empty}>
             {participant.mode === 'watch'
-              ? `${participant.name} is watching.`
-              : 'Nothing in this lane yet.'}
+              ? t('{name} is watching.', { name: participant.name })
+              : t('Nothing in this lane yet.')}
           </T>
         }
       />

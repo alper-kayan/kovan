@@ -9,6 +9,8 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useActions } from '../lib/actions';
+import { useDesktopOnline } from '../lib/desktop';
+import { roleName, t, useLocale } from '../lib/i18n';
 import { ToastHost } from '../lib/toast';
 import { ago } from '../lib/board';
 import { confirm } from '../lib/confirm';
@@ -46,6 +48,7 @@ export function useAsk(session: Session, events: readonly LaneEvent[]) {
 
 /** Teammates to hand your lane to: people only (an AI teammate can't pick work up). */
 function HandOffSheet({ session, onClose }: { session: Session; onClose(): void }) {
+  useLocale();
   const { api, user } = useSession();
   const act = useActions();
   const insets = useSafeAreaInsets();
@@ -62,12 +65,14 @@ function HandOffSheet({ session, onClose }: { session: Session; onClose(): void 
         style={s.backdrop}
         onPress={onClose}
         accessibilityRole="button"
-        accessibilityLabel="Close"
+        accessibilityLabel={t('Close')}
       />
       <View style={[s.sheet, { paddingBottom: insets.bottom + 16 }]}>
-        <T style={s.sheetTitle}>Hand your work to</T>
+        <T style={s.sheetTitle}>{t('Hand your work to')}</T>
         <T muted style={s.small}>
-          Your agent stops at a checkpoint on your desktop and its work is snapshotted for them.
+          {t(
+            'Your agent stops at a checkpoint on your desktop and its work is snapshotted for them.',
+          )}
         </T>
         {error && <T style={{ color: colors.danger }}>{error}</T>}
         {!members && !error && <ActivityIndicator color={colors.fg3} />}
@@ -77,7 +82,7 @@ function HandOffSheet({ session, onClose }: { session: Session; onClose(): void 
               key={m.userId}
               style={({ pressed }) => [s.member, pressed && { backgroundColor: colors.bg4 }]}
               accessibilityRole="button"
-              accessibilityLabel={`${m.name}, ${m.role}`}
+              accessibilityLabel={`${m.name}, ${roleName(m.role)}`}
               onPress={() => {
                 onClose();
                 void act.desk({ kind: 'handoff', sessionId: session.id, toUserId: m.userId });
@@ -85,16 +90,16 @@ function HandOffSheet({ session, onClose }: { session: Session; onClose(): void 
             >
               <Avatar name={m.name} size={26} />
               <T style={{ flex: 1 }}>{m.name}</T>
-              <Chip>{m.role}</Chip>
+              <Chip>{roleName(m.role)}</Chip>
             </Pressable>
           ))}
           {members?.length === 0 && (
             <T muted style={s.small}>
-              Nobody else is in this workspace yet.
+              {t('Nobody else is in this workspace yet.')}
             </T>
           )}
         </ScrollView>
-        <Button title="Cancel" kind="secondary" onPress={onClose} />
+        <Button title={t('Cancel')} kind="secondary" onPress={onClose} />
       </View>
       <ToastHost />
     </Modal>
@@ -121,27 +126,35 @@ export function LaneControls({
   canSteer: boolean;
   canTakeOver: boolean;
 }) {
+  useLocale();
   const { user } = useSession();
   const act = useActions();
   const ask = useAsk(session, events);
+  const desktop = useDesktopOnline();
   const [handingOff, setHandingOff] = useState(false);
   if (session.status !== 'active' || participant.mode !== 'join') return null;
   const mine = participant.userId === user?.id;
   const ai = participant.kind === 'agent';
   const running = participant.state === 'running' || participant.state === 'waiting';
-  const name = mine ? 'Your' : `${participant.name}'s`;
-  const host = participant.hostId === user?.id ? 'your' : `${participant.hostName ?? 'its host'}'s`;
   // Where an AI teammate's work runs: the session's machine (agentd), or its host's desktop.
-  const where = session.machine ? session.machine.name : `${host} desktop`;
+  const where = session.machine
+    ? session.machine.name
+    : participant.hostId === user?.id
+      ? t('your desktop')
+      : t("{name}'s desktop", { name: participant.hostName ?? t('its host') });
 
   let composer: ReactNode = null;
   if (mine)
     composer = (
       <Composer
         placeholder={
-          running ? 'Steer your agent, or @ a teammate…' : 'Ask your agent, or @ a teammate…'
+          running
+            ? t('Guide your agent as it works, or @ a teammate…')
+            : desktop === false
+              ? t('Open Kovan on your computer to give your agent work (@ a teammate works now)…')
+              : t('Ask your agent, or @ a teammate…')
         }
-        label="Prompt for your agent"
+        label={t('Prompt for your agent')}
         teammates={ask.teammates}
         onSend={ask.send}
       />
@@ -149,14 +162,24 @@ export function LaneControls({
   else if (canSteer && (ai || running))
     composer = (
       <Composer
-        placeholder={ai ? `Message ${participant.name}…` : `Steer ${name.toLowerCase()} agent…`}
-        label={ai ? `Message for ${participant.name}` : `Guidance for ${name.toLowerCase()} agent`}
+        placeholder={
+          ai
+            ? t('Message {name}…', { name: participant.name })
+            : t("Guide {name}'s agent as it works…", { name: participant.name })
+        }
+        label={
+          ai
+            ? t('Message for {name}', { name: participant.name })
+            : t("Guidance for {name}'s agent", { name: participant.name })
+        }
         onSend={(text) =>
           act.steer(
             session.id,
             participant.userId,
             text,
-            ai && !running ? `Sent to ${participant.name}: it starts on ${where}.` : undefined,
+            ai && !running
+              ? t('Sent to {name}: it starts on {where}.', { name: participant.name, where })
+              : undefined,
           )
         }
       />
@@ -168,33 +191,56 @@ export function LaneControls({
       <View style={s.bar}>
         <T muted style={[s.small, { flex: 1 }]} numberOfLines={2}>
           {ai
-            ? `AI teammate · runs on ${where} · ${agentLine(participant)}`
+            ? t('AI teammate · runs on {where} · {agent}', { where, agent: agentLine(participant) })
             : running
-              ? `${mine ? 'Runs' : 'Guidance runs'} on ${mine ? 'your' : `${participant.name}'s`} account · ${agentLine(participant)}`
+              ? mine
+                ? t('Runs on your account · {agent}', { agent: agentLine(participant) })
+                : t("Guidance runs on {name}'s account · {agent}", {
+                    name: participant.name,
+                    agent: agentLine(participant),
+                  })
               : participant.state === 'awaiting'
-                ? `${name} agent stopped (${participant.awaitingReason ?? 'usage limit'}).`
+                ? mine
+                  ? t('Your agent stopped ({reason}).', {
+                      reason: participant.awaitingReason ?? t('usage limit'),
+                    })
+                  : t("{name}'s agent stopped ({reason}).", {
+                      name: participant.name,
+                      reason: participant.awaitingReason ?? t('usage limit'),
+                    })
                 : participant.snapshotAt
-                  ? `Idle · last checkpoint ${ago(participant.snapshotAt)}`
+                  ? t('Nothing running · last checkpoint {when}', {
+                      when: ago(participant.snapshotAt),
+                    })
                   : mine
-                    ? 'Idle · your desktop runs what you ask'
-                    : 'Idle'}
+                    ? t('Nothing running · your desktop runs what you ask')
+                    : t('Nothing running')}
         </T>
         {mine ? (
-          <Button small kind="secondary" title="Hand off" onPress={() => setHandingOff(true)} />
+          <Button
+            small
+            kind="secondary"
+            title={t('Hand off')}
+            onPress={() => setHandingOff(true)}
+          />
         ) : (
           canTakeOver &&
           !ai && (
             <Act
               small
               kind={participant.state === 'awaiting' ? 'primary' : 'secondary'}
-              title="Take over"
+              title={t('Take over')}
               onPress={async () =>
                 (await confirm(
-                  `Take over ${participant.name}'s lane?`,
+                  t("Take over {name}'s lane?", { name: participant.name }),
                   participant.state === 'awaiting'
-                    ? 'Your desktop picks up their work from the last checkpoint, on your account.'
-                    : 'Their agent stops at a safe checkpoint; then your desktop carries on, on your account.',
-                  'Take over',
+                    ? t(
+                        'Your desktop picks up their work from the last checkpoint, on your account.',
+                      )
+                    : t(
+                        'Their agent stops at a safe checkpoint; then your desktop carries on, on your account.',
+                      ),
+                  t('Take over'),
                 )) &&
                 act.desk({
                   kind: 'takeover',

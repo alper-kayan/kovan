@@ -1,4 +1,4 @@
-import type { Participant, Session, SessionApproval } from '@kovan/shared';
+import type { Participant, Session, SessionApproval, Workspace } from '@kovan/shared';
 import { describe, expect, it } from 'vitest';
 import {
   alertsOf,
@@ -69,6 +69,7 @@ const approval = (status: SessionApproval['status']): SessionApproval => ({
   detail: 'npm test',
   status,
   answeredBy: null,
+  answeredByName: null,
   createdAt: '2026-10-15T08:00:00Z',
 });
 
@@ -97,6 +98,19 @@ describe('the board', () => {
       ),
     ).toBe('awaiting');
     expect(sessionState(session('a', { status: 'ended' }))).toBe('ended');
+    // A swarm's tasks count, and a quiet session with changes isn't "nothing happening".
+    const swarm = (status: string) => ({
+      id: 's',
+      status,
+      spent: 0,
+      budget: null,
+      pausedReason: null,
+      launchedBy: null,
+      outcome: null,
+    });
+    expect(sessionState(session('a', { swarm: swarm('running') }))).toBe('running');
+    expect(sessionState(session('a', { swarm: swarm('paused') }))).toBe('paused');
+    expect(sessionState(session('a', { touchedFiles: ['src/cart.js'] }))).toBe('review');
   });
 
   it('keeps live sessions newest first and drops ended ones with their approvals', () => {
@@ -141,6 +155,7 @@ describe('the board', () => {
           gitSyncChangedBy: null,
           gitSyncChangedAt: null,
           agentMonthlyLimit: null,
+          othersAgents: 'owners',
           recommendedPlugins: [],
           mode: 'team',
           role: 'editor',
@@ -161,6 +176,7 @@ describe('the board', () => {
       taskApprovals: [{ stepId: 'p1', title: 'Add a migration', reason: 'touches the database' }],
       swarm: {
         id: 'sw',
+        outcome: null,
         status: 'paused',
         spent: 1,
         budget: 1,
@@ -181,8 +197,25 @@ describe('the board', () => {
       context: null,
       createdAt: '2026-10-15T08:00:00Z',
     });
+    const ws = (role: Workspace['role']): Workspace => ({
+      id: 'w1',
+      orgId: 'o',
+      name: 'w',
+      repoUrl: null,
+      defaultBranch: 'main',
+      color: null,
+      autoGitSync: false,
+      gitSyncChangedBy: null,
+      gitSyncChangedAt: null,
+      agentMonthlyLimit: null,
+      othersAgents: 'owners',
+      recommendedPlugins: [],
+      mode: 'team',
+      role,
+    });
     const board: Board = {
       ...withSessions(s1),
+      workspaces: [ws('owner')],
       approvals: [approval('pending')],
       flow: {
         w1: {
@@ -203,6 +236,19 @@ describe('the board', () => {
       reason: 'Weekly limit reached',
     });
     expect(alertsOf(board, 'alice', 'other')).toEqual([]);
+    // A viewer is asked for nothing it can't do: only what was handed to them.
+    expect(alertsOf({ ...board, workspaces: [ws('viewer')] }, 'alice').map((a) => a.kind)).toEqual([
+      'handoff',
+    ]);
+    // An editor answers for Bob's agent only where the workspace lets editors do it.
+    const editor = { ...board, workspaces: [ws('editor')] };
+    expect(alertsOf(editor, 'alice').some((a) => a.kind === 'approval')).toBe(false);
+    expect(
+      alertsOf(
+        { ...editor, workspaces: [{ ...ws('editor'), othersAgents: 'editors' }] },
+        'alice',
+      ).some((a) => a.kind === 'approval'),
+    ).toBe(true);
   });
 });
 

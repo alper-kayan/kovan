@@ -2,92 +2,163 @@ import { router } from 'expo-router';
 import { CircleHelp, Hand } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { allowed, useActions } from '../lib/actions';
+import { riskOf } from '@kovan/shared';
 import { ago, nameOf, type Alert, type Board } from '../lib/board';
 import { confirm } from '../lib/confirm';
+import { desktopOffline, useDesktopOnline } from '../lib/desktop';
+import { t, useLocale } from '../lib/i18n';
 import { colors, fonts, radius, tint } from '../lib/theme';
 import { Act, T } from './ui';
+
+/** Why answering yes is hard to undo (a force push, deleting data), or null. Commands and tasks only. */
+export function alertRisk(alert: Alert): string | null {
+  const risk =
+    alert.kind === 'approval'
+      ? alert.approval.kind === 'command'
+        ? riskOf(alert.approval.title, alert.approval.detail)
+        : null
+      : alert.kind === 'task'
+        ? riskOf(alert.title, alert.reason)
+        : null;
+  // The reasons are @kovan/shared's English; the catalog has them.
+  return risk && t(risk);
+}
 
 function lines(
   alert: Alert,
   userId: string | null,
-): { danger: boolean; main: string; sub: string } {
+): { danger: boolean; main: string; sub: string; risk: string | null } {
   const title = alert.session.title;
+  const risk = alertRisk(alert);
   switch (alert.kind) {
     case 'approval': {
       const a = alert.approval;
-      const who = a.laneUserId === userId ? 'Your' : `${nameOf(alert.session, a.laneUserId)}'s`;
       return {
-        danger: false,
-        main: `${who} agent asks: ${a.title}`,
+        danger: risk !== null,
+        main:
+          a.laneUserId === userId
+            ? t('Your agent asks: {title}', { title: a.title })
+            : t("{name}'s agent asks: {title}", {
+                name: nameOf(alert.session, a.laneUserId),
+                title: a.title,
+              }),
         sub: `${a.detail.split('\n')[0]} · ${title}`,
+        risk,
       };
     }
     case 'task':
       return {
-        danger: false,
-        main: `A swarm task needs a yes: ${alert.title}`,
+        danger: risk !== null,
+        main: t('A swarm task needs a yes: {title}', { title: alert.title }),
         sub: `${alert.reason} · ${title}`,
+        risk,
       };
     case 'swarm':
-      return { danger: true, main: `A swarm paused itself: ${alert.reason}`, sub: title };
+      return {
+        danger: true,
+        main: t('A swarm paused itself: {reason}', { reason: alert.reason }),
+        sub: title,
+        risk: null,
+      };
     case 'awaiting':
       return {
         danger: true,
-        main: `${alert.name}'s agent stopped: ${alert.reason}. Awaiting takeover.`,
-        sub: `${title} · ${alert.snapshotAt ? `last checkpoint ${ago(alert.snapshotAt)}` : 'no checkpoint yet'}`,
+        main: t("{name}'s agent stopped: {reason}. Someone needs to take over.", {
+          name: alert.name,
+          reason: alert.reason,
+        }),
+        sub: `${title} · ${
+          alert.snapshotAt
+            ? t('last checkpoint {when}', { when: ago(alert.snapshotAt) })
+            : t('no checkpoint yet')
+        }`,
+        risk: null,
       };
     case 'handoff':
       return {
         danger: false,
-        main: `${nameOf(alert.session, alert.handoff.fromUserId)} handed you their work.`,
+        main: t('{name} handed you their work.', {
+          name: nameOf(alert.session, alert.handoff.fromUserId),
+        }),
         sub: `${title}${alert.handoff.context?.reason ? ` · ${alert.handoff.context.reason}` : ''}`,
+        risk: null,
       };
     case 'outcome':
       return {
         danger: true,
-        main: `Outcome unknown: ${alert.outcome.command}`,
-        sub: `${nameOf(alert.session, alert.outcome.laneUserId)}'s agent was cut off mid-flight · ${title}`,
+        main: t('Outcome unknown: {command}', { command: alert.outcome.command }),
+        sub: `${t("{name}'s agent was cut off mid-flight", {
+          name: nameOf(alert.session, alert.outcome.laneUserId),
+        })} · ${title}`,
+        risk: null,
       };
   }
 }
 
+/** A risky yes is asked twice: the step can't easily be undone. Anything else goes at once. */
+async function sure(alert: Alert, what: string): Promise<boolean> {
+  const risk = alertRisk(alert);
+  if (!risk) return true;
+  return confirm(t('{risk}. Approve it?', { risk }), what.slice(0, 600), t('Approve'), true);
+}
+
 /** What can be done about an alert from here; nothing when the role doesn't allow it. */
 function Actions({ alert, board, userId }: { alert: Alert; board: Board; userId: string | null }) {
+  useLocale();
   const act = useActions();
   const ws = alert.session.workspaceId;
   const may = (action: Parameters<typeof allowed>[2]) => allowed(board, ws, action);
-  const buttons: { title: string; primary?: boolean; run(): Promise<unknown> }[] = [];
+  const desktop = useDesktopOnline();
+  const buttons: {
+    title: string;
+    primary?: boolean;
+    /** Done by the person's desktop: off while Kovan isn't open there. */
+    desk?: boolean;
+    run(): Promise<unknown>;
+  }[] = [];
   switch (alert.kind) {
     case 'approval':
       if (may('approval.answer'))
         buttons.push(
-          { title: 'Approve', primary: true, run: () => act.answerApproval(alert.approval, true) },
-          { title: 'Deny', run: () => act.answerApproval(alert.approval, false) },
+          {
+            title: t('Approve'),
+            primary: true,
+            run: async () =>
+              (await sure(alert, alert.approval.detail)) &&
+              act.answerApproval(alert.approval, true),
+          },
+          { title: t('Deny'), run: () => act.answerApproval(alert.approval, false) },
         );
       break;
     case 'task':
       if (may('approval.answer'))
         buttons.push(
-          { title: 'Approve', primary: true, run: () => act.answerTask(alert.stepId, true) },
-          { title: 'Reject', run: () => act.answerTask(alert.stepId, false) },
+          {
+            title: t('Approve'),
+            primary: true,
+            run: async () =>
+              (await sure(alert, `${alert.title}\n${alert.reason}`)) &&
+              act.answerTask(alert.stepId, true),
+          },
+          { title: t('Reject'), run: () => act.answerTask(alert.stepId, false) },
         );
       break;
     case 'swarm': {
       const swarm = alert.session.swarm!;
       if (may('session.start') && (!swarm.launchedBy || swarm.launchedBy === userId))
         buttons.push({
-          title: 'Resume',
+          title: t('Resume'),
           primary: true,
           run: () => act.desk({ kind: 'resume', swarmId: swarm.id, sessionId: alert.session.id }),
         });
       if (may('agent.steer'))
         buttons.push({
-          title: 'Stop',
+          title: t('Stop'),
           run: async () =>
             (await confirm(
-              'Stop the swarm?',
-              'Its agents stop at their next step. Finished tasks stay.',
-              'Stop',
+              t('Stop the swarm?'),
+              t('Its agents stop at their next step. Finished tasks stay.'),
+              t('Stop'),
               true,
             )) && act.setSwarmStatus(swarm.id, 'stopped'),
         });
@@ -96,13 +167,14 @@ function Actions({ alert, board, userId }: { alert: Alert; board: Board; userId:
     case 'awaiting':
       if (may('agent.takeover'))
         buttons.push({
-          title: 'Take over',
+          title: t('Take over'),
           primary: true,
+          desk: true,
           run: async () =>
             (await confirm(
-              `Take over ${alert.name}'s lane?`,
-              'Your desktop picks up their work from the last checkpoint, on your account.',
-              'Take over',
+              t("Take over {name}'s lane?", { name: alert.name }),
+              t('Your desktop picks up their work from the last checkpoint, on your account.'),
+              t('Take over'),
             )) &&
             act.desk({ kind: 'takeover', sessionId: alert.session.id, laneUserId: alert.userId }),
         });
@@ -110,8 +182,9 @@ function Actions({ alert, board, userId }: { alert: Alert; board: Board; userId:
     case 'handoff':
       buttons.push(
         {
-          title: 'Pick it up',
+          title: t('Pick it up'),
           primary: true,
+          desk: true,
           run: () =>
             act.desk({
               kind: 'continue',
@@ -119,31 +192,36 @@ function Actions({ alert, board, userId }: { alert: Alert; board: Board; userId:
               sessionId: alert.session.id,
             }),
         },
-        { title: 'Decline', run: () => act.declineHandoff(alert.handoff) },
+        { title: t('Decline'), run: () => act.declineHandoff(alert.handoff) },
       );
       break;
     case 'outcome':
       if (may('approval.answer'))
         buttons.push(
-          { title: 'It went through', run: () => act.recordOutcome(alert.outcome, 'succeeded') },
-          { title: 'It failed', run: () => act.recordOutcome(alert.outcome, 'failed') },
-          { title: "Didn't run", run: () => act.recordOutcome(alert.outcome, 'not_run') },
+          { title: t('It went through'), run: () => act.recordOutcome(alert.outcome, 'succeeded') },
+          { title: t('It failed'), run: () => act.recordOutcome(alert.outcome, 'failed') },
+          { title: t("Didn't run"), run: () => act.recordOutcome(alert.outcome, 'not_run') },
         );
       break;
   }
   if (buttons.length === 0) return null;
+  const blocked = desktop === false && buttons.some((b) => b.desk);
   return (
-    <View style={s.actions}>
-      {buttons.map((b) => (
-        <Act
-          key={b.title}
-          small
-          title={b.title}
-          kind={b.primary ? 'primary' : 'secondary'}
-          onPress={b.run}
-        />
-      ))}
-    </View>
+    <>
+      <View style={s.actions}>
+        {buttons.map((b) => (
+          <Act
+            key={b.title}
+            small
+            title={b.title}
+            kind={b.primary ? 'primary' : 'secondary'}
+            disabled={b.desk === true && desktop === false}
+            onPress={b.run}
+          />
+        ))}
+      </View>
+      {blocked && <T style={s.deskNote}>{desktopOffline()}</T>}
+    </>
   );
 }
 
@@ -157,11 +235,12 @@ export function Alerts({
   board: Board;
   userId: string | null;
 }) {
+  useLocale();
   if (alerts.length === 0) return null;
   return (
     <View style={s.list}>
       {alerts.map((alert) => {
-        const { danger, main, sub } = lines(alert, userId);
+        const { danger, main, sub, risk } = lines(alert, userId);
         const Icon =
           alert.kind === 'approval' || alert.kind === 'task' || alert.kind === 'outcome'
             ? CircleHelp
@@ -173,13 +252,15 @@ export function Alerts({
                 router.push({ pathname: '/session/[id]', params: { id: alert.session.id } })
               }
               accessibilityRole="button"
-              accessibilityHint="Opens the session"
+              accessibilityHint={t('Opens the session')}
               style={({ pressed }) => [s.head, pressed && { opacity: 0.7 }]}
             >
               <Icon size={15} color={danger ? colors.danger : colors.warn} style={s.icon} />
               <View style={s.text}>
                 <T style={s.main}>{main}</T>
-                <T muted numberOfLines={2} style={s.sub}>
+                {risk && <T style={s.risk}>{t('Hard to undo: {risk}.', { risk })}</T>}
+                {/* The command is what's being approved: all of it, in a readable grey. */}
+                <T style={[s.sub, { color: colors.fg2 }]} selectable>
                   {sub}
                 </T>
               </View>
@@ -209,4 +290,6 @@ const s = StyleSheet.create({
   text: { flex: 1, gap: 3 },
   main: { fontSize: 14, lineHeight: 19, fontFamily: fonts.uiMedium },
   sub: { fontSize: 12.5, lineHeight: 17 },
+  deskNote: { fontSize: 12.5, lineHeight: 17, color: colors.warn, paddingLeft: 25 },
+  risk: { fontSize: 12.5, lineHeight: 17, color: colors.danger, fontFamily: fonts.uiMedium },
 });

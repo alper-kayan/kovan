@@ -1,5 +1,6 @@
 import type { User } from '@kovan/shared';
 import { request } from './api';
+import { t } from './i18n';
 
 const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
 
@@ -25,6 +26,8 @@ export interface PendingSignIn {
   url: string;
   secret: string;
   expiresAt: number;
+  /** The code an emailed sign-in link's page asks for (shown while waiting). */
+  code: string | null;
 }
 
 export type PollResult =
@@ -45,24 +48,29 @@ export async function startSignIn(
 ): Promise<PendingSignIn> {
   const secret = base64url(crypto.randomBytes(32));
   const secretHash = toBase64Url(await crypto.sha256Base64(secret));
-  const started = await request<{ loginId: string; url: string; expiresInSeconds: number }>(
-    server,
-    null,
-    'POST',
-    '/auth/desktop/start',
-    { secretHash, intent: 'login', machineId: null, returnTo },
-  );
+  const started = await request<{
+    loginId: string;
+    url: string;
+    expiresInSeconds: number;
+    code?: string;
+  }>(server, null, 'POST', '/auth/desktop/start', {
+    secretHash,
+    intent: 'login',
+    machineId: null,
+    returnTo,
+  });
   return {
     loginId: started.loginId,
     url: started.url,
     secret,
     expiresAt: Date.now() + started.expiresInSeconds * 1000,
+    code: started.code ?? null,
   };
 }
 
 export async function pollSignIn(server: string, pending: PendingSignIn): Promise<PollResult> {
   if (Date.now() > pending.expiresAt)
-    return { status: 'failed', error: 'Sign-in expired. Try again.' };
+    return { status: 'failed', error: t('Sign-in expired. Try again.') };
   const res = await request<{
     status: 'pending' | 'failed' | 'complete';
     error?: string;
@@ -74,9 +82,10 @@ export async function pollSignIn(server: string, pending: PendingSignIn): Promis
   });
   if (res.status === 'complete') {
     if (!res.token || !res.user)
-      return { status: 'failed', error: 'The server finished without a session. Try again.' };
+      return { status: 'failed', error: t("Sign-in didn't finish. Try again.") };
     return { status: 'complete', token: res.token, user: res.user };
   }
-  if (res.status === 'failed') return { status: 'failed', error: res.error ?? 'Sign-in failed.' };
+  if (res.status === 'failed')
+    return { status: 'failed', error: res.error ?? t('Sign-in failed.') };
   return { status: 'pending' };
 }

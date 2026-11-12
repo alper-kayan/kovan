@@ -11,11 +11,23 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, LogoMark, T } from '../components/ui';
 import { normalizeServer } from '../lib/api';
+import { t, useLocale } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import { colors, fonts, radius, MAX_FONT_SCALE } from '../lib/theme';
 
 export default function SignIn() {
-  const { status, server, error, signIn, signInWithApple, cancelSignIn, setServer } = useSession();
+  useLocale();
+  const {
+    status,
+    server,
+    error,
+    loginCode,
+    farewell,
+    signIn,
+    signInWithApple,
+    cancelSignIn,
+    setServer,
+  } = useSession();
   // Sign in with Apple on iPhones (Apple asks for it next to other sign-ins); never on Android.
   const [apple, setApple] = useState(false);
   const [viaApple, setViaApple] = useState(false);
@@ -40,7 +52,7 @@ export default function SignIn() {
   const saveServer = async () => {
     if (!draft.trim()) return close();
     const next = normalizeServer(draft);
-    if (!next) return setDraftError('That address does not look right.');
+    if (!next) return setDraftError(t('That address does not look right.'));
     setDraftError(null);
     await setServer(next);
     close();
@@ -54,21 +66,29 @@ export default function SignIn() {
           <LogoMark size={44} />
           <T style={s.word}>kovan</T>
           <T muted style={s.tagline}>
-            Your team&apos;s agents, in your pocket. Watch sessions, answer approvals and steer
-            agents from your phone.
+            {t(
+              "Your team's agents, in your pocket. Watch sessions, answer approvals and steer agents from your phone.",
+            )}
           </T>
         </View>
 
         <View style={s.actions}>
           {waiting && viaApple ? (
-            <T style={s.waiting}>Signing in with Apple…</T>
+            <T style={s.waiting}>{t('Signing in with Apple…')}</T>
           ) : waiting ? (
             <>
-              <T style={s.waiting}>Finish signing in in the browser.</T>
+              <T style={s.waiting}>{t('Finish signing in in the browser.')}</T>
               <T muted style={s.small}>
-                An email link works too: open it on this phone and come back here.
+                {t(
+                  'An email link works too, on this phone or any other device. Its page asks for this code:',
+                )}
               </T>
-              <Button title="Cancel" kind="secondary" onPress={cancelSignIn} />
+              {loginCode && (
+                <T selectable style={s.code}>
+                  {loginCode}
+                </T>
+              )}
+              <Button title={t('Cancel')} kind="secondary" onPress={cancelSignIn} />
             </>
           ) : (
             <>
@@ -85,13 +105,20 @@ export default function SignIn() {
                 />
               )}
               <Button
-                title={apple ? 'Other ways to sign in' : 'Sign in'}
+                title={apple ? t('Other ways to sign in') : t('Sign in')}
                 kind={apple ? 'secondary' : 'primary'}
                 onPress={() => void signIn()}
               />
             </>
           )}
           {error && !waiting && <T style={s.error}>{error}</T>}
+          {farewell && !error && !waiting && (
+            <View accessibilityLiveRegion="polite">
+              <T muted style={s.farewell}>
+                {farewell}
+              </T>
+            </View>
+          )}
         </View>
 
         <View style={s.server}>
@@ -109,13 +136,13 @@ export default function SignIn() {
                 placeholderTextColor={colors.fg4}
                 style={s.input}
                 onSubmitEditing={() => void saveServer()}
-                accessibilityLabel="Server address"
+                accessibilityLabel={t('Server address')}
                 testID="server-input"
               />
               {draftError && <T style={s.error}>{draftError}</T>}
               <View style={s.row}>
-                <Button title="Cancel" kind="secondary" style={s.flex} onPress={close} />
-                <Button title="Save" style={s.flex} onPress={() => void saveServer()} />
+                <Button title={t('Cancel')} kind="secondary" style={s.flex} onPress={close} />
+                <Button title={t('Save')} style={s.flex} onPress={() => void saveServer()} />
               </View>
             </>
           ) : (
@@ -123,10 +150,10 @@ export default function SignIn() {
               disabled={waiting}
               onPress={() => setEditing(true)}
               accessibilityRole="button"
-              accessibilityHint="Change the Kovan server"
+              accessibilityHint={t('Change the Kovan server')}
             >
               <T muted style={s.small}>
-                Server <T mono>{server.replace(/^https?:\/\//, '')}</T> · Change
+                {t('Server')} <T mono>{server.replace(/^https?:\/\//, '')}</T> · {t('Change')}
               </T>
             </Pressable>
           )}
@@ -145,8 +172,10 @@ const s = StyleSheet.create({
   actions: { gap: 12 },
   apple: { height: 46, width: '100%' },
   waiting: { textAlign: 'center', fontFamily: fonts.uiMedium },
+  code: { textAlign: 'center', fontFamily: fonts.mono, fontSize: 26, letterSpacing: 3 },
   small: { fontSize: 13, textAlign: 'center' },
   error: { color: colors.danger, fontSize: 13.5, textAlign: 'center' },
+  farewell: { fontSize: 13.5, textAlign: 'center' },
   server: { gap: 10 },
   input: {
     minHeight: 46,
