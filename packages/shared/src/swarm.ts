@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SwarmOutcome } from './sessions.js';
 
 // ---------- Phase 10: AI teammates, Swarm, private learning ----------
 
@@ -179,9 +180,50 @@ export interface Swarm {
   /** Raised on every launch; the run's requests carry it (`x-kovan-fence`). */
   fence: number;
   pausedReason: string | null;
+  /** How its tasks ended, once it is done (set by the run that finished it). */
+  outcome: SwarmOutcome | null;
   agents: SwarmAgent[];
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * The swarm's state as a short badge: its status, except that a done swarm says how its tasks
+ * went ("Done · 1 failed", or "Failed" when none worked). `tone` picks the color.
+ */
+export function swarmBadge(swarm: { status: string; outcome?: SwarmOutcome | null }): {
+  label: string;
+  tone: string;
+} {
+  const o = swarm.status === 'done' ? swarm.outcome : null;
+  if (o && o.tasks > 0 && o.done === 0) return { label: 'Failed', tone: 'failed' };
+  const bad = o ? o.failed + o.blocked : 0;
+  if (o && bad > 0) return { label: `Done · ${bad} failed`, tone: 'partial' };
+  return {
+    label: swarm.status.charAt(0).toUpperCase() + swarm.status.slice(1),
+    tone: swarm.status,
+  };
+}
+
+/** A done swarm's result in a few words: "2 of 3 tasks done, 1 failed", or null when not done. */
+export function swarmResult(swarm: { status: string; outcome?: SwarmOutcome | null }): {
+  text: string;
+  ok: boolean;
+} | null {
+  if (swarm.status !== 'done' || !swarm.outcome) return null;
+  const o = swarm.outcome;
+  if (o.tasks === 0) return { text: 'Finished with no tasks to do', ok: true };
+  const rest = [
+    o.failed ? `${o.failed} failed` : '',
+    o.blocked ? `${o.blocked} blocked` : '',
+    o.stopped ? `${o.stopped} stopped` : '',
+  ].filter(Boolean);
+  if (o.done === 0)
+    return { text: `Ended without finishing a task (${rest.join(', ')})`, ok: false };
+  return {
+    text: `${o.done} of ${o.tasks} tasks done${rest.length ? `, ${rest.join(', ')}` : ''}`,
+    ok: rest.length === 0,
+  };
 }
 
 export const SwarmSettingsSchema = z.object({
@@ -324,3 +366,18 @@ export const UpdateLearningSchema = z
     status: z.enum(['accepted', 'forgotten']),
   })
   .partial();
+
+/**
+ * An agent's questions and blockers to people (to everyone, or to a person) that no person has
+ * answered yet, oldest first: what the swarm waits on people for.
+ */
+export function openQuestions(messages: SwarmMessage[], agentIds: string[]): SwarmMessage[] {
+  const isAgent = (id: string) => agentIds.includes(id);
+  return messages.filter(
+    (m) =>
+      isAgent(m.fromId) &&
+      (m.kind === 'question' || m.kind === 'blocker') &&
+      (m.toId === null || !isAgent(m.toId)) &&
+      !messages.some((x) => x.replyTo === m.id && !isAgent(x.fromId)),
+  );
+}

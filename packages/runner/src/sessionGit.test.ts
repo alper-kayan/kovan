@@ -67,7 +67,13 @@ describe('session git checks', () => {
     expect(await pushProblem(repo, 'main')).toBeNull();
 
     await sh(repo, 'remote', 'set-url', 'origin', join(dir, 'missing.git'));
-    expect(await pushProblem(repo, 'kovan/x')).toMatch(/^You can't push to origin: /);
+    const why = await pushProblem(repo, 'kovan/x');
+    // In words first (what happened, what to do), git's own line kept for whoever wants it.
+    expect(why).toMatch(
+      /^Kovan can't upload your work from this computer: the repository isn't at that address/,
+    );
+    expect(why).toMatch(/watch the session instead/);
+    expect(why).toMatch(/\(Git said: .+\)$/);
   });
 
   it('passes repos without a remote', async () => {

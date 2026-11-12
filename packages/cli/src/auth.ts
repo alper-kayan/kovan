@@ -93,14 +93,19 @@ export async function login(d: LoginDeps): Promise<Auth> {
   } catch {
     throw new LoginError(`Can't reach the Kovan server: ${server}`);
   }
-  if (!start.ok) throw new LoginError(`Couldn't start signing in (HTTP ${start.status})`);
-  const { loginId, url, expiresInSeconds } = (await start.json()) as {
+  if (!start.ok)
+    throw new LoginError(
+      `Kovan's server at ${server} isn't taking sign-ins right now (HTTP ${start.status}). Try again in a moment.`,
+    );
+  const { loginId, url, expiresInSeconds, code } = (await start.json()) as {
     loginId: string;
     url: string;
     expiresInSeconds: number;
+    code?: string;
   };
 
   d.out(`Confirm the sign-in in your browser:\n  ${url}`);
+  if (code) d.out(`Signing in with an email link? Its page asks for this code: ${code}`);
   try {
     d.open(url);
   } catch {
@@ -123,7 +128,12 @@ export async function login(d: LoginDeps): Promise<Auth> {
         body: JSON.stringify({ loginId, secret }),
         signal: AbortSignal.timeout(10_000),
       });
-      if (!res.ok) throw new LoginError('The sign-in expired; try again.');
+      if (res.status === 410)
+        throw new LoginError(
+          "This sign-in was already finished elsewhere. Run 'kovan login' again.",
+        );
+      if (res.status >= 500) continue; // the server's trouble, not the sign-in's: ask again
+      if (!res.ok) throw new LoginError("The sign-in wasn't found. Run 'kovan login' again.");
       result = (await res.json()) as typeof result;
     } catch (error) {
       if (error instanceof LoginError) throw error;
@@ -141,7 +151,7 @@ export async function login(d: LoginDeps): Promise<Auth> {
       };
     throw new LoginError('The server sent an unexpected answer.');
   }
-  throw new LoginError('The sign-in expired; try again.');
+  throw new LoginError("The sign-in wasn't finished in time. Run 'kovan login' again.");
 }
 
 /** Who this token is, or why it no longer is anyone. */
@@ -160,7 +170,12 @@ export async function whoami(
   }
   if (res.status === 401)
     throw new LoginError("Your session has ended. Sign in again with 'kovan login'.");
-  if (!res.ok) throw new LoginError(`Couldn't read who you are (HTTP ${res.status})`);
+  if (!res.ok)
+    throw new LoginError(
+      res.status === 401
+        ? "Kovan doesn't know this sign-in any more. Run 'kovan login' again."
+        : `Kovan's server isn't answering right now (HTTP ${res.status}). Try again in a moment.`,
+    );
   return ((await res.json()) as { user: { id: string; name: string; email?: string } }).user;
 }
 
@@ -187,7 +202,8 @@ export function managedProvider(auth: Auth, model?: string | null): Provider {
     apiKey: auth.token,
     model: model ?? 'openrouter/auto',
     dialect: 'openrouter',
-    label: 'Kovan account (managed usage, billed to your account)',
+    label:
+      'Kovan account (managed usage: Kovan bills you for the models, if this server sells them)',
     managed: true,
   };
 }

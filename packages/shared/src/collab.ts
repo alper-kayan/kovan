@@ -268,7 +268,8 @@ export type ActivityKind =
   | 'task_cancelled'
   | 'task_waiting_for_approval'
   | 'task_approved'
-  | 'task_rejected';
+  | 'task_rejected'
+  | 'approval_answered';
 
 /** One line of the session's activity feed ("Bob started a turn on his OpenAI subscription"). */
 export interface Activity {

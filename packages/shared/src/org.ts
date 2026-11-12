@@ -50,6 +50,7 @@ const AUDIT_LABELS: Record<string, string> = {
   'member.left': 'left workspace',
   'invite.created': 'invited',
   'invite.revoked': 'revoked the invite for',
+  'invite.accepted': 'joined with an invite link:',
   'agent.created': 'added AI teammate',
   'agent.updated': 'changed AI teammate',
   'agent.deleted': 'removed AI teammate',
@@ -58,9 +59,11 @@ const AUDIT_LABELS: Record<string, string> = {
   'webhook.created': 'added webhook',
   'webhook.deleted': 'removed webhook',
   'machine.removed': 'removed machine',
-  'billing.settings_changed': 'changed their managed usage allowance',
+  'billing.settings_changed': 'changed their Kovan billing limit',
   'billing.card_setup_started': 'started adding a card',
   'billing.payment_retried': 'retried a payment',
+  'billing.team_settings_changed': 'changed team billing',
+  'billing.team_turned_off': 'turned team billing off',
 };
 
 /** The action in words, for the log: "changed the role of". Unknown actions read as their name. */

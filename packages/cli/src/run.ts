@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from 'node:fs';
+import { t as tr } from './i18n.js';
 import { homedir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import {
@@ -18,6 +19,8 @@ import {
   type ModelInfo,
 } from '@kovan/model-gateway';
 import { EFFORTS, MODES, parseArgs, type Args } from './args.js';
+import { alwaysKey, alwaysLabel } from './approvals.js';
+import { chooseSetup } from './setup.js';
 import {
   DEFAULT_SERVER,
   LoginError,
@@ -33,7 +36,7 @@ import { CONFIG_FILE, loadProvider, type Provider, type ProviderResult } from '.
 import { NOOP_NOTCH, createNotch, notchEventsFor, hookTool, type Notch } from './notch.js';
 import { cliDir, desktopDataDir } from './paths.js';
 import {
-  claudeAccounts,
+  engineAccounts,
   claudeEnv,
   ClaudeRunner,
   findBinary,
@@ -51,6 +54,13 @@ import { bundlePath, checkAndUpdate, type UpdateResult } from './update.js';
 
 export const VERSION = '0.4.6';
 
+/** "2026-11-12 10:41" in this computer's time zone (not UTC, which reads hours off). */
+function localTime(at: number | string): string {
+  const d = new Date(at);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
 
   kovan                       chat with the agent in this folder
@@ -62,20 +72,24 @@ export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
   kovan update                update itself
   kovan sessions [--json]     chats (the same list as in the Kovan desktop app)
   kovan sessions export <id>  a summary of one chat (JSON)
+  kovan setup                 choose the model: an OpenRouter key, your Kovan account, or your own gateway
   kovan config                which server and model it talks to
 
-  -m, --model <id>            model
+  -m, --model <id>            the AI model (see /models in a chat)
   --mode <plan|request|allow|full>
-                              plan: only read · request: ask before every edit and command · allow: edit, ask before commands (default) · full: never ask
-  --effort <level>            none, minimal, low, medium, high, xhigh, max
-  --context-file <file>       extra instructions added to the system prompt
+                              how much it may do without asking: plan (plan only: reads) · request (ask first: before
+                              every edit and command) · allow (edit freely: edits, asks before commands; the default) ·
+                              full (full access: never asks)
+  --effort <level>            how hard the model thinks, for models that can: low, medium, high (or none … max)
+  --context-file <file>       a file of extra instructions for the agent
   --reasoning                 show the model's thinking
   --cwd <folder>              work in another folder
 
-Model: your own key comes first (OPENROUTER_API_KEY, or KOVAN_BASE_URL + KOVAN_MODEL [+ KOVAN_API_KEY]); without one, your Kovan account
-from 'kovan login' (managed usage, billed to your account) if the server offers it. Chats also show in the Kovan desktop app's chat list.
-Reads what Claude Code reads: skills in the repository and in ~/.claude (/skill-name), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md,
-.claude/commands/*.md (custom commands). KOVAN_NO_CLAUDE=1 turns all of it off.
+The AI: 'kovan setup' picks it. Your own key comes first (OPENROUTER_API_KEY, or a server of your own with KOVAN_BASE_URL +
+KOVAN_MODEL); without one, your Kovan account from 'kovan login' (Kovan bills you what the model costs plus 5%). Claude Code
+and Codex, if installed, run on your own plan: pick them with /models. Chats also show in the Kovan desktop app.
+Reads what Claude Code reads: skills in the repository and in ~/.claude (/skill-name), CLAUDE.md / AGENTS.md / KOVAN.md,
+~/.claude/CLAUDE.md, .claude/commands/*.md (custom commands). KOVAN_NO_CLAUDE=1 turns all of that off.
 In a chat: /help /mode /model /models /clear /cost /context /skills /exit
 `;
 
@@ -142,7 +156,7 @@ export function resolveProvider(
   const managed = () =>
     ({ ok: true, provider: managedProvider(auth!, model ?? env['KOVAN_MODEL'] ?? null) }) as const;
   if (auth && env['KOVAN_PROVIDER'] === 'managed') return managed();
-  const own = loadProvider(env, file);
+  const own = loadProvider(env, file, model);
   if (own.ok || !auth || env['KOVAN_PROVIDER'] === 'own') return own;
   // A gateway missing its model is theirs to fix, not a reason to bill the account.
   return own.noKey ? managed() : own;
@@ -217,8 +231,44 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
     }
     case 'update': {
       const r = await updateNow(deps, server, true);
-      out(describeUpdate(r) ?? 'Up to date.');
+      out(
+        describeUpdate(r) ??
+          (deps.env['KOVAN_NO_UPDATE']
+            ? tr('Updates are off (KOVAN_NO_UPDATE is set).')
+            : tr('Up to date.')),
+      );
       return r.status === 'failed' ? 1 : 0;
+    }
+    case 'setup': {
+      if (!t.isTTY) {
+        deps.err("'kovan setup' asks questions: run it in a terminal.");
+        return 1;
+      }
+      const ok = await chooseSetup({
+        out,
+        write: (s) => t.write(s),
+        readLine: (prompt) => t.readLine(prompt),
+        file: deps.configFile ?? CONFIG_FILE,
+        signIn: async () => {
+          try {
+            const a = await login({
+              server,
+              machineId: deps.auth.machineId(),
+              fetchImpl,
+              open: deps.open ?? (() => {}),
+              out,
+              sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+            });
+            deps.auth.save(a);
+            out(`Signed in: ${a.user?.name ?? '—'} (${a.server})`);
+            return true;
+          } catch (e) {
+            deps.err(e instanceof LoginError ? e.message : String(e));
+            return false;
+          }
+        },
+      });
+      return ok ? 0 : 1;
     }
     case 'config': {
       const auth = deps.auth.load();
@@ -263,7 +313,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
       else
         for (const c of list)
           out(
-            `${c.id}  ${new Date(c.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}  ${basename(c.root).padEnd(18)} ${clip(c.title, 60)}`,
+            `${c.id}  ${localTime(c.updatedAt)}  ${basename(c.root).padEnd(18)} ${clip(c.title, 60)}`,
           );
       return 0;
     }
@@ -301,6 +351,11 @@ function updateNow(deps: Deps, server: string, force: boolean): Promise<UpdateRe
 async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   const t = deps.terminal;
   const out = (s: string) => t.write(`${s}\n`);
+  // A folder that isn't there would become a chat about nothing.
+  if (args.cwd && !existsSync(resolve(deps.cwd, args.cwd))) {
+    deps.err(tr("There's no folder at {path}.", { path: resolve(deps.cwd, args.cwd) }));
+    return 1;
+  }
   // `kovan -r <name|id>`: that conversation, and the folder it was held in, wherever you are now.
   let found: { id: string; root: string } | null = null;
   if (args.resume) {
@@ -345,37 +400,41 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     return code;
   };
 
-  // Nothing of their own set up and no account: signing in comes first, in the same window, and the chat opens right after.
-  const interactive = Boolean(deps.screen && t.isTTY && !args.plain && deps.env['TERM'] !== 'dumb');
+  // Nothing of their own set up and no account: it asks how to run models, and the chat opens right after.
   const own = loadProvider(deps.env, deps.configFile);
-  if (
-    !deps.model &&
-    !auth &&
-    !own.ok &&
-    own.noKey &&
-    deps.env['KOVAN_PROVIDER'] !== 'own' &&
-    !args.task
-  ) {
-    if (!interactive) {
-      deps.err("You're not signed in. Sign in to your Kovan account with 'kovan login'.");
+  if (!deps.model && !auth && !own.ok && own.noKey && deps.env['KOVAN_PROVIDER'] !== 'own') {
+    if (!t.isTTY) {
+      deps.err(
+        "No model is set up yet. Run 'kovan setup' in a terminal to choose one, or set OPENROUTER_API_KEY.",
+      );
       return 1;
     }
-    out('Sign in to Kovan first. Once you confirm in the browser, the terminal opens.');
-    try {
-      auth = await login({
-        server,
-        machineId: deps.auth.machineId(),
-        fetchImpl: deps.fetchImpl ?? fetch,
-        open: deps.open ?? (() => {}),
-        out,
-        sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
-      });
-      deps.auth.save(auth);
-      out(`Signed in: ${auth.user?.name ?? '—'}`);
-    } catch (e) {
-      deps.err(e instanceof LoginError ? e.message : String(e));
-      return 1;
-    }
+    // Asked, not assumed: nothing opens and nothing is saved until the person picks a way.
+    const ready = await chooseSetup({
+      out,
+      write: (s) => t.write(s),
+      readLine: (prompt) => t.readLine(prompt),
+      file: deps.configFile ?? CONFIG_FILE,
+      signIn: async () => {
+        try {
+          auth = await login({
+            server,
+            machineId: deps.auth.machineId(),
+            fetchImpl: deps.fetchImpl ?? fetch,
+            open: deps.open ?? (() => {}),
+            out,
+            sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
+          });
+          deps.auth.save(auth);
+          out(`Signed in: ${auth.user?.name ?? '—'}`);
+          return true;
+        } catch (e) {
+          deps.err(e instanceof LoginError ? e.message : String(e));
+          return false;
+        }
+      },
+    });
+    if (!ready) return 1;
   }
 
   let provider: Provider;
@@ -496,7 +555,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
 
   let tui: TuiApp | null = null;
   const approve = async (r: ApprovalRequest): Promise<boolean> => {
-    if (always.has(r.tool)) return true;
+    if (always.has(alwaysKey(r))) return true;
     if (tui) {
       // On the full-screen interface the question is a dialog; the notch can still answer first.
       const ac = new AbortController();
@@ -510,14 +569,14 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         .then((a) => ({ from: 'screen', a: a ?? 'deny' }) as const);
       const first = await Promise.race([fromNotch, fromScreen]);
       ac.abort();
-      if (first.a === 'always') always.add(r.tool);
+      if (first.a === 'always') always.add(alwaysKey(r));
       return first.a !== 'deny';
     }
     if (!t.isTTY) {
       // Nobody at the terminal: the notch can still be asked (your phone and lock screen too).
       const d = await askNotch(r);
       if (d === 'allow' || d === 'always') {
-        if (d === 'always') always.add(r.tool);
+        if (d === 'always') always.add(alwaysKey(r));
         out(`  notch: approved (${r.title})`);
         return true;
       }
@@ -538,17 +597,17 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         : new Promise<never>(() => {}),
     );
     const fromTerminal = t
-      .readLine('  allow? [y]es / [n]o / [a]lways (this session) › ', ac.signal)
+      .readLine(`  allow? [y]es / [n]o / [a] ${alwaysLabel(r)} › `, ac.signal)
       .then((a) => ({ from: 'terminal', a: a?.trim().toLowerCase() ?? '' }) as const);
     const first = await Promise.race([fromNotch, fromTerminal]);
     ac.abort();
     if (first.from === 'notch') {
       out(first.d === 'deny' ? '  notch: denied' : '  notch: approved');
-      if (first.d === 'always') always.add(r.tool);
+      if (first.d === 'always') always.add(alwaysKey(r));
       return first.d !== 'deny';
     }
     if (first.a === 'a' || first.a === 'always') {
-      always.add(r.tool);
+      always.add(alwaysKey(r));
       return true;
     }
     return first.a === 'y' || first.a === 'yes';
@@ -600,11 +659,11 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   {
     // `-m claude:<account>:<model>` starts on Claude Code (an empty account is the CLI's own sign-in).
     const m = /^claude:([^:]*):(.+)$/.exec(args.model ?? '');
-    const account = m ? claudeAccounts(dataDir).find((x) => (x.id ?? '') === m[1]) : undefined;
+    const account = m ? engineAccounts(dataDir).find((x) => (x.id ?? '') === m[1]) : undefined;
     if (m && account && claudeBin) claude = { account, model: m[2]! };
     const cm = /^codex:([^:]*):(.+)$/.exec(args.model ?? '');
     const cAccount = cm
-      ? claudeAccounts(dataDir, 'codex').find((x) => (x.id ?? '') === cm[1])
+      ? engineAccounts(dataDir, 'codex').find((x) => (x.id ?? '') === cm[1])
       : undefined;
     if (cm && cAccount && codexBin) codex = { account: cAccount, model: cm[2]! };
   }
@@ -689,7 +748,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     agent.configure({ model: baseStreamer });
     const cx = /^codex:([^:]*):(.+)$/.exec(id);
     if (cx) {
-      const account = claudeAccounts(dataDir, 'codex').find((a) => (a.id ?? '') === cx[1]);
+      const account = engineAccounts(dataDir, 'codex').find((a) => (a.id ?? '') === cx[1]);
       if (account) {
         if (!codex || codex.account.id !== account.id) codexThread = null;
         codex = { account, model: cx[2]! };
@@ -700,7 +759,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     }
     const m = /^claude:([^:]*):(.+)$/.exec(id);
     if (m) {
-      const account = claudeAccounts(dataDir).find((a) => (a.id ?? '') === m[1]);
+      const account = engineAccounts(dataDir).find((a) => (a.id ?? '') === m[1]);
       if (account) {
         if (!claude || claude.account.id !== account.id) claudeSession = null;
         claude = { account, model: m[2]! };
@@ -709,7 +768,15 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
         return;
       }
     }
-    if (cx || m) return "that account isn't in the desktop app any more";
+    if (cx || m) return tr("that account isn't in the desktop app any more");
+    // A model the provider doesn't list (a typo, usually) would only fail on the next turn.
+    if (
+      catalog.length > 0 &&
+      !id.startsWith('@') &&
+      id !== 'openrouter/auto' &&
+      !catalog.some((c) => c.id === id)
+    )
+      return tr("there's no model called {id} here; /models lists them", { id });
     claude = null;
     codex = null;
     provider = { ...provider, model: id };
@@ -815,7 +882,9 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     try {
       deps.store.save(conv!);
     } catch (e) {
-      deps.err(`Couldn't save the chat: ${e instanceof Error ? e.message : String(e)}`);
+      deps.err(
+        `Couldn't save this chat, so it won't be there next time: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   };
 
@@ -944,10 +1013,13 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
           ];
         };
         if (claudeBin)
-          for (const a of claudeAccounts(dataDir))
+          for (const a of engineAccounts(dataDir))
             groups.push({
               label: `Claude Code · ${a.name}`,
-              hint: 'your Claude account',
+              hint:
+                a.id === null
+                  ? tr('your Claude sign-in on this computer (your plan)')
+                  : tr('your Claude account'),
               items: engineItems(claudeModelsOf(a.id), 'claude', a.id, [
                 'default',
                 'sonnet',
@@ -956,10 +1028,13 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
               ]),
             });
         if (codexBin)
-          for (const a of claudeAccounts(dataDir, 'codex'))
+          for (const a of engineAccounts(dataDir, 'codex'))
             groups.push({
               label: `Codex · ${a.name}`,
-              hint: 'your ChatGPT account',
+              hint:
+                a.id === null
+                  ? tr('your ChatGPT sign-in on this computer (your plan)')
+                  : tr('your ChatGPT account'),
               items: engineItems(codexModelsOf(a.id), 'codex', a.id, ['default']),
             });
         for (const p of desktopProviders(dataDir))
@@ -971,8 +1046,15 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
           });
         if (client)
           groups.push({
-            label: 'Kovan account',
-            hint: catalog.length ? `${catalog.length} model` : modelError,
+            // Who you pay: Kovan, your OpenRouter key, or the gateway you pointed it at.
+            label: provider.managed
+              ? tr('Kovan account (billed through Kovan)')
+              : provider.label === 'openrouter.ai'
+                ? tr('OpenRouter (your key)')
+                : provider.label,
+            hint: catalog.length
+              ? `${catalog.length} ${catalog.length === 1 ? 'model' : 'models'}`
+              : modelError,
             items: catalog.map((c) => ({ label: c.id, value: c.id })),
             empty: modelError,
           });

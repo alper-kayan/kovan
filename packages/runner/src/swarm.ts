@@ -1150,7 +1150,18 @@ export class SwarmRunner {
     }).catch(() => undefined);
     for (const a of state.swarm.agents)
       await this.report(state, a.agentId, { status: 'done', task: null });
-    await this.call(state, 'POST', `/api/swarms/${state.swarm.id}/status`, { status: 'done' });
+    const count = (s: TaskState) => state.tasks.filter((t) => t.state === s).length;
+    await this.call(state, 'POST', `/api/swarms/${state.swarm.id}/status`, {
+      status: 'done',
+      // How the tasks ended, so "done" can't read as success when they failed.
+      outcome: {
+        tasks: state.tasks.length,
+        done: count('done'),
+        failed: count('failed'),
+        blocked: count('blocked'),
+        stopped: count('cancelled'),
+      },
+    });
   }
 
   /**

@@ -1,10 +1,13 @@
 import type { ApprovalRequest, PermissionMode } from '@kovan/harness';
+import { t } from '../i18n.js';
 import { LineEditor } from './editor.js';
 import { KeyParser, type Key } from './keys.js';
+import { alwaysLabel } from '../approvals.js';
 import {
   APPROVAL_CHOICES,
   buildFrame,
   filterItems,
+  MODE_NAME,
   type Dialog,
   type ListItem,
   type View,
@@ -76,7 +79,8 @@ export interface Ui {
   note(text: string): void;
 }
 
-const MODE_CYCLE: PermissionMode[] = ['allow', 'plan', 'request', 'full'];
+/** Tab never lands on full: asking nothing is chosen on purpose, with /mode full. */
+const MODE_CYCLE: PermissionMode[] = ['allow', 'plan', 'request'];
 
 const BUILTINS: ListItem[] = [
   { label: '/help', hint: 'keys and commands', value: '/help' },
@@ -92,17 +96,22 @@ const BUILTINS: ListItem[] = [
   { label: '/exit', hint: 'quit', value: '/exit' },
 ];
 
-const HELP = [
-  'enter send · \\+enter or alt+enter new line · ↑↓ history / line',
-  'tab change mode (allow → plan → request → full) · esc stop the running turn',
-  'pageup / pagedown scroll the chat · end jump to the bottom · ctrl+l redraw',
-  '/resume goes back to an earlier chat (type to filter) · /rename <name> names this one · kovan -r <name> opens it from the shell',
-  'ctrl+p command palette · typing / suggests commands, skills and custom commands',
-  'ctrl+a / ctrl+e start / end of line · ctrl+w delete word · ctrl+u / ctrl+k delete line',
-  'ctrl+c stops the running turn; pressed twice when idle it quits · ctrl+d quits when the input is empty',
+// Short lines: the help box is as wide as the terminal, and a long line is cut off.
+const HELP_EN = [
+  'enter send · \\+enter or alt+enter new line · ↑↓ history',
+  'tab: edit freely → plan only → ask first (full access: /mode full)',
+  'esc stops the running turn',
+  'pageup / pagedown scroll · end jump to the bottom · ctrl+l redraw',
+  '/resume an earlier chat · /rename <name> names this one',
+  'kovan -r <name> opens a chat from the shell',
+  'ctrl+p command palette · / suggests commands and skills',
+  'ctrl+a / ctrl+e line start / end · ctrl+w delete a word',
+  'ctrl+u / ctrl+k delete to start / end of line',
+  'ctrl+c stops a turn; twice when idle quits · ctrl+d quits',
   '',
-  'permission prompt: y yes · n no · a always this session (or ←→ and enter)',
+  'when it asks: y yes · n no · a always for this command',
 ];
+const HELP = HELP_EN.map((line) => (line ? t(line) : line));
 
 export class TuiApp {
   private editor: LineEditor;
@@ -317,10 +326,17 @@ export class TuiApp {
   private suggDismissed = '';
 
   private cycleMode(dir = 1): void {
-    const i = MODE_CYCLE.indexOf(this.host.mode());
-    const next = MODE_CYCLE[(i + dir + MODE_CYCLE.length) % MODE_CYCLE.length]!;
+    const now = this.host.mode();
+    // From full, Tab steps back to asking; it never goes into full.
+    const i = now === 'full' ? -1 : MODE_CYCLE.indexOf(now);
+    const next =
+      i === -1 ? MODE_CYCLE[0]! : MODE_CYCLE[(i + dir + MODE_CYCLE.length) % MODE_CYCLE.length]!;
     this.host.setMode(next);
-    this.flash(`mode: ${next}`);
+    this.flash(
+      next === 'request'
+        ? t('mode: ask first · /mode full never asks')
+        : t('mode: {mode}', { mode: t(MODE_NAME[next] ?? next) }),
+    );
   }
 
   /** Slash suggestions: only while typing the command name itself, on a single line. */
@@ -437,6 +453,7 @@ export class TuiApp {
         detail: r.detail,
         choice: 0,
         notch: this.host.notchEnabled,
+        always: alwaysLabel(r),
       };
       this.resolveApproval = resolve;
       // Withdrawn (the notch answered first): the question goes away and nobody waits for it.
@@ -500,19 +517,19 @@ export class TuiApp {
         const m = (['plan', 'request', 'allow', 'full'] as const).find((x) => x === arg);
         if (m) {
           this.host.setMode(m);
-          this.flash(`mode: ${m}`);
+          this.flash(t('mode: {mode}', { mode: t(MODE_NAME[m] ?? m) }));
         } else
           this.openList(
             'mode',
             ['plan', 'request', 'allow', 'full'].map((m2) => ({
-              label: m2,
+              label: t(MODE_NAME[m2] ?? m2),
               hint: MODE_HINT[m2] ?? '',
               value: m2,
             })),
             '',
             (v) => {
               this.host.setMode(v as PermissionMode);
-              this.flash(`mode: ${v}`);
+              this.flash(t('mode: {mode}', { mode: t(MODE_NAME[v] ?? v) }));
             },
           );
         return true;

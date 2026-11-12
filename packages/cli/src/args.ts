@@ -2,7 +2,16 @@ import type { PermissionMode } from '@kovan/harness';
 import type { Effort } from '@kovan/model-gateway';
 
 export type Command =
-  'chat' | 'sessions' | 'config' | 'login' | 'logout' | 'whoami' | 'update' | 'help' | 'version';
+  | 'chat'
+  | 'sessions'
+  | 'config'
+  | 'setup'
+  | 'login'
+  | 'logout'
+  | 'whoami'
+  | 'update'
+  | 'help'
+  | 'version';
 
 export interface Args {
   command: Command;
@@ -42,6 +51,7 @@ export const EFFORTS: readonly Effort[] = [
 const COMMANDS = new Set([
   'sessions',
   'config',
+  'setup',
   'login',
   'logout',
   'whoami',

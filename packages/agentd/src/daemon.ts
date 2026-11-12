@@ -190,7 +190,7 @@ export class Daemon {
       this.mine.delete(message.swarm.id);
       const { root, branch } = ours;
       if (message.swarm.status === 'done' && root && branch)
-        void this.finish(root, branch, `${ours.title}: ${message.swarm.goal}`).then(() =>
+        void this.finish(root, branch, `${ours.title}\n\n${message.swarm.goal}`).then(() =>
           this.setup.endWhenDone
             ? this.endSession(ours.sessionId, root)
             : this.shareChanges(ours.sessionId, root),
@@ -294,8 +294,12 @@ export class Daemon {
         `user.email=agentd@${this.setup.name}.kovan`,
         'commit',
         '-q',
+        // A short subject (the task's title), the goal below it: git logs stay readable.
         '-m',
-        message.slice(0, 2000),
+        message.split('\n')[0]!.slice(0, 72).trimEnd(),
+        ...(message.includes('\n')
+          ? ['-m', message.split('\n').slice(1).join('\n').trim().slice(0, 2000)]
+          : []),
       ]);
     }
     const sha = (await git(root, ['rev-parse', 'HEAD']).catch(() => '')).trim() || null;

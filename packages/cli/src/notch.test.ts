@@ -527,18 +527,17 @@ describe('kovan in the notch', () => {
   });
 
   it.runIf(onUnix)(
-    '"always" from the notch allows that tool for the rest of the session',
+    '"always" from the notch allows that command for the rest of the session',
     async () => {
       const c = await fakeCoucou(() => 'always');
       try {
         const m = scripted([
-          [call('c1', 'run_shell', { command: 'echo bir > o1.txt' }), done],
-          [call('c2', 'run_shell', { command: writeCmd('iki', 'o2.txt') }), done],
+          [call('c1', 'run_shell', { command: writeCmd('bir', 'o1.txt') }), done],
+          [call('c2', 'run_shell', { command: writeCmd('bir', 'o1.txt') }), done],
           [{ type: 'text', text: 'tamam' }, done],
         ]);
         await run(['iki komut'], m, terminal({ tty: false }));
         expect(existsSync(join(base, 'o1.txt'))).toBe(true);
-        expect(existsSync(join(base, 'o2.txt'))).toBe(true);
         expect(c.received.filter((r) => r.hook_event_name === 'PermissionRequest')).toHaveLength(1);
       } finally {
         c.close();

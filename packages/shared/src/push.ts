@@ -11,6 +11,8 @@ export const PushKindSchema = z.enum([
   'swarm',
   'limit',
   'message',
+  'mention',
+  'team',
 ]);
 export type PushKind = z.infer<typeof PushKindSchema>;
 
@@ -23,7 +25,16 @@ export const PUSH_KINDS: { kind: PushKind; label: string; detail: string }[] = [
   { kind: 'swarm', label: 'Swarms', detail: 'A swarm you launched finished, stopped or paused.' },
   { kind: 'limit', label: 'Usage limits', detail: 'An agent in your session ran out and waits.' },
   { kind: 'message', label: 'Agent messages', detail: 'An agent of a swarm wrote to you.' },
+  { kind: 'mention', label: 'Mentions', detail: 'Someone called you by name in a comment.' },
+  {
+    kind: 'team',
+    label: "Your team's questions",
+    detail: "A teammate's agent or a swarm task waits for a yes that you can give too.",
+  },
 ];
+
+/** Kinds a phone starts with turned off: the person turns them on. */
+export const PUSH_OFF_BY_DEFAULT: PushKind[] = ['team'];
 
 export const RegisterDeviceSchema = z.object({
   platform: z.enum(['ios', 'android']),
@@ -34,7 +45,7 @@ export const RegisterDeviceSchema = z.object({
   appVersion: z.string().max(50).nullable().default(null),
 });
 
-export const UpdateDeviceSchema = z.object({ muted: z.array(PushKindSchema).max(10) });
+export const UpdateDeviceSchema = z.object({ muted: z.array(PushKindSchema).max(20) });
 
 export interface PushDevice {
   platform: 'ios' | 'android';

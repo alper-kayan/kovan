@@ -191,7 +191,9 @@ export class ClaudeStreamParser {
         line['is_error'] === true ? 'error' : 'done',
         cost,
         line['is_error'] === true
-          ? String(line['result'] ?? line['subtype'] ?? 'Claude Code stopped with an error')
+          ? plainClaudeError(
+              String(line['result'] ?? line['subtype'] ?? 'Claude Code stopped with an error'),
+            )
           : undefined,
       );
     }
@@ -249,4 +251,18 @@ export class ClaudeStreamParser {
     }
     this.emit({ type: 'turn_end', turnId: this.turnId, reason, cost, ...(error ? { error } : {}) });
   }
+}
+
+/**
+ * Claude Code's own error line in words: its usage limit says when it opens again. The original
+ * stays in brackets (its "|<time>" is how the limit's reset is read).
+ */
+export function plainClaudeError(raw: string): string {
+  const limit = /usage limit reached\|(\d{10})/i.exec(raw);
+  if (!limit) return raw;
+  const at = new Date(Number(limit[1]) * 1000);
+  const when = at.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const day =
+    at.toDateString() === new Date().toDateString() ? '' : ` on ${at.toLocaleDateString()}`;
+  return `Claude Code hit its usage limit: it opens again at ${when}${day}. (Claude said: ${raw})`;
 }

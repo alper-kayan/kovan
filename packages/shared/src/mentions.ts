@@ -44,3 +44,26 @@ export function mentionedTeammate<T extends Mentionable>(text: string, teammates
   }
   return null;
 }
+
+/** Everyone a message calls by name ("@Ana and @Bora, look"), each once. */
+export function mentionedPeople<T extends Mentionable>(text: string, people: T[]): T[] {
+  const lower = text.toLocaleLowerCase();
+  // Longest names first, and a found name's place is blanked out: "@Ana Su" isn't also "@Ana".
+  let rest = lower;
+  const found: T[] = [];
+  for (const p of [...people].sort((a, b) => b.name.length - a.name.length)) {
+    const at = `@${p.name.toLocaleLowerCase()}`;
+    let i = rest.indexOf(at);
+    while (i !== -1) {
+      const before = i === 0 ? ' ' : rest[i - 1]!;
+      const after = rest[i + at.length] ?? ' ';
+      if (/[\s([{]/.test(before) && !WORD.test(after)) {
+        found.push(p);
+        rest = rest.slice(0, i) + ' '.repeat(at.length) + rest.slice(i + at.length);
+        break;
+      }
+      i = rest.indexOf(at, i + 1);
+    }
+  }
+  return found;
+}

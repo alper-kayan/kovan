@@ -47,7 +47,16 @@ export async function pushProblem(root: string, branch: string): Promise<string 
         .split('\n')
         .map((l) => l.replace(/^(fatal|error|remote):\s*/i, '').trim())
         .find((l) => l && !/^To /.test(l)) ?? 'the push was refused';
-    return `You can't push to ${remote}: ${line}`;
+    const why = /could not resolve host|unable to access|timed out|network is unreachable/i.test(
+      text,
+    )
+      ? "can't reach the server that holds the repository: check your connection"
+      : /not found|does not appear to be a git repository|no such/i.test(text)
+        ? "the repository isn't at that address, or your Git account can't see it"
+        : /denied|forbidden|403|401|authentication|could not read username|permission/i.test(text)
+          ? "your Git account isn't allowed to push to it"
+          : 'the push was refused';
+    return `Kovan can't upload your work from this computer: ${why}. Ask the repository's owner for write access, or watch the session instead. (Git said: ${line})`;
   }
 }
 

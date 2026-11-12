@@ -1,9 +1,9 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '@kovan/harness';
-import { ClaudeLines, claudeAccounts, claudeEnv, mapTool } from './claude.js';
+import { ClaudeLines, claudeAccounts, claudeEnv, engineAccounts, mapTool } from './claude.js';
 
 describe('claude accounts', () => {
   it('lists the desktop app’s Claude Code accounts, plus the default sign-in, with no setup', () => {
@@ -325,5 +325,26 @@ describe('the CLIs’ own model lists', () => {
     expect(codexCatalog(dir)).toMatchObject([
       { id: 'a', name: 'A', levels: ['low', 'high'], defaultLevel: 'medium' },
     ]);
+  });
+});
+
+describe('accounts the terminal offers', () => {
+  it("adds this computer's own sign-in, once, and reads the app's home account as it", () => {
+    const dir = mkdtempSync(join(tmpdir(), 'kovan-eng-'));
+    writeFileSync(
+      join(dir, 'agent-accounts.json'),
+      JSON.stringify([
+        { id: 'w1', harness: 'claude-code', name: 'Work' },
+        { id: 'h1', harness: 'codex', name: 'This computer', home: true },
+      ]),
+    );
+    expect(engineAccounts(dir)).toEqual([
+      { id: 'w1', name: 'Work' },
+      { id: null, name: 'this computer' },
+    ]);
+    // The app's "this computer" account runs with no folder of its own.
+    expect(engineAccounts(dir, 'codex')).toEqual([{ id: null, name: 'This computer' }]);
+    expect(claudeEnv(dir, null)).toEqual({});
+    rmSync(dir, { recursive: true, force: true });
   });
 });

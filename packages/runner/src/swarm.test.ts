@@ -41,6 +41,7 @@ function fakeBrain(
     launchedByName: null,
     fence: 0,
     pausedReason: null,
+    outcome: null,
     agents: [
       { agentId: WREN, name: 'Wren', role: 'lead', status: 'idle', task: null, spent: 0 },
       { agentId: MOSS, name: 'Moss', role: 'worker', status: 'idle', task: null, spent: 0 },
@@ -294,6 +295,7 @@ function fakeBrain(
       } as T;
     if (path.endsWith('/status')) {
       swarm.status = b['status'] as Swarm['status'];
+      if (b['outcome']) swarm.outcome = b['outcome'] as Swarm['outcome'];
       return { swarm } as T;
     }
     throw new Error(`unexpected ${method} ${path}`);
@@ -723,6 +725,7 @@ describe('SwarmRunner', () => {
     // The closing report comes from the checks.
     const report = brain.messages.at(-1)!.text;
     expect(report).toContain('Swarm report: 3 of 3 tasks verified');
+    expect(brain.swarm.outcome).toEqual({ tasks: 3, done: 3, failed: 0, blocked: 0, stopped: 0 });
     expect(report).toContain('- Write total() (Moss): verified · $0.0010');
     expect(report).toContain('checks: ✓ Applies to the parent, ✓ pnpm run test (0.0s)');
     expect(brain.swarm.spent).toBeCloseTo(0.003);
@@ -1723,6 +1726,7 @@ describe('Swarm chat', () => {
           detail: 'pnpm test',
           status,
           answeredBy: ME.id,
+          answeredByName: null,
           createdAt: '',
         },
       });

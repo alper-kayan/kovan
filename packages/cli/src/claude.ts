@@ -17,7 +17,10 @@ export interface ClaudeAccount {
 
 export const CLAUDE_MODELS = ['default', 'sonnet', 'opus', 'haiku'] as const;
 
-/** The accounts added in the desktop app. Like the app, the CLI's own sign-in (~/.claude, ~/.codex) is never used. */
+/**
+ * The accounts added in the desktop app. One the app marked as this computer's own sign-in
+ * (`home`) comes back with a null id: it runs with the CLI's usual sign-in and settings.
+ */
 export function claudeAccounts(dataDir: string, harness = 'claude-code'): ClaudeAccount[] {
   const out: ClaudeAccount[] = [];
   try {
@@ -25,6 +28,7 @@ export function claudeAccounts(dataDir: string, harness = 'claude-code'): Claude
       id?: unknown;
       harness?: unknown;
       name?: unknown;
+      home?: unknown;
     }[];
     for (const a of list)
       if (
@@ -33,11 +37,20 @@ export function claudeAccounts(dataDir: string, harness = 'claude-code'): Claude
         /^[a-z0-9-]{1,64}$/i.test(a.id) &&
         typeof a.name === 'string'
       )
-        out.push({ id: a.id, name: a.name });
+        out.push({ id: a.home === true ? null : a.id, name: a.name });
   } catch {
     // no accounts registered
   }
   return out;
+}
+
+/**
+ * The accounts the terminal offers: the desktop app's, and this computer's own sign-in even
+ * without the app (in a terminal it's the one you already use).
+ */
+export function engineAccounts(dataDir: string, harness = 'claude-code'): ClaudeAccount[] {
+  const list = claudeAccounts(dataDir, harness);
+  return list.some((a) => a.id === null) ? list : [...list, { id: null, name: 'this computer' }];
 }
 
 export function claudeEnv(dataDir: string, id: string | null): Record<string, string> {

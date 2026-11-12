@@ -1,4 +1,5 @@
 import type { LineEditor } from './editor.js';
+import { t } from '../i18n.js';
 import { hardWrap } from './editor.js';
 import { MODE_STYLE, S, paint } from './style.js';
 import { SPINNER } from './transcript.js';
@@ -21,7 +22,15 @@ export interface ListItem {
 }
 
 export type Dialog =
-  | { kind: 'approval'; title: string; detail: string; choice: number; notch: boolean }
+  | {
+      kind: 'approval';
+      title: string;
+      detail: string;
+      choice: number;
+      notch: boolean;
+      /** What "always" covers, in words ("always \"npm test …\" this session"). */
+      always?: string;
+    }
   | { kind: 'list'; title: string; items: ListItem[]; filter: string; index: number; empty: string }
   | { kind: 'help'; lines: string[] }
   | { kind: 'slider'; title: string; levels: string[]; index: number; defaultIndex: number };
@@ -65,13 +74,21 @@ const LOGO = ['█▄▀ █▀█ █ █ ▄▀█ █▄ █', '█ █ █�
 export const APPROVAL_CHOICES = [
   { key: 'y', label: 'yes', value: 'allow' },
   { key: 'n', label: 'no', value: 'deny' },
-  { key: 'a', label: 'always this session', value: 'always' },
+  { key: 'a', label: 'always this command this session', value: 'always' },
 ] as const;
 
 export const UPDATE_NOTICE = '✔ Update installed · Restart to update';
 export const KEY_HINTS = 'tab mode · / commands · ctrl+p palette · esc stop · ctrl+c quit';
 
 /** A bordered box with a title on the top edge; every row is exactly `width` columns. */
+/** The permission modes by the names the app gives them. */
+export const MODE_NAME: Record<string, string> = {
+  plan: 'plan only',
+  request: 'ask first',
+  allow: 'edit freely',
+  full: 'full access (never asks)',
+};
+
 export function box(
   title: string,
   lines: string[],
@@ -149,14 +166,19 @@ function inputBox(v: View): { rows: string[]; cursor: { row: number; col: number
   const shown = wrapped.slice(start, start + MAX);
 
   const placeholder = v.running
-    ? 'working… esc to stop'
-    : 'type something · / commands · \\+enter new line';
+    ? t('working… esc to stop')
+    : t('type something · / commands · \\+enter new line');
   const rows = shown.map((w, i) => {
     const glyph = w.first ? paint(v.running ? S.dim : S.accentBold, '› ') : '  ';
     const text = ed.empty && i === 0 ? paint(S.dim, placeholder) : w.text;
     return glyph + text;
   });
-  const modeLabel = `${paint(MODE_STYLE[v.header.mode] ?? S.dim, v.header.mode)}${paint(S.dim, ` · effort: ${v.header.effort}`)}`;
+  // In words, as the app says it: "edit freely" says what it does, "allow" doesn't.
+  const modeLabel = `${paint(MODE_STYLE[v.header.mode] ?? S.dim, t(MODE_NAME[v.header.mode] ?? v.header.mode))}${
+    v.header.effort && v.header.effort !== 'default'
+      ? paint(S.dim, ` · ${t('thinks: {effort}', { effort: v.header.effort })}`)
+      : ''
+  }`;
   const boxed = box(modeLabel, rows, v.width, v.running ? S.gray : S.accent, '');
   return { rows: boxed, cursor: { row: 1 + (cursorRow - start), col: 2 + 2 + cursorCol } };
 }
@@ -168,7 +190,7 @@ function dialogRows(d: Dialog, v: View): string[] {
       .slice(0, 6)
       .map((l) => truncate(l, v.width - 6));
     const choices = APPROVAL_CHOICES.map((c, i) => {
-      const label = `[${c.key}] ${c.label}`;
+      const label = `[${c.key}] ${c.value === 'always' && d.always ? d.always : t(c.label)}`;
       return i === d.choice
         ? paint(S.inverse + S.accent, ` ${label} `)
         : paint(S.dim, ` ${label} `);

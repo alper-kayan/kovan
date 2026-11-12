@@ -25,6 +25,47 @@ export interface GitRunOptions {
 const MAX_BUFFER = 64 * 1024 * 1024;
 
 /**
+ * A failed git command in words: what went wrong and what to do, for the cases people meet
+ * (no connection, no access, no such repository, the remote moved on, changes that overlap).
+ * Git's own first line stays at the end. Anything else reads as before.
+ */
+export function plainGitError(args: readonly string[], detail: string): string {
+  const command = args[0] ?? '';
+  const line =
+    detail
+      .split('\n')
+      .map((l) => l.replace(/^(fatal|error|remote):\s*/i, '').trim())
+      .find((l) => l && !/^(To |hint:)/.test(l)) ?? detail.trim();
+  const said = ` (git said: ${line.slice(0, 240)})`;
+  const remoteWork = ['push', 'fetch', 'pull', 'clone', 'ls-remote'].includes(command);
+  const kept = command === 'push' ? ' Your commits are still saved on this computer.' : '';
+  if (
+    remoteWork &&
+    /could not resolve host|unable to access|timed out|network is unreachable|connection refused/i.test(
+      detail,
+    )
+  )
+    return `Git couldn't reach the server that holds the repository: check your connection.${kept}${said}`;
+  if (
+    remoteWork &&
+    /permission denied|access denied|denied to|403|authentication failed|could not read username|invalid credentials/i.test(
+      detail,
+    )
+  )
+    return `Your Git account isn't allowed to ${command === 'push' ? 'push to' : 'read'} this repository: ask its owner for access.${kept}${said}`;
+  if (
+    remoteWork &&
+    /repository not found|does not appear to be a git repository|not found/i.test(detail)
+  )
+    return `Git found no repository at that address, or your account can't see it.${kept}${said}`;
+  if (command === 'push' && /non-fast-forward|fetch first|\[rejected\]/i.test(detail))
+    return `The remote has changes this copy doesn't have yet: get them first, then push again.${kept}${said}`;
+  if (/CONFLICT|merge conflict|could not apply/i.test(detail))
+    return `The changes overlap with others on the same lines, so Git couldn't combine them by itself.${said}`;
+  return `git ${command} failed: ${detail}`;
+}
+
+/**
  * Runs the system `git` in `cwd` and resolves with stdout.
  * Uses the user's own git config and credentials; never a shell.
  */
@@ -47,9 +88,7 @@ export function git(
         if (error) {
           const code = typeof error.code === 'number' ? error.code : null;
           const detail = stderr.trim() || error.message;
-          reject(
-            new GitError(`git ${args[0] ?? ''} failed: ${detail}`, args, code, stderr, stdout),
-          );
+          reject(new GitError(plainGitError(args, detail), args, code, stderr, stdout));
           return;
         }
         resolve(stdout);
@@ -77,7 +116,7 @@ export function gitBuffer(cwd: string, args: readonly string[]): Promise<Buffer>
         if (error) {
           const code = typeof error.code === 'number' ? error.code : null;
           const detail = stderr.toString('utf8').trim() || error.message;
-          reject(new GitError(`git ${args[0] ?? ''} failed: ${detail}`, args, code, detail));
+          reject(new GitError(plainGitError(args, detail), args, code, detail));
           return;
         }
         resolve(stdout);

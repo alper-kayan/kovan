@@ -335,16 +335,29 @@ describe('asking before it acts', () => {
     await expect(readFile(join(dir, 'out.txt'), 'utf8')).rejects.toThrow();
   });
 
-  it('"t" allows that tool for the rest of the session: it asks once', async () => {
+  it('"a" allows that command for the rest of the session: it asks once', async () => {
     const model = scripted([
-      [call('c1', 'run_shell', { command: 'echo bir > o1.txt' }), done()],
-      [call('c2', 'run_shell', { command: writeCmd('iki', 'o2.txt') }), done()],
+      [call('c1', 'run_shell', { command: writeCmd('bir', 'o1.txt') }), done()],
+      [call('c2', 'run_shell', { command: writeCmd('bir', 'o1.txt') }), done()],
       [text('tamam'), done()],
     ]);
     const term = terminal(['a']);
     const r = run(['iki komut çalıştır'], term, { model });
     await r.done;
     expect(term.prompts.filter((p) => p.includes('allow?'))).toHaveLength(1);
+    expect((await readFile(join(dir, 'o1.txt'), 'utf8')).trim()).toBe('bir');
+  });
+
+  it('"a" for one command still asks before a different one', async () => {
+    const model = scripted([
+      [call('c1', 'run_shell', { command: writeCmd('bir', 'o1.txt') }), done()],
+      [call('c2', 'run_shell', { command: writeCmd('iki', 'o2.txt') }), done()],
+      [text('tamam'), done()],
+    ]);
+    const term = terminal(['a', 'y']);
+    const r = run(['iki komut çalıştır'], term, { model });
+    await r.done;
+    expect(term.prompts.filter((p) => p.includes('allow?'))).toHaveLength(2);
     expect((await readFile(join(dir, 'o2.txt'), 'utf8')).trim()).toBe('iki');
   });
 
@@ -919,9 +932,10 @@ describe('a real server', () => {
     }
   });
 
-  it('a provider that is not configured says so and starts nothing', async () => {
-    const r = run(['selam'], terminal([]), { env: {}, configFile: join(dir, 'none.json') });
+  it('with no model set up and nobody at the terminal, it says so and starts nothing', async () => {
+    const r = run(['selam'], terminal([], false), { env: {}, configFile: join(dir, 'none.json') });
     expect(await r.done).toBe(1);
+    expect(r.errors.join('\n')).toMatch(/kovan setup/);
     expect(r.errors.join('\n')).toMatch(/OPENROUTER_API_KEY/);
   });
 });

@@ -1,3 +1,4 @@
+import { hostLabel, plainModelError, unreachable } from './plainError.js';
 import { mergeReasoningDetails, SseParser, ToolCallAssembler } from './sse.js';
 import type { ChatRequest, Effort, ModelInfo, StreamEvent, Usage } from './types.js';
 
@@ -116,12 +117,22 @@ export class OpenRouterClient {
   }
 
   async listModels(signal?: AbortSignal): Promise<ModelInfo[]> {
-    const response = await this.fetchImpl(`${this.baseUrl}/models`, {
-      headers: this.headers(),
-      ...(signal ? { signal } : {}),
-    });
+    const host = hostLabel(this.baseUrl);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/models`, {
+        headers: this.headers(),
+        ...(signal ? { signal } : {}),
+      });
+    } catch (error) {
+      if (signal?.aborted) throw error;
+      throw new ModelError(unreachable(host), 0);
+    }
     if (!response.ok)
-      throw new ModelError(`Could not list models (HTTP ${response.status})`, response.status);
+      throw new ModelError(
+        plainModelError({ status: response.status, said: await saidIn(response), host }),
+        response.status,
+      );
     // Ollama answers `"data": null` when no model is pulled yet.
     const { data } = (await response.json()) as { data: RawModel[] | null };
     return (data ?? []).map(toModelInfo);
@@ -176,22 +187,41 @@ export class OpenRouterClient {
     signal: AbortSignal,
     awake: () => void,
   ): AsyncGenerator<StreamEvent> {
-    const response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify(body),
-      signal,
-    });
+    const host = hostLabel(this.baseUrl);
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+        signal,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new ModelError(unreachable(host), 0);
+    }
     if (!response.ok || !response.body) {
       const text = await response.text().catch(() => '');
-      let message = `Model request failed (HTTP ${response.status})`;
+      let said: string | null = null;
+      let code: string | null = null;
       try {
-        const parsed = JSON.parse(text) as { error?: { message?: string } };
-        if (parsed.error?.message) message = parsed.error.message;
+        const parsed = JSON.parse(text) as { error?: { message?: string; code?: unknown } };
+        said = parsed.error?.message ?? null;
+        code = typeof parsed.error?.code === 'string' ? parsed.error.code : null;
       } catch {
-        // Not JSON; keep the generic message.
+        // Not JSON (a proxy's HTML page, say): the status says enough.
       }
-      throw new ModelError(message, response.status);
+      // Kovan's own billing answers are written for people already: they go as they are.
+      if (code === 'payment_required' && said) throw new ModelError(said, response.status);
+      throw new ModelError(
+        plainModelError({
+          status: response.status,
+          said,
+          host,
+          model: typeof body['model'] === 'string' ? body['model'] : null,
+        }),
+        response.status,
+      );
     }
 
     const parser = new SseParser();
@@ -216,7 +246,10 @@ export class OpenRouterClient {
         }
         if (event['error']) {
           const err = event['error'] as { message?: string; code?: number };
-          throw new ModelError(err.message ?? 'The model stopped with an error', err.code ?? 500);
+          throw new ModelError(
+            `The model stopped partway, so the answer is incomplete. Try again.${err.message ? ` (${host} said: ${err.message.slice(0, 300)})` : ''}`,
+            err.code ?? 500,
+          );
         }
         model = (event['model'] as string | undefined) ?? model;
         if (event['usage']) usage = toUsage(event['usage'] as Record<string, unknown>);
@@ -248,5 +281,15 @@ export class OpenRouterClient {
       model,
       reasoningDetails: mergeReasoningDetails(reasoningDetails),
     };
+  }
+}
+
+/** The provider's own error line in a failed answer, if it sent one. */
+async function saidIn(response: Response): Promise<string | null> {
+  try {
+    const parsed = JSON.parse(await response.text()) as { error?: { message?: string } };
+    return parsed.error?.message ?? null;
+  } catch {
+    return null;
   }
 }

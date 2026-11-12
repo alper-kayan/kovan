@@ -5,6 +5,7 @@ import { turnSignals } from './digest.js';
 import { parseDirectives } from './directives.js';
 import { findPinned, pickModel, tierFor } from './policy.js';
 import { JevRouter } from './router.js';
+import { rulesUnsure } from './agentChoice.js';
 
 const model = (
   id: string,
@@ -286,5 +287,32 @@ describe('JevRouter', () => {
       tier: 'economy',
       reason: expect.stringContaining('context grew'),
     });
+  });
+});
+
+describe('the same request in Turkish', () => {
+  const tierOf = (text: string) => {
+    const c = classifyByRules([user(text)]);
+    return tierFor(c.task, c.difficulty);
+  };
+  it('routes to the same tier as in English', () => {
+    expect(tierOf('Fix the failing checkout tests, the cart total is wrong')).toBe(
+      tierOf('Ödeme sayfasındaki hatayı düzelt, sepet toplamı yanlış ve testler kırılıyor'),
+    );
+    expect(tierOf('Plan a migration of the whole codebase to TypeScript across all services')).toBe(
+      tierOf('Tüm servislerde kod tabanını TypeScripte taşımak için bir plan yap'),
+    );
+    expect(classifyByRules([user('Ödeme hatasını düzelt')]).task).toBe('debug');
+    expect(classifyByRules([user('Neden bu test çalışmıyor?')]).task).toBe('debug');
+  });
+
+  it('asks the small model when no rule matched a non-English prompt, short or not', () => {
+    const text = 'Sepetteki ürünlerin sırasını tarihe göre değiştirelim mi acaba';
+    const c = classifyByRules([user(text)]);
+    expect(c.task).toBe('small_edit');
+    expect(rulesUnsure(text, c)).toBe(true);
+    expect(
+      rulesUnsure('Make the header blue', classifyByRules([user('Make the header blue')])),
+    ).toBe(false);
   });
 });

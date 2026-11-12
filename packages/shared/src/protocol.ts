@@ -64,6 +64,9 @@ export const PluginRecommendationSchema = z.object({
 });
 export type PluginRecommendation = z.infer<typeof PluginRecommendationSchema>;
 
+export const OthersAgentsSchema = z.enum(['owners', 'editors']);
+export type OthersAgents = z.infer<typeof OthersAgentsSchema>;
+
 export const WorkspaceSchema = z.object({
   id: z.string(),
   orgId: z.string(),
@@ -78,6 +81,11 @@ export const WorkspaceSchema = z.object({
   gitSyncChangedAt: z.string().nullable().default(null),
   /** USD a month the workspace's agent swarms may spend together; null: no limit. */
   agentMonthlyLimit: z.number().nullable(),
+  /**
+   * Who may answer or steer an agent that isn't theirs (approve its commands, give it work):
+   * its owners only, or every editor too. An agent's own person always may.
+   */
+  othersAgents: OthersAgentsSchema.default('owners'),
   mode: WorkspaceModeSchema,
   /** Plugins the owner suggests to members. */
   recommendedPlugins: z.array(PluginRecommendationSchema).default([]),
@@ -93,6 +101,8 @@ export const MemberSchema = z.object({
   role: RoleSchema,
   /** A person, or an AI teammate. */
   kind: z.enum(['human', 'agent']),
+  /** Shown to the workspace's owners only. */
+  email: z.string().nullable().optional(),
 });
 export type Member = z.infer<typeof MemberSchema>;
 
@@ -103,8 +113,21 @@ export const InviteSchema = z.object({
   email: z.string().nullable(),
   role: RoleSchema,
   createdAt: z.string(),
+  /** The invite link, given once to whoever made the invite (to send it themselves). */
+  link: z.string().nullable().optional(),
 });
 export type Invite = z.infer<typeof InviteSchema>;
+
+/** What an invite link shows before anyone signs in. */
+export interface InviteLookup {
+  status: 'pending' | 'accepted' | 'revoked';
+  workspaceName: string;
+  repoUrl: string | null;
+  inviterName: string | null;
+  role: z.infer<typeof RoleSchema>;
+  /** Who it was sent to (an email address or a GitHub username), as the inviter typed it. */
+  sentTo: string;
+}
 
 export const CreateWorkspaceSchema = z.object({
   orgId: z.string(),
@@ -282,6 +305,7 @@ export const UpdateWorkspaceSchema = z
       .nullable(),
     autoGitSync: z.boolean(),
     agentMonthlyLimit: z.number().min(0.01).max(100_000).nullable(),
+    othersAgents: OthersAgentsSchema,
     mode: WorkspaceModeSchema,
     recommendedPlugins: z.array(PluginRecommendationSchema).max(30),
   })

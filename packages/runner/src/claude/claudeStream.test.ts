@@ -155,3 +155,13 @@ describe('describeClaudeTool', () => {
     });
   });
 });
+
+describe('Claude Code errors in words', () => {
+  it('says when a usage limit opens again, and keeps the line its reset is read from', async () => {
+    const { plainClaudeError } = await import('./claudeStream.js');
+    const said = plainClaudeError('Claude AI usage limit reached|1794467829');
+    expect(said).toMatch(/^Claude Code hit its usage limit: it opens again at /);
+    expect(said).toContain('|1794467829');
+    expect(plainClaudeError('Something else broke')).toBe('Something else broke');
+  });
+});

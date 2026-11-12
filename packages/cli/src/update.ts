@@ -185,7 +185,7 @@ export async function checkAndUpdate(d: UpdateDeps): Promise<UpdateResult> {
   if (createHash('sha256').update(bytes).digest('hex') !== manifest.sha256)
     return {
       status: 'failed',
-      why: "the downloaded file doesn't match the manifest's hash, so it was not used",
+      why: 'the download was damaged on the way (its hash is wrong), so it was not installed',
     };
 
   const fresh = `${d.target}.new`;

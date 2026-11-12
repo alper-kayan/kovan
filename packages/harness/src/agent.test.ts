@@ -110,6 +110,22 @@ describe('Agent', () => {
     expect((toolMsg as { content: string }).content).toContain('old');
   });
 
+  it('shows what an overwrite takes away, not only what it writes', async () => {
+    const asked: ApprovalRequest[] = [];
+    const model = scripted([
+      [call('c1', 'write_file', { path: 'a.txt', content: 'brand new\n' }), done()],
+      [{ type: 'text', text: 'Left it.' }, done()],
+    ]);
+    const { agent } = makeAgent(model, 'request', async (r) => {
+      asked.push(r);
+      return false;
+    });
+    await agent.send('Rewrite it');
+    expect(asked[0]!.detail).toMatch(/^Replaces all of a\.txt: 1 line removed, 1 added/);
+    expect(asked[0]!.detail).toContain('- old');
+    expect(asked[0]!.detail).toContain('+ brand new');
+  });
+
   it('asks before edits in request mode and skips denied actions', async () => {
     const asked: ApprovalRequest[] = [];
     const model = scripted([
@@ -273,6 +289,17 @@ describe('Agent', () => {
     expect(JSON.stringify(next)).not.toContain(huge);
     expect(events.find((e) => e.type === 'compacted')).toBeTruthy();
     expect(events.at(-1)).toMatchObject({ type: 'turn_end', reason: 'done' });
+  });
+
+  it('says so when the model answers with nothing at all, instead of ending in silence', async () => {
+    const model = scripted([[done(0.0001)]]);
+    const { agent, events } = makeAgent(model, 'request');
+    await agent.send('Hello?');
+    expect(events.at(-1)).toMatchObject({
+      type: 'turn_end',
+      reason: 'error',
+      error: expect.stringMatching(/sent back an empty answer/),
+    });
   });
 
   it('summarizes and retries once when the model says the request is too long', async () => {

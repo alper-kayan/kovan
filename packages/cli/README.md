@@ -8,14 +8,14 @@ kovan                       a conversation with the agent, in this folder
 kovan "fix the failing test"  one message: it does the work and exits
 kovan -c                    pick up the last session in this folder
 kovan -r <name|id>          pick up a session by its name or id, in the folder it was held in
-kovan sessions [--json]     sessions kept on this machine (~/.kovan/sessions, readable only by you)
+kovan sessions [--json]     chats kept on this machine, in the desktop app's data folder (readable only by you)
 kovan sessions export <id>  what a surrounding tool may remember of one: first ask, how it ended, files changed
 kovan config                which server and model it talks to (never the key)
 ```
 
 `--mode plan|request|allow|full` (default `allow`: edits freely, asks before commands), `-m <model>`, `--effort`, `--context-file <file>`
 (extra instructions appended to the system prompt), `--reasoning`, `--cwd`. In the conversation: `/mode /model /models /resume /rename /clear /cost /context /help /exit` (`/rename <name>` names it; `/resume` lists every session, this folder's first).
-Ctrl+C stops a running turn; at the prompt it leaves.
+Ctrl+C stops a running turn; at the prompt, pressed twice, it leaves.
 
 ## Install
 
@@ -47,7 +47,7 @@ Not yet: hooks, MCP servers from `.mcp.json`, Claude plugins (a folder with `.cl
 - a **kovan** pill with the session live: `SessionStart`, `UserPromptSubmit`, `PreToolUse` / `PostToolUse` per tool call ("Edit Invoice.swift", "Bash npm test", in Claude Code's tool names),
   `Stop` with the last words, `SessionEnd`; the terminal's identity is sent too so the notch can jump back to it.
 - **approvals from the notch** (and Coucou's lock-screen and phone cards): when the agent asks permission, the terminal and the notch ask at once; the first real answer wins and the other question
-  is withdrawn. `allow`, `always` (that tool, for the session) and `deny` come from the notch; `ask` or silence leaves it to the terminal. With nobody at the terminal, the notch alone can answer.
+  is withdrawn. `allow`, `always` (that command, or for an edit that tool, for the session) and `deny` come from the notch; `ask` or silence leaves it to the terminal. With nobody at the terminal, the notch alone can answer.
 - Nothing changes when Coucou is not running (a missing, refused or silent socket is "no notch", never a wait). `KOVAN_NO_NOTCH=1` turns it off, `KOVAN_NOTCH_SOCKET=<path>` points at another socket.
   Looks for the GitHub build's `~/Library/Application Support/NotchBuddy/nb.sock`, then the App Store build's.
 
@@ -73,7 +73,7 @@ export KOVAN_BASE_URL=http://localhost:20128/v1 KOVAN_MODEL=auto/best-coding-fas
 The same fields can live in `~/.config/kovan/agent.json` (`baseUrl`, `apiKey`, `model`, `dialect`); the environment wins.
 
 Your own key or gateway always comes first. Signed in with `kovan login` and with nothing of your own set up, `kovan` uses your Kovan
-account's managed usage instead (billed to the account, provider cost + 5%), if the server offers it. `KOVAN_PROVIDER=managed` asks
+account's Kovan billing instead (billed to the account, provider cost + 5%), if the server offers it. `KOVAN_PROVIDER=managed` asks
 for the account even when you have a key; `KOVAN_PROVIDER=own` never falls back to it.
 
 ## Asking before it acts

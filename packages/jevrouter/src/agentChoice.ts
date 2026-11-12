@@ -118,6 +118,9 @@ export function chooseAgent(input: {
 
 /** Whether the free rules are too unsure to route on, so the small model is worth a call. */
 export function rulesUnsure(text: string, classification: Classification): boolean {
-  // Nothing matched (the fallback type) on a prompt long enough to hide a bigger task.
-  return classification.task === 'small_edit' && text.trim().length > 240;
+  if (classification.task !== 'small_edit') return false;
+  const t = text.trim();
+  // Nothing matched (the fallback type) on a prompt long enough to hide a bigger task; or on
+  // one in a language the rules hardly know (letters outside English's), whatever its length.
+  return t.length > 240 || (t.length > 30 && /[\u0080-\uFFFF]/.test(t) && /\p{L}{3}/u.test(t));
 }

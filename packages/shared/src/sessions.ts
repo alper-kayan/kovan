@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+/** How a done swarm's tasks ended (counts), as the run that finished it reported. */
+export const SwarmOutcomeSchema = z.object({
+  tasks: z.number().int().min(0).max(10_000),
+  done: z.number().int().min(0).max(10_000),
+  failed: z.number().int().min(0).max(10_000),
+  blocked: z.number().int().min(0).max(10_000).default(0),
+  stopped: z.number().int().min(0).max(10_000).default(0),
+});
+export type SwarmOutcome = z.infer<typeof SwarmOutcomeSchema>;
+
 /** At most this many people work in a session with their own agent (watchers don't count). */
 export const MAX_SESSION_AGENTS = 20;
 
@@ -74,6 +84,8 @@ export const SessionSchema = z.object({
   /** The session's swarm, when it has one. */
   swarm: z
     .object({
+      /** How its tasks ended, once it is done. */
+      outcome: SwarmOutcomeSchema.nullable().default(null),
       id: z.string(),
       status: z.string(),
       spent: z.number(),
@@ -161,6 +173,8 @@ export const SessionApprovalSchema = z.object({
   detail: z.string(),
   status: z.enum(['pending', 'approved', 'denied', 'expired']),
   answeredBy: z.string().nullable(),
+  /** Who answered, by name, on the answer itself (so the lane can say it). */
+  answeredByName: z.string().nullable().default(null),
   createdAt: z.string(),
 });
 export type SessionApproval = z.infer<typeof SessionApprovalSchema>;

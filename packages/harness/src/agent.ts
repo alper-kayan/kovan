@@ -10,6 +10,7 @@ import type {
 } from '@kovan/model-gateway';
 import { git } from '@kovan/git-engine';
 import { createHash, randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import {
   compactPoint,
   estimateTokens,
@@ -20,6 +21,7 @@ import {
   transcriptOf,
 } from './compact.js';
 import { FolderRules } from './folderRules.js';
+import { resolveInside } from './paths.js';
 import { editProgress } from './partial.js';
 import { isRiskyCommand } from './recovery.js';
 import {
@@ -440,6 +442,13 @@ export class Agent {
           );
           return finish('error', RUNAWAY_MESSAGES[runaway]);
         }
+        // Nothing at all came back (no text, no tool call) on the turn's first step: say so,
+        // instead of a turn that ends in silence with only its cost.
+        if (step === 0 && calls.length === 0 && !text.trim())
+          return finish(
+            'error',
+            'The model sent back an empty answer, so nothing happened. Try again, or pick another model.',
+          );
         this.messages.push({
           role: 'assistant',
           content: text || null,
@@ -703,7 +712,7 @@ export class Agent {
             ? String(args['command'] ?? '')
             : tool.kind === 'external'
               ? `${tool.origin ?? tool.spec.name}\n${JSON.stringify(shown, null, 2)}`
-              : approvalDetail(tool.spec.name, args),
+              : approvalDetail(tool.spec.name, args, await existingText(this.options.root, args)),
         ...(typeof args['path'] === 'string' && tool.kind !== 'external'
           ? { path: args['path'] }
           : {}),
@@ -719,7 +728,7 @@ export class Agent {
       if (!approved) {
         const output = signal.aborted
           ? 'Stopped by the user.'
-          : 'The user denied this action. Ask how they would like to proceed, or try another approach.';
+          : 'The user denied this action. Ask how they would like to proceed, or try another approach. If you finish without it, say in your summary that it was denied and what is left undone.';
         onEvent({ type: 'tool_end', id: call.id, ok: false, output });
         return output;
       }
@@ -751,12 +760,34 @@ export class Agent {
   }
 }
 
-function approvalDetail(tool: string, args: Record<string, unknown>): string {
+function approvalDetail(
+  tool: string,
+  args: Record<string, unknown>,
+  before: string | null,
+): string {
   if (tool === 'edit_file') {
     return `--- ${String(args['path'])}\n- ${String(args['old_string']).split('\n').join('\n- ')}\n+ ${String(args['new_string']).split('\n').join('\n+ ')}`;
   }
   const content = String(args['content'] ?? '');
-  return `${String(args['path'])} (${content.split('\n').length} lines)\n${content.slice(0, 2000)}`;
+  if (before === null)
+    return `New file ${String(args['path'])} (${content.split('\n').length} lines)\n${content.slice(0, 2000)}`;
+  // Writing over a file that exists: what goes, not just what comes, so a deletion shows.
+  const gone = new Map<string, number>();
+  for (const line of before.split('\n')) gone.set(line, (gone.get(line) ?? 0) + 1);
+  const added: string[] = [];
+  for (const line of content.split('\n')) {
+    const n = gone.get(line) ?? 0;
+    if (n > 0) gone.set(line, n - 1);
+    else added.push(line);
+  }
+  const removed = before.split('\n').filter((line) => {
+    const n = gone.get(line) ?? 0;
+    if (n <= 0) return false;
+    gone.set(line, n - 1);
+    return true;
+  });
+  const body = [...removed.map((l) => `- ${l}`), ...added.map((l) => `+ ${l}`)].join('\n');
+  return `Replaces all of ${String(args['path'])}: ${removed.length} line${removed.length === 1 ? '' : 's'} removed, ${added.length} added\n${body.slice(0, 2000)}`;
 }
 
 const MODE_NOTES: Record<PermissionMode, string> = {
@@ -767,3 +798,13 @@ const MODE_NOTES: Record<PermissionMode, string> = {
     'Current mode: ALLOW. Edit files directly. Call command tools directly too: Kovan asks the user to approve each command. Do not ask for permission in text first.',
   full: 'Current mode: FULL. Edit files and run commands directly without asking. Still avoid destructive commands.',
 };
+
+/** A file an approval would write over, as it is now; null when it is new (or unreadable). */
+async function existingText(root: string, args: Record<string, unknown>): Promise<string | null> {
+  if (typeof args['path'] !== 'string' || typeof args['content'] !== 'string') return null;
+  try {
+    return await readFile(await resolveInside(root, args['path']), 'utf8');
+  } catch {
+    return null;
+  }
+}

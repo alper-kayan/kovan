@@ -63,6 +63,7 @@ export async function buildSystemPrompt(ws: WorkspaceContext): Promise<string> {
     '- Use edit_file for changes to existing files; old_string must be copied exactly from read_file output (without line numbers).',
     '- After changing code, run the relevant tests or checks when there are any, and report the result honestly.',
     '- Never print or exfiltrate secrets. Avoid destructive commands (rm -rf, force pushes, resets) unless the user asked.',
+    '- Remove temporary files you create for debugging before you finish. If an action was denied, say so in your final summary and list what was left undone.',
     '- Keep answers short. Reference files as path:line.',
     '',
     `Workspace root: ${ws.root}`,

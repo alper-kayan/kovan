@@ -139,7 +139,12 @@ describe('login (the desktop’s own device flow)', () => {
       { json: { status: 'failed', error: 'hesap engellendi' } },
       /hesap engellendi/,
     ],
-    ['an expired one is not retried for ever', { status: 404, json: {} }, /expired/],
+    [
+      'a lost one is not retried for ever',
+      { status: 404, json: {} },
+      /wasn't found. Run 'kovan login' again/,
+    ],
+    ['one finished elsewhere says so', { status: 410, json: {} }, /already finished elsewhere/],
   ])('%s', async (_n, poll, why) => {
     const srv = await serve((r) =>
       r.url === '/auth/desktop/start'
@@ -170,7 +175,7 @@ describe('login (the desktop’s own device flow)', () => {
     const srv = await serve(() => ({ status: 500, json: {} }));
     try {
       await expect(login({ ...base, server: srv.url, fetchImpl: fetch })).rejects.toThrow(
-        /Couldn't start signing in \(HTTP 500\)/,
+        /isn't taking sign-ins right now \(HTTP 500\)/,
       );
     } finally {
       srv.close();
@@ -266,13 +271,16 @@ describe('the commands', () => {
     }
   });
 
-  it('a chat asks to sign in only when there is no key of their own', async () => {
-    const without = run([]);
+  it('a chat with no model says how to set one up, only when there is no key of their own', async () => {
+    const without = run([], { configFile: join(dir, 'none.json') });
     expect(await without.done).toBe(1);
-    expect(without.errors.join('\n')).toMatch(/not signed in/);
-    const own = run([], { env: { OPENROUTER_API_KEY: 'sk-own' } });
+    expect(without.errors.join('\n')).toMatch(/kovan setup/);
+    const own = run([], {
+      env: { OPENROUTER_API_KEY: 'sk-own' },
+      configFile: join(dir, 'none.json'),
+    });
     await own.done;
-    expect(own.errors.join('\n')).not.toMatch(/not signed in/);
+    expect(own.errors.join('\n')).not.toMatch(/kovan setup/);
   });
 
   it('login that fails says why and saves nothing', async () => {
@@ -396,7 +404,7 @@ describe('which model server', () => {
         model: 'openrouter/auto',
       },
     });
-    expect(p.ok && p.provider.label).toMatch(/billed to your account/);
+    expect(p.ok && p.provider.label).toMatch(/Kovan bills you/);
   });
   it('a model you named is kept', () => {
     expect(resolveProvider({}, none, auth, 'anthropic/claude-sonnet')).toMatchObject({
@@ -407,12 +415,29 @@ describe('which model server', () => {
   it('a half-configured gateway is theirs to fix, not a reason to bill the account', () => {
     const p = resolveProvider({ KOVAN_BASE_URL: 'http://localhost:20128/v1' }, none, auth, null);
     expect(p.ok).toBe(false);
-    if (!p.ok) expect(p.why).toMatch(/No model name/);
+    if (!p.ok) expect(p.why).toMatch(/Which model on/);
   });
-  it('no key and no sign-in says both ways out', () => {
+  it('no key and no sign-in says how to set one up', () => {
     const p = resolveProvider({}, none, null, null);
     expect(p.ok).toBe(false);
-    if (!p.ok) expect(p.why).toMatch(/kovan login/);
+    if (!p.ok) expect(p.why).toMatch(/kovan setup/);
+  });
+
+  it('-m names the model on a gateway of your own, over KOVAN_MODEL', () => {
+    const p = resolveProvider(
+      { KOVAN_BASE_URL: 'http://localhost:20128/v1', KOVAN_MODEL: 'from-env' },
+      none,
+      null,
+      'from-flag',
+    );
+    expect(p.ok && p.provider.model).toBe('from-flag');
+    const q = resolveProvider(
+      { KOVAN_BASE_URL: 'http://localhost:20128/v1' },
+      none,
+      null,
+      'only-flag',
+    );
+    expect(q.ok && q.provider.model).toBe('only-flag');
   });
 
   it('a managed turn goes to the server’s endpoint with the token and files its usage under this conversation', async () => {
@@ -613,7 +638,7 @@ describe('self-update', () => {
       const r = await checkAndUpdate(deps(srv.url, target));
       expect(r).toMatchObject({
         status: 'failed',
-        why: expect.stringMatching(/doesn't match the manifest/),
+        why: expect.stringMatching(/download was damaged on the way/),
       });
       expect(readFileSync(target, 'utf8')).toBe('eski');
       expect(existsSync(`${target}.new`)).toBe(false);

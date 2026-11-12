@@ -12,7 +12,7 @@ export interface Classification {
 }
 
 const FOLLOW_UP =
-  /^(y(es|ep)?|ok(ay)?|sure|go( ahead)?|do it|continue|proceed|thanks?|thank you|evet|tamam|olur|devam( et)?|yap|now|also|and|then|try again|again|retry)\b/i;
+  /^(y(es|ep)?|ok(ay)?|sure|go( ahead)?|do it|continue|proceed|thanks?|thank you|evet|tamam|olur|devam( et)?|yap|şimdi|bir de|ayrıca|sonra|tekrar|teşekkür|now|also|and|then|try again|again|retry)(?![\p{L}])/iu;
 
 const PATTERNS: [TaskType, RegExp][] = [
   [
@@ -35,6 +35,45 @@ const PATTERNS: [TaskType, RegExp][] = [
   ['question', /^(what|why|how|where|when|which|who|is|are|does|do|can|explain|tell me)\b|\?$/i],
 ];
 
+/**
+ * The same task types in Turkish. Turkish adds endings to a stem ("hatayı", "düzeltir"), so these
+ * match the start of a word, letters of any script counting as word characters.
+ */
+const W = '(?<![\\p{L}\\p{N}])';
+const TR_PATTERNS: [TaskType, RegExp][] = [
+  [
+    'plan',
+    new RegExp(
+      `${W}(plan|tasarla|tasarım|mimari|yaklaşım|strateji|yol haritası|nasıl yapmalı)`,
+      'iu',
+    ),
+  ],
+  [
+    'debug',
+    new RegExp(
+      `${W}(hata|düzelt|bozu|çalışmıyor|çalışmaz|çök|kırıl|patlı|sorun|yanlış|başarısız)`,
+      'iu',
+    ),
+  ],
+  ['refactor', new RegExp(`${W}(yeniden düzenle|refactor|taşı|ayır|böl|sadeleştir|temizle)`, 'iu')],
+  ['review', new RegExp(`${W}(incele|gözden geçir|kontrol et|denetle)`, 'iu')],
+  ['feature', new RegExp(`${W}(ekle|uygula|oluştur|geliştir|yaz|kur|destek)`, 'iu')],
+  [
+    'question',
+    new RegExp(`(^(ne|neden|niye|nasıl|nerede|hangi|kim|açıkla)${'(?![\\p{L}])'})|\\?$`, 'iu'),
+  ],
+];
+
+/** Wider work in Turkish ("tüm servislerde", "kod tabanı", "performans"). */
+const TR_BIGGER = new RegExp(
+  `${W}(tüm|bütün|kod taban|servisler|modüller|eş ?zaman|performans|güvenlik|geçiş)`,
+  'iu',
+);
+const TR_SMALLER = new RegExp(
+  `${W}(yazım hatası|küçük|basit|tek satır|yeniden adlandır|ufak)`,
+  'iu',
+);
+
 const textOf = (m: ChatMessage | undefined): string =>
   !m
     ? ''
@@ -52,8 +91,10 @@ export function classifyByRules(messages: ChatMessage[]): Classification {
   const followUp = hadEarlierTask && text.length < 80 && FOLLOW_UP.test(text);
 
   let task: TaskType = 'small_edit';
+  // Type by type, English and Turkish together: the same request routes the same way in either.
   for (const [type, pattern] of PATTERNS) {
-    if (pattern.test(text)) {
+    const tr = TR_PATTERNS.find(([t]) => t === type)?.[1];
+    if (pattern.test(text) || tr?.test(text)) {
       task = type;
       break;
     }
@@ -71,7 +112,9 @@ export function classifyByRules(messages: ChatMessage[]): Classification {
     )
   )
     difficulty++;
+  else if (TR_BIGGER.test(text)) difficulty++;
   if (/\b(typo|rename|comment|small|tiny|quick|one-?line|simple)\b/i.test(text)) difficulty--;
+  else if (TR_SMALLER.test(text)) difficulty--;
   if (/^\s*at .+:\d+:\d+/m.test(text) || /Traceback|Exception:/.test(text)) difficulty++;
   return {
     task,

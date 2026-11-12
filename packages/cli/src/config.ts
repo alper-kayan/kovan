@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { t } from './i18n.js';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -50,11 +51,13 @@ export function readConfigFile(file: string): FileConfig {
 export function loadProvider(
   env: Record<string, string | undefined>,
   file: string = CONFIG_FILE,
+  /** `-m`: named on the command line, it wins over KOVAN_MODEL and the file. */
+  modelArg: string | null = null,
 ): ProviderResult {
   const f = readConfigFile(file);
   const baseUrl = str(env['KOVAN_BASE_URL']) ?? str(f.baseUrl);
   const custom = baseUrl !== null && !/openrouter\.ai/.test(baseUrl);
-  const model = str(env['KOVAN_MODEL']) ?? str(f.model);
+  const model = str(modelArg) ?? str(env['KOVAN_MODEL']) ?? str(f.model);
 
   if (!custom) {
     const apiKey = str(env['KOVAN_API_KEY']) ?? str(env['OPENROUTER_API_KEY']) ?? str(f.apiKey);
@@ -62,7 +65,9 @@ export function loadProvider(
       return {
         ok: false,
         noKey: true,
-        why: "No model key: set OPENROUTER_API_KEY, point KOVAN_BASE_URL (+ KOVAN_API_KEY, KOVAN_MODEL) at your own gateway, or sign in to a Kovan account with 'kovan login' (managed usage).",
+        why: t(
+          "No model is set up yet. Run 'kovan setup' to choose one: an OpenRouter key, your Kovan account, or a gateway of your own. (Or set OPENROUTER_API_KEY, or KOVAN_BASE_URL with KOVAN_MODEL.)",
+        ),
       };
     }
     return {
@@ -82,7 +87,7 @@ export function loadProvider(
   if (!model)
     return {
       ok: false,
-      why: `No model name for ${baseUrl}: set KOVAN_MODEL (or "model" in ${CONFIG_FILE}).`,
+      why: `Which model on ${baseUrl}? Pass -m <model>, or set KOVAN_MODEL (or "model" in ${file}).`,
     };
   const dialect = str(env['KOVAN_DIALECT']) ?? str(f.dialect);
   let label = baseUrl!;
