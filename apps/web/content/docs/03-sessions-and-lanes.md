@@ -1,4 +1,4 @@
-# Sessions and lanes
+# Working together in a session
 
 A session is one task on one branch with one plan, shared by everyone in it. Inside a session each person has a lane: their own conversation with their own agent.
 
@@ -17,7 +17,7 @@ Start a session with a task and either a new branch or an existing one. Teammate
 - **Join**: get their own lane and work in the session, or
 - **Watch**: follow along read-only. Watchers are visible to everyone; there is no hidden watching.
 
-Before you join, Kovan checks what could stop you: your role, a free seat, whether the workspace is set up on this machine, whether you have an agent available, the branch, and whether you can push. If something is in the way you get one clear reason and a way to fix it. A session holds up to 20 agents.
+Before you join, Kovan checks what could stop you: your role, room in the session, whether the workspace is set up on this machine, whether you have an agent available, the branch, and whether you can push. If something is in the way you get one clear reason and a way to fix it. A session holds up to 20 agents.
 
 ## Lanes
 
@@ -29,14 +29,14 @@ The composer says what will happen before you send: which agent and model will r
 | ---------- | ------------------------------------------------- |
 | Prompt now | Starts a turn.                                    |
 | Queue next | Runs when the current turn ends.                  |
-| Steer      | Adds direction to your own running turn.          |
+| Guide      | Adds direction to your own running turn.          |
 | Subagent   | Starts a parallel child task in its own worktree. |
 
 Drafts and queued prompts are kept per lane.
 
 ## Approvals
 
-Agents begin in **Request** mode, where edits and commands need approval. An approval card shows the exact action. Any editor in the session can answer it, and the first valid answer wins. The answer is enforced on the machine that runs the action, not only in the interface, and it covers that one action once.
+Agents begin in **Ask first** mode, where edits and commands need approval. An approval card shows the exact action. Any editor in the session can answer it, and the first valid answer wins. The answer is enforced on the machine that runs the action, not only in the interface, and it covers that one action once.
 
 ## The plan
 
@@ -57,7 +57,7 @@ A session can also lock exact file paths. Locks are advisory: connected agents a
 ## Steer, take over, hand off
 
 - **Steer** adds direction to your own running turn. If the turn ends first, your text comes back to the composer.
-- **Take over** ends a teammate's turn at a safe checkpoint and starts a new one on your account, carrying the plan, the code and the context. If two people try at once, one wins and the other is offered a seat.
+- **Take over** ends a teammate's turn at a safe checkpoint and starts a new one on your account, carrying the plan, the code and the context. If two people try at once, one wins and the other can watch.
 - **Hand off** passes your lane to a teammate with its snapshot, context and plan steps. They can accept or decline.
 
 When an agent hits a usage limit, its lane waits for a takeover and shows how old the last synced snapshot is.

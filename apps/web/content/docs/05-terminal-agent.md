@@ -1,4 +1,4 @@
-# Terminal agent
+# The terminal agent
 
 `kovan` is Kovan's coding agent in the terminal: the same agent loop as the desktop app, with a prompt in front of it. It runs on macOS, Linux and Windows and needs Node.js 22 or newer.
 
@@ -28,10 +28,11 @@ kovan "fix the failing test"  # one message: it does the work and exits
 kovan -c                   # continue the last conversation in this folder
 kovan -r "Auth work"       # continue a conversation by its name (or id), from any folder
 kovan sessions             # conversations kept on this machine
+kovan setup                # choose the model: an OpenRouter key, your Kovan account, or your own gateway
 kovan config               # which server and model it talks to
 ```
 
-In a conversation, type `/` for the commands, skills and custom commands, and `/help` for the keys. `Tab` changes the permission mode, `Esc` stops a running turn.
+In a conversation, type `/` for the commands, skills and custom commands, and `/help` for the keys. `Tab` changes the permission mode between `allow`, `plan` and `request` (`full` is turned on only with `/mode full`), `Esc` stops a running turn.
 
 Conversations are kept the same way the desktop app keeps its own, so a conversation you start in the terminal shows in the app's chat list for that folder.
 
@@ -46,25 +47,29 @@ Coming back to a conversation brings back how you left it: the model (or the Cla
 
 ## Which model it uses
 
+The first time you run `kovan` with nothing set up, it asks how you want to run models: paste an OpenRouter key (kept in `~/.config/kovan/agent.json`, readable only by you), sign in to your Kovan account and pay for models through Kovan, or use a gateway of your own. Nothing opens and nothing is saved until you choose. Run `kovan setup` to change it later.
+
 Your own key or gateway always comes first:
 
 - `OPENROUTER_API_KEY` for any model through OpenRouter, or
 - `KOVAN_BASE_URL` and `KOVAN_MODEL` (plus `KOVAN_API_KEY` if it needs one) for an OpenAI-compatible gateway of your own.
 
-With nothing of your own set up, sign in with `kovan login` and `kovan` uses your Kovan account's [managed usage](/docs/managed-usage-and-billing/), if the server offers it. `KOVAN_PROVIDER=managed` asks for the account even when you have a key; `KOVAN_PROVIDER=own` never uses it.
+With nothing of your own set up, sign in with `kovan login` and `kovan` uses your Kovan account's [Kovan billing](/docs/managed-usage-and-billing/), if the server offers it. `KOVAN_PROVIDER=managed` asks for the account even when you have a key; `KOVAN_PROVIDER=own` never uses it.
 
 The Claude Code and Codex accounts you added in the desktop app (**Settings → Agents → Accounts**) can also run a conversation: pick them with `/models`.
 
 ## Asking before it acts
 
-| Mode      | What it does on its own                      |
-| --------- | -------------------------------------------- |
-| `plan`    | Only reads; changes nothing.                 |
-| `request` | Asks before every edit and command.          |
-| `allow`   | Edits files, asks before commands (default). |
-| `full`    | Asks nothing.                                |
+| Mode      | What it does on its own                                   |
+| --------- | --------------------------------------------------------- |
+| `plan`    | Plan only: reads; changes nothing.                        |
+| `request` | Ask first: asks before every edit and command.            |
+| `allow`   | Edit freely: edits files, asks before commands (default). |
+| `full`    | Full access: asks nothing.                                |
 
-When it asks, answer `y` (yes), `n` (no) or `a` (always, for that tool, for the rest of the session). Start it with `--mode <mode>`, or change it with `Tab` or `/mode`.
+The terminal starts at `allow`, one step looser than the app's Ask first: you're watching the same terminal it works in, and every edit is shown as it happens.
+
+When it asks, answer `y` (yes), `n` (no) or `a` (always, for the rest of the session). For a command, `a` covers that command with other arguments (`npm test` also allows `npm test -- --watch`, not `npm publish`); a chained, piped or redirected command is allowed again only word for word. For an edit, it covers that tool. Start it with `--mode <mode>`, or change it with `Tab` or `/mode`.
 
 ## What it reads
 

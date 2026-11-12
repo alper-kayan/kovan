@@ -1,0 +1,819 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <!--@head-->
+    <title>Kovan: ekibiniz ve kodlama ajanları için bir kovan</title>
+    <meta
+      name="description"
+      content="Kovan, insanların ve yapay zekâ ajanlarının aynı canlı oturumu paylaştığı çok oyunculu bir masaüstü IDE’si. Lider ajan işi bir görev grafiği olarak planlar, ekip arkadaşları paralel olarak geliştirir ve projenizin kendi kontrolleri geçmeden hiçbir şey bitmiş sayılmaz."
+    />
+    <script type="module" src="/src/pages/home.ts"></script>
+  </head>
+  <body class="home">
+    <div class="progress" aria-hidden="true"><span data-progress></span></div>
+    <!--@nav-->
+    <main id="main">
+      <!-- ============ hero ============ -->
+      <section class="hero" aria-labelledby="hero-title">
+        <canvas class="hero-hive" data-hive aria-hidden="true"></canvas>
+        <div class="hero-orbs" aria-hidden="true"><i></i><i></i><i></i></div>
+        <div class="wrap hero-inner">
+          <a class="pill-new" href="/demo/#board" data-reveal>
+            <span class="pill-dot"></span>
+            <b>Deneyin</b> Uygulamanın bir örneğini tarayıcınızda kurcalayın
+            <span aria-hidden="true">&rarr;</span>
+          </a>
+          <h1 id="hero-title" class="hero-title" data-reveal>
+            Ekibiniz ve kodlama ajanları<br />
+            için bir <span class="ink-honey">kovan</span>.
+          </h1>
+          <p class="hero-sub" data-reveal>
+            Kovan, VS Code gibi bir kod editörü: siz ve ekip arkadaşlarınız her biriniz bir yapay
+            zekâ ajanıyla (Kovan&rsquo;ın kendi ajanı, Claude Code ya da Codex) çalışırsınız ve
+            herkes her ajanın işini canlı görür. Tek başınıza kullanın ya da ekibinizi getirin.
+          </p>
+          <div class="hero-cta" data-reveal>
+            <a class="btn btn-primary btn-xl" href="/tr/download/" data-download-cta>
+              <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+                <path
+                  d="M10 3v10m0 0l-4-4m4 4l4-4M4 16.5h12"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.9"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <span data-download-label>İndir</span>
+            </a>
+            <a class="btn btn-secondary btn-xl" href="#session">Nasıl çalıştığını görün</a>
+          </div>
+          <p class="hero-meta" data-reveal>
+            Erken erişim boyunca ücretsiz: yalnızca kullandığınız yapay zekâ için ödersiniz ·
+            <a href="https://github.com/alper-kayan/kovan">açık kaynak</a> · macOS (Apple silicon) ·
+            Windows · Linux
+          </p>
+
+          <!-- a live-looking session window -->
+          <div class="hero-window" data-reveal data-tilt aria-hidden="true">
+            <div class="win-bar">
+              <i></i><i></i><i></i>
+              <span class="win-title">rate-limit-api · <b>Swarm</b> · 3 ajan</span>
+              <span class="win-live"><span class="pulse"></span> canlı</span>
+            </div>
+            <div class="win-body">
+              <div class="win-lanes" data-hero-lanes>
+                <div class="lane" style="--c: var(--sky)">
+                  <p class="lane-head"><i class="av"></i><b>Lider</b><span>Wren</span></p>
+                  <div class="lane-feed"></div>
+                </div>
+                <div class="lane" style="--c: var(--mint)">
+                  <p class="lane-head"><i class="av"></i><b>Geliştirici</b><span>Bob</span></p>
+                  <div class="lane-feed"></div>
+                </div>
+                <div class="lane" style="--c: var(--violet)">
+                  <p class="lane-head"><i class="av"></i><b>Testler</b><span>Moss</span></p>
+                  <div class="lane-feed"></div>
+                </div>
+              </div>
+              <div class="win-side">
+                <p class="side-label">Görev grafiği</p>
+                <div class="mini-graph" data-mini-graph>
+                  <span class="mg n1">Plan</span>
+                  <span class="mg n2">Sınırlayıcı</span>
+                  <span class="mg n3">Rotalar</span>
+                  <span class="mg n4">Testler</span>
+                  <span class="mg n5">İnceleme</span>
+                </div>
+                <p class="side-label">Bütçe</p>
+                <div class="budget"><span data-hero-budget></span></div>
+                <p class="side-num mono"><b data-hero-spend>$0.00</b> / $2.00</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ ticker ============ -->
+      <section class="ticker" aria-label="Kovan neler yapar">
+        <div class="ticker-row">
+          <ul>
+            <li>Her ajanın işini canlı görün</li>
+            <li>Telefonunuzdan onay verin</li>
+            <li>Bitti demek, testleriniz geçti demek</li>
+            <li>İkinci bir ajan inceler</li>
+            <li>Yüzlerce yapay zekâ modeli</li>
+            <li>Her adıma doğru model</li>
+            <li>Harcama limitleri</li>
+            <li>Her oturumu yeniden oynatın</li>
+            <li>Ajan ekipleri</li>
+            <li>Her ajanın okuduğu notlar</li>
+          </ul>
+          <ul aria-hidden="true">
+            <li>Her ajanın işini canlı görün</li>
+            <li>Telefonunuzdan onay verin</li>
+            <li>Bitti demek, testleriniz geçti demek</li>
+            <li>İkinci bir ajan inceler</li>
+            <li>Yüzlerce yapay zekâ modeli</li>
+            <li>Her adıma doğru model</li>
+            <li>Harcama limitleri</li>
+            <li>Her oturumu yeniden oynatın</li>
+            <li>Ajan ekipleri</li>
+            <li>Her ajanın okuduğu notlar</li>
+          </ul>
+        </div>
+        <div class="ticker-row reverse" aria-hidden="true">
+          <ul>
+            <li>Claude Code</li>
+            <li>Codex</li>
+            <li>OpenRouter</li>
+            <li>Git ve GitHub</li>
+            <li>Kendi araçlarınız (MCP)</li>
+            <li>GitHub issue’ları</li>
+            <li>Gerçek bir kod editörü</li>
+            <li>Kendi anahtarlarınız</li>
+            <li>Bir terminal ajanı</li>
+            <li>YZ ekip arkadaşları</li>
+          </ul>
+          <ul>
+            <li>Claude Code</li>
+            <li>Codex</li>
+            <li>OpenRouter</li>
+            <li>Git ve GitHub</li>
+            <li>Kendi araçlarınız (MCP)</li>
+            <li>GitHub issue’ları</li>
+            <li>Gerçek bir kod editörü</li>
+            <li>Kendi anahtarlarınız</li>
+            <li>Bir terminal ajanı</li>
+            <li>YZ ekip arkadaşları</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- ============ multiplayer session ============ -->
+      <section class="sec" id="session" aria-labelledby="session-title">
+        <div class="wrap split">
+          <div class="split-text">
+            <p class="label" data-reveal>01 · Birlikte çalışmak</p>
+            <h2 id="session-title" data-reveal>
+              Tek oturum.<br /><span class="ink-sky">Herkesin</span> ajanı içinde.
+            </h2>
+            <p class="lead" data-reveal>
+              Herkes kendi bilgisayarında kendi ajanına iş verir. Herkes her ajanın işini olduğu
+              anda görür; oturum tek bir Git dalı ve tek bir plan tutar.
+            </p>
+            <ul class="ticks" data-reveal>
+              <li>
+                <b>Herkesin verebildiği onaylar.</b> Bir komutu her düzenleyici onaylayabilir; ilk
+                cevap geçerlidir ve yalnızca o eylemi, bir kez kapsar.
+              </li>
+              <li>
+                <b>Çakışma uyarıları.</b> İsteminiz başka bir ajanın düzenlediği dosyalara
+                dokunuyorsa Kovan bunu çalıştırmadan önce söyler: katılın, bölüşün ya da devam edin.
+              </li>
+              <li>
+                <b>Yönlendirin ve devredin.</b> Bir ajanı çalışırken yönlendirin, bir diff’e yorum
+                yazın ya da bir görevi planıyla birlikte bir ekip arkadaşınıza devredin.
+              </li>
+              <li>
+                <b>Roller sunucuda.</b> İzleyici, yorumcu, düzenleyici ve sahip; her istekte
+                denetlenir.
+              </li>
+            </ul>
+          </div>
+          <div class="lanes-demo" data-lanes-demo data-reveal aria-hidden="true">
+            <div class="ld-lane" style="--c: var(--sky)">
+              <p class="ld-head"><i class="av">A</i><b>Ada</b><span>Kovan ajanı</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-lane" style="--c: var(--rose)">
+              <p class="ld-head"><i class="av">B</i><b>Ben</b><span>Claude Code</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-lane" style="--c: var(--mint)">
+              <p class="ld-head">
+                <i class="av">&#11042;</i><b>Bob</b><span>YZ ekip arkadaşı</span>
+              </p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-approval">
+              <p><b>Çalıştırılsın mı?</b> <span class="mono">pnpm test src/limits.test.ts</span></p>
+              <p class="ld-actions">
+                <span class="ok">&#10003; Onayla</span><span>&#10005; Reddet</span>
+              </p>
+              <p class="ld-who">Ben onayladı · sürüm 14</p>
+            </div>
+            <div class="ld-overlap">
+              &#9888; Bob <b>src/limits.ts</b> dosyasını düzenliyor · <u>Katıl</u> · <u>Bölüş</u> ·
+              <u>Devam et</u>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ modes ============ -->
+      <section class="sec sec-alt" id="modes" aria-labelledby="modes-title">
+        <div class="wrap split reverse">
+          <div class="split-text">
+            <p class="label" data-reveal>02 · Tek başına ya da ekiple</p>
+            <h2 id="modes-title" data-reveal>
+              Tek başına, ekiple,<br />ya da <span class="ink-mint">ikisi birden</span>.
+            </h2>
+            <p class="lead" data-reveal>
+              Her çalışma alanının bir modu vardır. İstediğiniz zaman değiştirin; Kovan sunduklarını
+              ona göre ayarlar.
+            </p>
+          </div>
+          <div class="modes" data-modes data-reveal>
+            <div class="modes-tabs" role="tablist" aria-label="Çalışma alanı modları">
+              <button type="button" role="tab" aria-selected="true" data-mode="0">Tek kişi</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="1">Ekip</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="2">
+                Uyarlanır
+              </button>
+              <span class="modes-glider"></span>
+            </div>
+            <div class="modes-panels">
+              <div class="mode-panel is-on" role="tabpanel">
+                <h3>Tek kişi</h3>
+                <p>
+                  Yalnızca siz ve ajanlarınız. Davet ve devir yok; önerilen Swarm’lar küçük kalır
+                  (en çok iki çalışan), böylece dikkatinizin önüne geçmezler.
+                </p>
+              </div>
+              <div class="mode-panel" role="tabpanel">
+                <h3>Ekip</h3>
+                <p>
+                  Ortak oturumlar, canlı şeritler, davetler, devirler ve her düzenleyicinin
+                  verebildiği onaylar. YZ ekip arkadaşları panoda insanların yanında yer alır.
+                </p>
+              </div>
+              <div class="mode-panel" role="tabpanel">
+                <h3>Uyarlanır</h3>
+                <p>
+                  Tek kişilik başlar; çalışma alanına başka biri katıldığı anda ekip özelliklerini
+                  açar.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ the flow: goal to verified code ============ -->
+      <section class="flow" id="flow" aria-labelledby="flow-title">
+        <div class="wrap">
+          <header class="sec-head" data-reveal>
+            <p class="label">03 · Ajan ekipleri</p>
+            <h2 id="flow-title">
+              Tek bir cümleden<br /><span class="ink-mint">doğrulanmış</span> koda.
+            </h2>
+            <p>
+              Kovan’a bir hedef verin. Lider ajan onu bir görev grafiğine dönüştürür, bir ekip
+              görevleri aynı anda geliştirir ve her görevin sayılması için projenizin kendi
+              kontrollerinden geçmesi gerekir.
+            </p>
+          </header>
+
+          <div class="story" data-story>
+            <ol class="story-steps">
+              <li class="story-step" data-step="1">
+                <span class="step-num">1</span>
+                <h3>Hedef</h3>
+                <p>
+                  İstediğinizi Swarm yazma kutusuna yazın. Kovan hedefi okur, ona uygun bir ekip
+                  önerir (bir lider ve gereken çalışanlar) ve hiçbir şey çalışmadan önce bütçeyi
+                  gösterir.
+                </p>
+              </li>
+              <li class="story-step" data-step="2">
+                <span class="step-num">2</span>
+                <h3>Plan</h3>
+                <p>
+                  Lider bir görev grafiği yazar. Her görevin kabul ölçütleri, bağlı olduğu görevler
+                  ve dokunacağı dosyalar bellidir. Aynı dosyaları düzenleyecek görevler sıraya
+                  konur, riskli olanlar bir insanın onayını bekler.
+                </p>
+              </li>
+              <li class="story-step" data-step="3">
+                <span class="step-num">3</span>
+                <h3>Geliştirme</h3>
+                <p>
+                  Ekip arkadaşları, bağlı oldukları görevler biter bitmez işleri paralel olarak
+                  üstlenir; her biri kendi Git worktree’sinde çalışır. Her görevin izleyebileceğiniz
+                  bir yaşam döngüsü, aşamayacağı bir bütçesi ve bir zaman aşımı vardır.
+                </p>
+              </li>
+              <li class="story-step" data-step="4">
+                <span class="step-num">4</span>
+                <h3>Kontrol</h3>
+                <p>
+                  Kovan projenin kontrollerini (typecheck, testler, lint) bulur ve biten her görevde
+                  çalıştırır. Geçemeyen görev, hatasıyla birlikte bir kez yeniden çalışılmak üzere
+                  ajanına geri döner.
+                </p>
+              </li>
+              <li class="story-step" data-step="5">
+                <span class="step-num">5</span>
+                <h3>İnceleme</h3>
+                <p>
+                  Ayrı bir inceleyici diff’i kabul ölçütlerine göre okur ve kararını verir. Hiçbir
+                  testin dokunmadığı değişmiş dosyalar es geçilmez, açıkça belirtilir.
+                </p>
+              </li>
+              <li class="story-step" data-step="6">
+                <span class="step-num">6</span>
+                <h3>Rapor</h3>
+                <p>
+                  Bitiş raporu hangi kontrollerin çalışıp geçtiğini, neyin hâlâ doğrulanmadığını ve
+                  maliyetin ne olduğunu tam olarak söyler. Çalışmanın tamamı oturum günlüğündedir,
+                  yeniden oynatılmaya hazır.
+                </p>
+              </li>
+            </ol>
+
+            <div class="story-stage-wrap">
+              <div class="stage" data-stage data-at="1" aria-hidden="true">
+                <div class="stage-grid"></div>
+
+                <!-- 1 goal -->
+                <div class="goal-card">
+                  <p class="goal-label">Swarm hedefi</p>
+                  <p class="goal-text"><span data-goal-type></span><span class="caret"></span></p>
+                  <div class="team-chips">
+                    <span style="--c: var(--sky)">Lider</span>
+                    <span style="--c: var(--mint)">Geliştirici</span>
+                    <span style="--c: var(--violet)">Testler</span>
+                    <span class="chip-budget">bütçe $2.00</span>
+                  </div>
+                </div>
+
+                <!-- 2+ graph -->
+                <svg class="graph-edges" data-edges="t1-t2 t1-t3 t2-t4 t3-t4 t1-t5"></svg>
+                <div class="node t1" style="--c: var(--sky)">
+                  <b>Sınırlayıcı tasarımı</b><small>kabul: limits.md’de plan</small>
+                  <span class="node-state"></span>
+                </div>
+                <div class="node t2" style="--c: var(--mint)">
+                  <b>Token kovası</b><small>dosyalar: src/limits.ts</small>
+                  <span class="node-state"></span><span class="bar"><i></i></span>
+                </div>
+                <div class="node t3" style="--c: var(--violet)">
+                  <b>Ani yük testi</b><small>kabul: 10 istekten sonra 429</small>
+                  <span class="node-state"></span><span class="bar"><i></i></span>
+                </div>
+                <div class="node t4" style="--c: var(--honey)">
+                  <b>Rotaları bağla</b><small>onay gerekiyor</small> <span class="node-state"></span
+                  ><span class="lock">&#9888; onay?</span>
+                </div>
+                <div class="node t5" style="--c: var(--rose)">
+                  <b>Belgeler</b><small>dosyalar: README.md</small> <span class="node-state"></span
+                  ><span class="bar"><i></i></span>
+                </div>
+
+                <!-- 4 checks -->
+                <div class="checks">
+                  <p><span class="ck c1"></span>typecheck</p>
+                  <p><span class="ck c2"></span>testler (14)</p>
+                  <p><span class="ck c3"></span>lint</p>
+                </div>
+
+                <!-- 5 review -->
+                <div class="review-card">
+                  <p><span class="eye">&#9673;</span> <b>İnceleyici</b> onayladı</p>
+                  <p class="dim">3 kabul ölçütünün hepsini karşılıyor</p>
+                  <p class="warn">&#9888; src/headers.ts için test yok</p>
+                </div>
+
+                <!-- 6 report -->
+                <div class="report-card">
+                  <p class="report-head">&#10003; Swarm bitti · 5/5 görev</p>
+                  <p class="mono">Kovan çalıştırdı, geçti: typecheck, testler, lint</p>
+                  <p class="mono dim">
+                    doğrulanmayan: 1 dosya · harcanan $0.42 / $2.00 · 6 dk 12 sn
+                  </p>
+                  <p class="report-replay">&#9655; Bu oturumu yeniden oynat</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ AI teammates & memory ============ -->
+      <section class="sec" id="teammates" aria-labelledby="mates-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">04 · YZ ekip arkadaşları</p>
+            <h2 id="mates-title"><span class="ink-violet">Hatırlayan</span> ekip arkadaşları.</h2>
+            <p>
+              Bir çalışma alanına yapay zekâ üyeleri, insan ekler gibi ekleyin. Adlarını, rollerini
+              ve modellerini korurlar, panodan görev alırlar ve projenizin nasıl işlediğine dair
+              ortak bir hafıza biriktirirler.
+            </p>
+          </header>
+          <div class="mates">
+            <article class="mate" data-reveal data-spot style="--c: var(--sky); --i: 0">
+              <div class="mate-hex">W</div>
+              <h3>Wren</h3>
+              <p class="mate-role">Lider · planlar ve dağıtır</p>
+              <p class="mate-quote">
+                &ldquo;Bunu 4 göreve bölüyorum. Testler sınırlayıcıdan sonra.&rdquo;
+              </p>
+            </article>
+            <article class="mate" data-reveal data-spot style="--c: var(--mint); --i: 1">
+              <div class="mate-hex">B</div>
+              <h3>Bob</h3>
+              <p class="mate-role">Geliştirici · kodu yazar</p>
+              <p class="mate-quote">
+                &ldquo;Token kovası hazır. Typecheck ve testler geçiyor.&rdquo;
+              </p>
+            </article>
+            <article class="mate" data-reveal data-spot style="--c: var(--violet); --i: 2">
+              <div class="mate-hex">M</div>
+              <h3>Moss</h3>
+              <p class="mate-role">Testler · inceler ve kapsar</p>
+              <p class="mate-quote">
+                &ldquo;429 ani yük durumunu ekledim. Bir dosyanın hâlâ testi yok.&rdquo;
+              </p>
+            </article>
+          </div>
+
+          <div class="brain" data-reveal>
+            <div class="brain-text">
+              <h3>Yalnızca not değil, gerekçesiyle bir hafıza.</h3>
+              <p>
+                Kararlar gerekçeleri, sonuçları ve etkiledikleri dosyalarla birlikte saklanır. Yeni
+                bir bilgi eskisiyle çeliştiğinde ikisi de <b>tartışmalı</b> olarak işaretlenir ve
+                ajanlara söylenir; böylece kimse sessizce eskimiş bir kurala göre çalışmaz.
+              </p>
+            </div>
+            <div class="brain-cards" data-brain aria-hidden="true">
+              <div class="mem m1">
+                <p class="mem-kind">Karar</p>
+                <p><b>İstek sınırları ara katmanda</b></p>
+                <p class="dim">neden: tek yer, API anahtarına göre</p>
+                <p class="dim">etkiler: src/limits.ts, src/app.ts</p>
+              </div>
+              <div class="mem m2">
+                <p class="mem-kind">Bilgi</p>
+                <p><b>Sınırlar rota başına konur</b></p>
+                <p class="dim">etkiler: src/routes.ts</p>
+              </div>
+              <span class="stamp">Tartışmalı</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ JevRouter & models ============ -->
+      <section class="sec sec-alt" id="models" aria-labelledby="router-title">
+        <div class="wrap">
+          <header class="sec-head" data-reveal>
+            <p class="label">05 · Modeller</p>
+            <h2 id="router-title">
+              Her model.<br />Her göreve <span class="ink-honey">doğru</span> model.
+            </h2>
+            <p>
+              Kovan&rsquo;ın kendi ajanı yüzlerce yapay zekâ modelini kullanabilir. Model seçicisi
+              JevRouter, kolay adımları ucuz modellere, zor olanları güçlü modellere gönderir. Kendi
+              OpenRouter anahtarınızla ödeyin ya da Kovan üzerinden, modelin maliyeti artı %5’le.
+            </p>
+          </header>
+
+          <div class="router" data-router data-reveal aria-hidden="true">
+            <div class="r-in">
+              <p class="r-col-label">İstemler</p>
+              <div class="r-prompts" data-router-prompts></div>
+            </div>
+            <div class="r-core">
+              <div class="r-hex"><span>Jev</span></div>
+              <p class="r-class" data-router-class>konuşmayı okuyor&hellip;</p>
+              <svg class="r-wires" viewBox="0 0 100 100" preserveAspectRatio="none">
+                <path d="M0 50 L50 50" />
+                <path class="w w0" d="M50 50 C 75 50, 75 14, 100 14" />
+                <path class="w w1" d="M50 50 C 75 50, 75 38, 100 38" />
+                <path class="w w2" d="M50 50 C 75 50, 75 62, 100 62" />
+                <path class="w w3" d="M50 50 C 75 50, 75 86, 100 86" />
+              </svg>
+            </div>
+            <div class="r-out">
+              <p class="r-col-label">Modeller</p>
+              <div class="r-model" data-model="0">
+                <b>Frontier</b><span>zor tasarım işleri</span>
+              </div>
+              <div class="r-model" data-model="1">
+                <b>Kodlayıcı</b><span>düzenleme ve düzeltmeler</span>
+              </div>
+              <div class="r-model" data-model="2">
+                <b>Hızlı</b><span>arama ve küçük işler</span>
+              </div>
+              <div class="r-model" data-model="3">
+                <b>Uzun bağlam</b><span>tüm depoyu okuma</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat" data-reveal style="--i: 0">
+              <p class="stat-v"><span data-count="300">0</span>+</p>
+              <p class="stat-l">OpenRouter üzerinden model</p>
+            </div>
+            <div class="stat" data-reveal style="--i: 1">
+              <p class="stat-v">&times;<span data-count="1.05" data-decimals="2">0</span></p>
+              <p class="stat-l">Kovan üzerinden ödemede sağlayıcı maliyeti</p>
+            </div>
+            <div class="stat" data-reveal style="--i: 2">
+              <p class="stat-v"><span data-count="4">0</span></p>
+              <p class="stat-l">
+                ajana izin verme biçimi: Yalnız plan, Önce sor, Serbestçe düzenle, Tam erişim
+              </p>
+            </div>
+            <div class="stat" data-reveal style="--i: 3">
+              <p class="stat-v"><span data-count="1">0</span></p>
+              <p class="stat-l">anahtar hepsine yeter; Kovan üzerinden ödemede hiç gerekmez</p>
+            </div>
+          </div>
+
+          <div class="duo">
+            <article class="card" data-reveal data-spot>
+              <p class="label">Yönlendiriciyi yönetin</p>
+              <h3>İsteminizde söyleyin.</h3>
+              <p>
+                JevRouter konuşmanın tamamını okur, modeli yalnızca görev değişince değiştirerek
+                önbelleğinizi sıcak tutar ve <code>[jev: only use Opus]</code> gibi yönergelere
+                uyar.
+              </p>
+              <div class="directive-chips" aria-hidden="true">
+                <span>[jev: only use &hellip;]</span><span>[jev: economy]</span
+                ><span>[jev: no frontier]</span><span>[jev: codex]</span><span>[jev: auto]</span>
+              </div>
+              <div
+                class="typed-line mono"
+                data-typer="[jev: only use Opus] auth modülünü yeniden düzenle|[jev: economy] bu 12 dosyanın adını değiştir|[jev: no frontier] migration’ı yaz|[jev: codex] kararsız testi düzelt"
+              ></div>
+            </article>
+            <article class="card" data-reveal data-spot>
+              <p class="label">Sizin sıranız</p>
+              <h3>Biri tükenince sıradaki başlar.</h3>
+              <p>
+                Ajanları ve modelleri sıralayın: Claude Code, Codex, Kovan&rsquo;ın kendi ajanı ya
+                da özel bir sağlayıcının herhangi bir modeli. Bir hesap limitine ulaşınca iş
+                sıradakine geçer.
+              </p>
+              <ol class="order" data-order aria-hidden="true">
+                <li>
+                  <b>Claude Code</b><span class="meter"><i></i></span>
+                </li>
+                <li>
+                  <b>Codex</b><span class="meter"><i></i></span>
+                </li>
+                <li>
+                  <b>Kovan · JevRouter</b><span class="meter"><i></i></span>
+                </li>
+                <li>
+                  <b>@deepinfra/qwen-coder</b><span class="meter"><i></i></span>
+                </li>
+              </ol>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ control: limits, arena, impact, replay ============ -->
+      <section class="sec" id="control" aria-labelledby="control-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">06 · Kontrol</p>
+            <h2 id="control-title">
+              Ajanların neye <span class="ink-rose">mal olduğunu</span>, neyi değiştirdiğini ve ne
+              yaptığını görün.
+            </h2>
+            <p>Bir ajan ekibini yalnızca izlemekle kalmayıp ölçebilmeniz için araçlar.</p>
+          </header>
+
+          <div class="bento">
+            <article class="card b-spend" data-reveal data-spot style="--i: 0">
+              <p class="label">Bütçeler</p>
+              <h3>Gerçekten tutan limitler.</h3>
+              <p>
+                Görev ve Swarm başına bütçe, çalışma alanı için aylık limit ve ajan başına harcama
+                defteri. Tahminler kendi geçmişinizden gelir; fiyatı bilinmeyen çağrılar gizlenmez,
+                sayılır.
+              </p>
+              <div class="spend" data-spend aria-hidden="true">
+                <span style="--h: 46%"></span><span style="--h: 72%"></span
+                ><span style="--h: 38%"></span><span style="--h: 80%"></span
+                ><span style="--h: 54%"></span><span style="--h: 63%"></span
+                ><span style="--h: 30%"></span>
+                <i class="limit">aylık limit</i>
+              </div>
+            </article>
+
+            <article class="card b-arena" data-reveal data-spot style="--i: 1">
+              <p class="label">Agent Arena</p>
+              <h3>Aynı görev, yan yana.</h3>
+              <p>
+                Bir görevi deponuzun geçici kopyalarında birkaç modelle çalıştırın, sonuçları kendi
+                testleriniz denetlesin. Her birinin ne sıklıkla geçtiğini, neye mal olduğunu ve ne
+                kadar sürdüğünü karşılaştırın.
+              </p>
+              <div class="race" data-race aria-hidden="true">
+                <p><span>JevRouter</span><i style="--w: 92%; --c: var(--honey)"></i><b>3/3</b></p>
+                <p><span>Frontier</span><i style="--w: 100%; --c: var(--violet)"></i><b>3/3</b></p>
+                <p><span>Hızlı</span><i style="--w: 48%; --c: var(--sky)"></i><b>1/3</b></p>
+              </div>
+            </article>
+
+            <article class="card b-impact" data-reveal data-spot style="--i: 2">
+              <p class="label">Değişikliğin etkisi</p>
+              <h3>Bu değişiklik nelere dokunuyor?</h3>
+              <p>
+                Siz push etmeden önce Kovan, değişen dosyalarınızdaki import’ları izler; ulaştıkları
+                modülleri, testleri ve API rotalarını, her bağlantının ne kadar kesin olduğuyla
+                birlikte gösterir.
+              </p>
+              <svg class="impact" data-impact viewBox="0 0 300 170" aria-hidden="true">
+                <g class="links">
+                  <path d="M150 85 L60 35" />
+                  <path d="M150 85 L240 35" />
+                  <path d="M150 85 L60 135" />
+                  <path d="M150 85 L240 135" />
+                  <path d="M240 35 L285 85" class="dashed" />
+                </g>
+                <circle class="hub" cx="150" cy="85" r="26" />
+                <text x="150" y="89" text-anchor="middle" class="hub-t">stats.ts</text>
+                <g class="leaf l1">
+                  <circle cx="60" cy="35" r="9" />
+                  <text x="60" y="18" text-anchor="middle">summary.ts</text>
+                </g>
+                <g class="leaf l2 test">
+                  <circle cx="240" cy="35" r="9" />
+                  <text x="240" y="18" text-anchor="middle">stats.test</text>
+                </g>
+                <g class="leaf l3 api">
+                  <circle cx="60" cy="135" r="9" />
+                  <text x="60" y="162" text-anchor="middle">GET /summary</text>
+                </g>
+                <g class="leaf l4 test">
+                  <circle cx="240" cy="135" r="9" />
+                  <text x="240" y="162" text-anchor="middle">summary.test</text>
+                </g>
+                <g class="leaf l5 test faint"><circle cx="285" cy="85" r="6" /></g>
+              </svg>
+            </article>
+
+            <article class="card b-replay" data-reveal data-spot style="--i: 3">
+              <p class="label">Günlük ve yeniden oynatma</p>
+              <h3>Her oturumu geri sarın.</h3>
+              <p>
+                Her istem, plan değişikliği, onay ve görev durumu bir günlüğe yazılır. Sonradan
+                üzerinde gezinip kimin neye ne zaman karar verdiğini görün.
+              </p>
+              <div class="replay" data-replay aria-hidden="true">
+                <div class="replay-events">
+                  <span style="--x: 6%" data-log="11:42 Ada bir Swarm başlattı: istek sınırı"
+                    >hedef</span
+                  >
+                  <span style="--x: 22%" data-log="11:43 Wren 2 dalgada 5 görev planladı"
+                    >plan</span
+                  >
+                  <span style="--x: 41%" data-log="11:46 Ben “Rotaları bağla”yı onayladı"
+                    >onay</span
+                  >
+                  <span style="--x: 60%" data-log="11:51 typecheck, testler ve lint geçti"
+                    >kontrol</span
+                  >
+                  <span style="--x: 78%" data-log="11:53 Moss diff’i onayladı, 1 dosya testsiz"
+                    >inceleme</span
+                  >
+                  <span style="--x: 94%" data-log="11:54 Swarm bitti · $0.42 / $2.00">bitti</span>
+                </div>
+                <div class="replay-track"><i class="replay-head"></i></div>
+                <p class="replay-log" data-replay-log></p>
+              </div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ local-first ============ -->
+      <section class="sec sec-alt" id="how" aria-labelledby="local-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">07 · Kodunuz</p>
+            <h2 id="local-title">
+              Deponuz kendi makinelerinizde <span class="ink-sky">kalır</span>.
+            </h2>
+            <p>
+              Ajanlar sizin kopyanızı düzenler ve komutları yerelde çalıştırır. İş, kendi Git uzak
+              deponuz üzerinden, kendi kimlik bilgilerinizle eşitlenir. Kovan&rsquo;ın sunucusu
+              yalnızca koordinasyonu yapar: ortak bir oturumun ihtiyaç duyduğunu (konuşma kaydı ve
+              değişiklikler gibi) şifreli olarak tutar; deponuzun bir kopyasını asla tutmaz.
+            </p>
+          </header>
+          <div class="topo" data-reveal aria-hidden="true">
+            <div class="topo-node you">
+              <b>Sizin makineniz</b><span>kod · ajanlar · worktree’ler</span>
+            </div>
+            <div class="topo-node remote">
+              <b>Git uzak deponuz</b><span>anlık görüntü olarak oturum dalları</span>
+            </div>
+            <div class="topo-node mate">
+              <b>Ekip arkadaşınızın makinesi</b><span>kod · ajanlar · worktree’ler</span>
+            </div>
+            <div class="topo-node server">
+              <b>Kovan sunucusu</b><span>oturumlar · planlar · şifreli kayıtlar</span>
+            </div>
+            <svg class="topo-wires" viewBox="0 0 600 300" preserveAspectRatio="none">
+              <path id="tw1" d="M120 90 L300 90" />
+              <path id="tw2" d="M300 90 L480 90" />
+              <path class="soft" d="M120 112 C 150 210, 240 230, 300 196" />
+              <path class="soft" d="M480 112 C 450 210, 360 230, 300 196" />
+            </svg>
+            <span class="packet p1"></span><span class="packet p2"></span>
+            <span class="packet soft s1"></span><span class="packet soft s2"></span>
+          </div>
+          <div class="facts">
+            <p data-reveal style="--i: 0">
+              <b>Çakışmalarda iki sürüm de korunur.</b> Hiçbir şeyin üzerine sessizce yazılmaz.
+            </p>
+            <p data-reveal style="--i: 1">
+              <b>Konuşma kayıtları</b> saklanırken, değiştirebileceğiniz anahtarlarla
+              <b>şifrelenir</b>.
+            </p>
+            <p data-reveal style="--i: 2">
+              <b>Claude Code ve Codex</b>, MCP üzerinden koordinasyon araçlarıyla Kovan&rsquo;ın
+              sohbetinde ya da kendi terminallerinde çalışır.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ pricing ============ -->
+      <section class="sec" id="pricing" aria-labelledby="pricing-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">08 · Maliyet</p>
+            <h2 id="pricing-title">
+              Kovan <span class="ink-honey">ücretsiz</span>. Ödediğiniz, yapay zekâ.
+            </h2>
+            <p>
+              Erken erişim boyunca uygulama, ekipler ve oturumlar ücretsiz; koltuk ücreti ya da
+              abonelik yok. Ajanlarınız yapay zekâ modelleri kullanır ve bunlar üç yoldan biriyle
+              ödenir.
+            </p>
+          </header>
+          <div class="price-grid" data-reveal>
+            <div class="price-card">
+              <h3>Claude ya da ChatGPT planınız</h3>
+              <p>Claude Code ve Codex, zaten sahip olduğunuz abonelikle çalışır. Ek ücret yok.</p>
+            </div>
+            <div class="price-card">
+              <h3>Kendi anahtarınız</h3>
+              <p>
+                Bir OpenRouter anahtarı (ya da kendi model sunucunuzu) ekleyin, sağlayıcıya doğrudan
+                ödeyin.
+              </p>
+            </div>
+            <div class="price-card">
+              <h3>Kovan üzerinden</h3>
+              <p>
+                Modelin maliyeti artı %5, belirlediğiniz aylık limitle karta yansıtılır. Bir ekip,
+                üyelerinin ödemesini üstlenebilir.
+              </p>
+            </div>
+          </div>
+          <p class="price-note" data-reveal>
+            Tüm modellerin fiyatları <a href="/models/">Modeller ve fiyatlar</a> sayfasında;
+            ödemenin nasıl işlediği <a href="/tr/docs/managed-usage-and-billing/">belgelerde</a>.
+          </p>
+        </div>
+      </section>
+
+      <!-- ============ CTA ============ -->
+      <section class="cta" aria-labelledby="cta-title">
+        <canvas class="cta-hive" data-hive="cta" aria-hidden="true"></canvas>
+        <div class="wrap cta-inner">
+          <h2 id="cta-title" data-reveal>
+            Ekibinizi<br /><span class="ink-honey">kovana</span> getirin.
+          </h2>
+          <p data-reveal>
+            Kovan’ı kurun, bir depo açın, bir ekip arkadaşınızı ya da bir YZ ekip arkadaşını davet
+            edin.
+          </p>
+          <div class="hero-cta" data-reveal>
+            <a class="btn btn-primary btn-xl" href="/tr/download/">Kovan’ı indirin</a>
+            <a class="btn btn-secondary btn-xl" href="/tr/docs/getting-started/"
+              >Belgeleri okuyun</a
+            >
+          </div>
+          <p class="cta-demo" data-reveal>
+            Ya da önce <a href="/demo/#board">uygulamanın bir örneğini kurcalayın</a>.
+          </p>
+        </div>
+      </section>
+    </main>
+    <!--@footer-->
+  </body>
+</html>

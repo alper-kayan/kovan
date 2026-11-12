@@ -59,9 +59,10 @@
         <ul>
           <li><strong>In transit.</strong> The app and this site talk to the server over TLS.</li>
           <li>
-            <strong>Session transcripts.</strong> Secrets are redacted by pattern first; the
-            transcript is then encrypted by the server before it is stored, and deleted after the
-            retention period (90 days unless your organization changes it).
+            <strong>Session transcripts and session changes.</strong> Secrets are redacted by
+            pattern first; the transcript and each member&rsquo;s diff are then encrypted by the
+            server before they are stored, and deleted after the retention period (90 days unless
+            your organization changes it).
           </li>
           <li>
             <strong>GitHub tokens</strong> are encrypted by the server before they are stored.
@@ -78,8 +79,9 @@
         </ul>
         <p>
           The server holds the encryption keys, so this is encryption at rest, not end-to-end
-          encryption. Your source code is not stored on the server at all: it stays in your
-          checkouts and travels through your own Git remote. More detail is in
+          encryption. The server never keeps a copy of your repository: it stays in your checkouts
+          and travels through your own Git remote. What a shared session works on (its transcripts
+          and its changes) does reach the server, encrypted. More detail is in
           <a href="/docs/security-and-privacy/">Security and privacy</a>.
         </p>
       </div>

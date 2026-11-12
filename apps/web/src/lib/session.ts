@@ -54,6 +54,18 @@ export function mountSession(
       'Open the sign-in page',
     );
     const fallback = h('p', { class: 'panel-text', hidden: true }, 'No new tab? ', link, '.');
+    const codeValue = h('strong', { class: 'signin-code' });
+    const codeLine = h(
+      'p',
+      { class: 'panel-text', hidden: true },
+      'Signing in with an email link? Its page asks for this code: ',
+      codeValue,
+    );
+    void handle.code.then((code) => {
+      if (!code) return;
+      codeValue.textContent = code;
+      codeLine.hidden = false;
+    });
     void handle.url.then((url) => {
       link.href = url;
       fallback.hidden = false;
@@ -74,6 +86,7 @@ export function mountSession(
           { class: 'panel-text' },
           'Choose how to sign in there. This page continues by itself when you are done.',
         ),
+        codeLine,
         fallback,
         cancel,
       ),

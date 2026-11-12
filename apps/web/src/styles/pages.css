@@ -613,6 +613,14 @@ th[aria-sort='descending'] .sort::after {
   justify-items: start;
 }
 
+.signin-code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 1.15em;
+  letter-spacing: 0.12em;
+  color: var(--text, inherit);
+  white-space: nowrap;
+}
+
 .signin h1 {
   font-size: 28px;
   letter-spacing: -0.03em;
@@ -889,7 +897,9 @@ th[aria-sort='descending'] .sort::after {
     padding-top: 100px;
   }
 
+  /* On a phone the page comes first; the list of pages follows it. */
   .docs-side {
+    order: 2;
     position: static;
     max-height: none;
     padding: 14px;
@@ -940,4 +950,90 @@ th[aria-sort='descending'] .sort::after {
 
 .link:hover {
   text-decoration-color: var(--text);
+}
+
+/* The invite page's list of what a newcomer needs. */
+.steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.6rem;
+  color: var(--text-dim, inherit);
+  line-height: 1.55;
+}
+
+.steps strong {
+  color: var(--text, inherit);
+}
+
+.name-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.name-edit .input {
+  max-width: 260px;
+}
+
+.need {
+  margin: 8px 0 28px;
+  padding: 20px 22px;
+  border: 1px solid var(--divider);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.need h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+.need ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-body);
+  line-height: 1.6;
+}
+
+.need li + li {
+  margin-top: 6px;
+}
+
+.platform-note {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Phones: each model a card with its prices, instead of a table that scrolls sideways. */
+@media (max-width: 640px) {
+  .data-table thead {
+    display: none;
+  }
+
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .data-table tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .data-table td {
+    padding: 2px 0;
+    text-align: left;
+    border: 0;
+  }
+
+  .data-table td[data-label]::before {
+    content: attr(data-label) ': ';
+    color: var(--text-secondary);
+  }
 }

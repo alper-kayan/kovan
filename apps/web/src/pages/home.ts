@@ -1,6 +1,7 @@
 import '../site';
 import '../styles/home.css';
 import { hive } from '../lib/hive';
+import { t } from '../lib/i18n';
 import { PLATFORM_LABEL, detectPlatform } from '../lib/platform';
 
 const calm = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -128,23 +129,26 @@ function push(feed: HTMLElement, kind: string, html: string, keep: number) {
   while (feed.children.length > keep) feed.firstElementChild?.remove();
 }
 
+/** A tool row: the verb in bold, then what it acted on (markup of our own). */
+const did = (verb: string, what: string) => `<b>${t(verb)}</b> ${what}`;
+
 const HERO: Event[] = [
-  [0, 'msg', 'Plan: 4 tasks in 2 waves. Tests wait for the limiter.'],
-  [0, 'tool', '<b>Wrote</b> task graph · acceptance for each'],
-  [1, 'think', 'Token bucket in middleware, keyed by API token.'],
-  [2, 'think', 'Waiting for “Limiter” before writing tests.'],
+  [0, 'msg', t('Plan: 4 tasks in 2 waves. Tests wait for the limiter.')],
+  [0, 'tool', did('Wrote', t('task graph · acceptance for each'))],
+  [1, 'think', t('Token bucket in middleware, keyed by API token.')],
+  [2, 'think', t('Waiting for “Limiter” before writing tests.')],
   [
     1,
     'tool',
-    '<b>Edited</b> src/limits.ts <span class="add">+38</span> <span class="del">−2</span>',
+    did('Edited', 'src/limits.ts <span class="add">+38</span> <span class="del">−2</span>'),
   ],
-  [1, 'tool', '<b>Ran</b> pnpm typecheck'],
-  [1, 'ok', '✓ typecheck passed'],
-  [2, 'tool', '<b>Edited</b> test/limits.test.ts <span class="add">+41</span>'],
-  [0, 'msg', '@Tests cover the 429 path before review.'],
-  [2, 'tool', '<b>Ran</b> pnpm test'],
-  [2, 'ok', '✓ 14 tests passed'],
-  [0, 'ok', '✓ Reviewed · 4/4 tasks · verified'],
+  [1, 'tool', did('Ran', 'pnpm typecheck')],
+  [1, 'ok', t('✓ typecheck passed')],
+  [2, 'tool', did('Edited', 'test/limits.test.ts <span class="add">+41</span>')],
+  [0, 'msg', t('@Tests cover the 429 path before review.')],
+  [2, 'tool', did('Ran', 'pnpm test')],
+  [2, 'ok', t('✓ {count} tests passed', { count: 14 })],
+  [0, 'ok', t('✓ Reviewed · 4/4 tasks · verified')],
 ];
 /** Mini graph state after each hero event: [running, done...]. */
 const HERO_GRAPH: Record<number, { run?: string; done?: string[] }> = {
@@ -200,22 +204,22 @@ if (lanesDemo) {
   const feeds = $$('.ld-feed', lanesDemo);
   type Beat = Event | 'overlap' | 'ask' | 'approve' | 'clear';
   const BEATS: Beat[] = [
-    [0, 'msg', 'Add a token bucket to the public routes.'],
-    [1, 'msg', 'Review the 429 path when it lands.'],
-    [2, 'tool', '<b>Editing</b> src/limits.ts'],
+    [0, 'msg', t('Add a token bucket to the public routes.')],
+    [1, 'msg', t('Review the 429 path when it lands.')],
+    [2, 'tool', did('Editing', 'src/limits.ts')],
     'overlap',
-    [0, 'think', 'Bob is on limits.ts. Joining his task instead.'],
+    [0, 'think', t('Bob is on limits.ts. Joining his task instead.')],
     'clear',
-    [0, 'tool', '<b>Joined</b> Bob · split: routes for me'],
-    [1, 'tool', '<b>Read</b> src/routes.ts'],
-    [2, 'tool', '<b>Edited</b> src/limits.ts <span class="add">+38</span>'],
+    [0, 'tool', did('Joined', t('Bob · split: routes for me'))],
+    [1, 'tool', did('Read', 'src/routes.ts')],
+    [2, 'tool', did('Edited', 'src/limits.ts <span class="add">+38</span>')],
     'ask',
     'approve',
-    [1, 'tool', '<b>Ran</b> pnpm test src/limits.test.ts'],
+    [1, 'tool', did('Ran', 'pnpm test src/limits.test.ts')],
     'clear',
-    [1, 'ok', '✓ 6 tests passed'],
-    [2, 'msg', 'Handing “wire routes” to Ada, plan attached.'],
-    [0, 'ok', '✓ Picked up: wire routes'],
+    [1, 'ok', t('✓ {count} tests passed', { count: 6 })],
+    [2, 'msg', t('Handing “wire routes” to Ada, plan attached.')],
+    [0, 'ok', t('✓ Picked up: wire routes')],
   ];
   if (calm) {
     for (const beat of BEATS) if (Array.isArray(beat)) push(feeds[beat[0]]!, beat[1], beat[2], 5);
@@ -243,7 +247,7 @@ if (lanesDemo) {
 const stage = $('[data-stage]');
 const steps = $$('.story-step');
 const goalText = $('[data-goal-type]');
-const GOAL = 'Add rate limiting to the public API, with a burst test.';
+const GOAL = t('Add rate limiting to the public API, with a burst test.');
 let typed = false;
 
 async function typeGoal() {
@@ -342,11 +346,12 @@ if (router) {
   const wires = $$<SVGPathElement>('.w', router);
   const models = $$('.r-model', router);
   const PROMPTS: [text: string, kind: string, model: number][] = [
-    ['Design the plugin API and its versioning', 'design · difficulty 4/5', 0],
-    ['Rename userId to accountId in utils.ts', 'edit · difficulty 1/5', 2],
-    ['Fix the failing auth test', 'debug · difficulty 3/5', 1],
-    ['How do the packages of this repo fit together?', 'read · whole repo', 3],
-    ['[jev: only use Opus] review this migration', 'pinned by directive', 0],
+    [t('Design the plugin API and its versioning'), t('design · difficulty 4/5'), 0],
+    [t('Rename userId to accountId in utils.ts'), t('edit · difficulty 1/5'), 2],
+    [t('Fix the failing auth test'), t('debug · difficulty 3/5'), 1],
+    [t('How do the packages of this repo fit together?'), t('read · whole repo'), 3],
+    // The directive is syntax and stays as it is typed.
+    [`[jev: only use Opus] ${t('review this migration')}`, t('pinned by directive'), 0],
   ];
   const light = (model: number | null) => {
     wires.forEach((w, i) => w.classList.toggle('on', i === model));
@@ -370,7 +375,7 @@ if (router) {
         bubble.textContent = text;
         prompts.append(bubble);
         while (prompts.children.length > 4) prompts.firstElementChild?.remove();
-        label.textContent = 'reading the conversation…';
+        label.textContent = t('reading the conversation…');
         light(null);
         await wait(900);
         label.textContent = kind;
@@ -522,5 +527,6 @@ if (modes) {
 
 void detectPlatform().then((platform) => {
   const label = $('[data-download-label]');
-  if (platform && label) label.textContent = `Download for ${PLATFORM_LABEL[platform]}`;
+  if (platform && label)
+    label.textContent = t('Download for {platform}', { platform: t(PLATFORM_LABEL[platform]) });
 });

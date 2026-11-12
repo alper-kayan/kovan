@@ -137,7 +137,7 @@ const LANES: Lane[] = [
     person: 'ben',
     harness: 'Kovan',
     model: 'JevRouter',
-    mode: 'Request',
+    mode: 'Ask first',
     placeholder: 'Ben is using Kovan with JevRouter. Steer their agent…',
     steps: [
       {
@@ -172,7 +172,7 @@ const LANES: Lane[] = [
     you: true,
     harness: 'Kovan',
     model: 'JevRouter',
-    mode: 'Allow',
+    mode: 'Edit freely',
     placeholder: 'Prompt your agent. Uses your OpenRouter key.',
     steps: [
       {
@@ -198,7 +198,7 @@ const LANES: Lane[] = [
     person: 'chen',
     harness: 'Claude Code',
     model: 'claude',
-    mode: 'Plan',
+    mode: 'Plan only',
     placeholder: 'Chen is using Claude Code. Message their agent…',
     steps: [
       {
@@ -530,6 +530,23 @@ function fit(): void {
   app.style.transform = scale < 1 ? `scale(${scale})` : '';
 }
 
+/**
+ * Opened on its own (from a link, not inside the home page): a thin bar says what this is and
+ * leads back, and on a phone that the sample is made for a computer screen.
+ */
+function siteBar(): void {
+  if (window.top !== window.self) return;
+  const bar = document.createElement('div');
+  bar.className = 'demo-bar';
+  const phone = window.screen.width < 700;
+  bar.innerHTML = `<span><b>A sample of the Kovan desktop app</b>, with made-up data: click around${
+    phone ? '. It is made for a computer screen; pinch to zoom' : ''
+  }.</span><a href="/">Back to the site</a><a class="demo-bar-cta" href="/download/">Download</a>`;
+  document.body.prepend(bar);
+  document.body.classList.add('has-demo-bar');
+}
+
+siteBar();
 renderBoard();
 renderPeople();
 placeNodes();

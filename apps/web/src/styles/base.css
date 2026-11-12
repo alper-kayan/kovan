@@ -7,7 +7,7 @@
   --text: #fbf6ec;
   --text-body: #c8cbe0;
   --text-secondary: #9095b4;
-  --text-faint: #646a8a;
+  --text-faint: #8288a8;
   --divider: rgba(160, 170, 230, 0.16);
   --hairline: rgba(160, 170, 230, 0.09);
   --accent: #ffb829;
@@ -293,6 +293,36 @@ select {
   backdrop-filter: blur(18px) saturate(1.4);
 }
 
+.nav-start {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* The language switch: the other language's code, next to the logo. */
+.nav-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--divider);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  transition:
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.nav-lang:hover {
+  color: var(--honey);
+  border-color: rgba(255, 184, 41, 0.45);
+}
+
 .nav-links {
   display: flex;
   gap: 28px;
@@ -427,6 +457,16 @@ select {
   color: var(--text);
 }
 
+.footer-lang a {
+  color: var(--text-secondary);
+  transition: color 0.15s;
+}
+
+.footer-lang a:hover,
+.footer-lang a[aria-current] {
+  color: var(--text);
+}
+
 .footer-base {
   display: flex;
   justify-content: space-between;
@@ -464,7 +504,8 @@ select {
   }
 
   .nav-links,
-  .nav-signin {
+  .nav-signin,
+  .nav-lang {
     display: none;
   }
 

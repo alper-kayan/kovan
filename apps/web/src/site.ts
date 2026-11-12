@@ -2,6 +2,7 @@ import '@fontsource-variable/bricolage-grotesque';
 import '@fontsource-variable/jetbrains-mono';
 import '@fontsource-variable/manrope';
 import './styles/base.css';
+import { t } from './lib/i18n';
 
 /** Behaviour every page shares: the nav turning into a pill, and the mobile menu. */
 function initNav(): void {
@@ -32,8 +33,19 @@ function initNav(): void {
   // Mark the section of the site the visitor is in.
   const here = window.location.pathname;
   for (const link of nav.querySelectorAll<HTMLAnchorElement>('.nav-links a')) {
-    const path = new URL(link.href).pathname;
-    if (here.startsWith(path)) link.setAttribute('aria-current', 'page');
+    const url = new URL(link.href);
+    // "/#pricing" is a place on the home page, not a section every path starts with.
+    if (url.hash || url.pathname === '/') continue;
+    if (here.startsWith(url.pathname)) link.setAttribute('aria-current', 'page');
+  }
+
+  // Signed in on this tab: the nav says so instead of offering to sign in.
+  const account = nav.querySelector<HTMLAnchorElement>('[data-nav-account]');
+  try {
+    if (account && window.sessionStorage.getItem('kovan.session'))
+      account.textContent = t('Account');
+  } catch {
+    // Storage may be off; the link still goes to the account page.
   }
 }
 

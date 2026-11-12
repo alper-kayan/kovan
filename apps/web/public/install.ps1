@@ -92,4 +92,10 @@ console.log(m.version);
   Write-Host "(Other terminals that were already open pick it up once they are opened again.)"
 }
 
-Install-Kovan
+# A failure reads as one plain line, not PowerShell's red block with "At line:... CategoryInfo".
+try {
+  Install-Kovan
+} catch {
+  Write-Host ""
+  Write-Host "kovan wasn't installed: $($_.Exception.Message)" -ForegroundColor Yellow
+}

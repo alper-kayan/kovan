@@ -4,3 +4,4 @@
 declare const __BILLING_CONSENT__: string;
 declare const __BILLING_CONSENT_VERSION__: string;
 declare const __MANAGED_MARKUP__: number;
+declare const __ROLE_WORDS__: Record<'viewer' | 'commenter' | 'editor' | 'owner', string>;

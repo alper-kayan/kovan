@@ -1,15 +1,21 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { Marked } from 'marked';
 import type { Plugin } from 'vite';
 
 /**
  * The site's build-time templating:
- *  - `<!--@head-->`, `<!--@nav-->`, `<!--@footer-->` are replaced with the shared partials;
- *  - `docs/index.html` is a template that becomes one page per `content/docs/*.md`;
+ *  - `<!--@head-->`, `<!--@nav-->`, `<!--@footer-->` are replaced with the shared partials, in the
+ *    page's language (`<html lang="tr">` takes `nav.tr.html` and `footer.tr.html`);
+ *  - `docs/index.html` is a template that becomes one page per `content/docs/*.md`, and
+ *    `tr/docs/index.html` one page per `content/docs-tr/*.md` (same file names, Turkish text);
  *  - `<!--@changelog-->` is replaced with `content/changelog.md`.
+ * A page with a version in the other language gets `hreflang` links to both, and the nav's
+ * language switch (`__LANG_HREF__`) goes to its counterpart, or to the other home page.
  * Markdown is our own content, rendered here; nothing is rendered in the browser.
  */
+
+type Locale = 'en' | 'tr';
 
 interface DocPage {
   slug: string;
@@ -19,12 +25,42 @@ interface DocPage {
   headings: { id: string; text: string }[];
 }
 
+/** Where the site is published, for the absolute URLs `hreflang` links need. */
+const SITE = 'https://kovan.alperkayan.dev';
+
+const DOCS: Record<Locale, { dir: string; base: string; template: string }> = {
+  en: { dir: 'content/docs', base: '/docs/', template: 'docs/index.html' },
+  tr: { dir: 'content/docs-tr', base: '/tr/docs/', template: 'tr/docs/index.html' },
+};
+
+/** Pages other than the docs that also exist in Turkish, at `/tr` + the English path. */
+const TRANSLATED_PAGES = new Set(['/', '/download/']);
+
+const PAGER: Record<Locale, { prev: string; next: string }> = {
+  en: { prev: 'Previous', next: 'Next' },
+  tr: { prev: 'Önceki', next: 'Sonraki' },
+};
+
 const escapeHtml = (text: string) =>
   text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+const TURKISH_LETTERS: Record<string, string> = {
+  ç: 'c',
+  ğ: 'g',
+  ı: 'i',
+  ö: 'o',
+  ş: 's',
+  ü: 'u',
+  â: 'a',
+  î: 'i',
+  û: 'u',
+};
+
+/** Heading ids: Turkish letters become their plain Latin ones, so "Giriş" is `#giris`. */
 const slugify = (text: string) =>
   text
-    .toLowerCase()
+    .toLocaleLowerCase('tr')
+    .replace(/[çğıöşüâîû]/g, (letter) => TURKISH_LETTERS[letter] ?? letter)
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
 
@@ -52,8 +88,9 @@ function renderMarkdown(source: string): { html: string; headings: DocPage['head
   return { html: marked.parse(source, { async: false }), headings };
 }
 
-function loadDocs(root: string): DocPage[] {
-  const dir = join(root, 'content/docs');
+function loadDocs(root: string, locale: Locale): DocPage[] {
+  const dir = join(root, DOCS[locale].dir);
+  if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((name) => name.endsWith('.md'))
     .sort()
@@ -71,23 +108,72 @@ function loadDocs(root: string): DocPage[] {
     });
 }
 
-function renderDoc(template: string, pages: DocPage[], page: DocPage): string {
+/** `<link rel="alternate" hreflang>` for a page that exists in both languages. */
+function alternateLinks(en: string, tr: string): string {
+  return [
+    `<link rel="alternate" hreflang="en" href="${SITE}${en}" />`,
+    `<link rel="alternate" hreflang="tr" href="${SITE}${tr}" />`,
+    `<link rel="alternate" hreflang="x-default" href="${SITE}${en}" />`,
+  ].join('\n');
+}
+
+/**
+ * The page in the other language: its counterpart when there is one, the other home page when
+ * not. `alternates` is the hreflang markup, empty when the page has no counterpart.
+ */
+function counterpart(
+  path: string,
+  locale: Locale,
+  hasPair: (enPath: string) => boolean,
+  fallback = { en: '/', tr: '/tr/' },
+): { href: string; alternates: string } {
+  if (locale === 'tr') {
+    const en = path.replace(/^\/tr\//, '/');
+    return hasPair(en)
+      ? { href: en, alternates: alternateLinks(en, path) }
+      : { href: fallback.en, alternates: '' };
+  }
+  return hasPair(path)
+    ? { href: `/tr${path}`, alternates: alternateLinks(path, `/tr${path}`) }
+    : { href: fallback.tr, alternates: '' };
+}
+
+/** Fills in the language switch and the hreflang links (left as markers by the partials). */
+const fillLanguage = (html: string, other: { href: string; alternates: string }) =>
+  html.replaceAll('__LANG_HREF__', other.href).replace('<!--@alternates-->', other.alternates);
+
+function renderDoc(
+  template: string,
+  locale: Locale,
+  pages: DocPage[],
+  page: DocPage,
+  otherSlugs: Set<string>,
+): string {
+  const base = DOCS[locale].base;
   const index = pages.indexOf(page);
   const sidebar = pages
     .map((p) => {
       const current = p === page ? ' aria-current="page"' : '';
-      return `<li><a href="/docs/${p.slug}/"${current}>${escapeHtml(p.title)}</a></li>`;
+      return `<li><a href="${base}${p.slug}/"${current}>${escapeHtml(p.title)}</a></li>`;
     })
     .join('\n');
   const toc = page.headings
     .map((h) => `<li><a href="#${h.id}">${escapeHtml(h.text)}</a></li>`)
     .join('\n');
+  const words = PAGER[locale];
   const link = (p: DocPage | undefined, rel: 'prev' | 'next') =>
     p
-      ? `<a class="docs-pager-link docs-pager-${rel}" rel="${rel}" href="/docs/${p.slug}/"><span>${rel === 'prev' ? 'Previous' : 'Next'}</span>${escapeHtml(p.title)}</a>`
+      ? `<a class="docs-pager-link docs-pager-${rel}" rel="${rel}" href="${base}${p.slug}/"><span>${words[rel]}</span>${escapeHtml(p.title)}</a>`
       : '<span></span>';
   const pager = `${link(pages[index - 1], 'prev')}${link(pages[index + 1], 'next')}`;
-  return template
+  const path = `${base}${page.slug}/`;
+  const other = counterpart(
+    path,
+    locale,
+    (en) => otherSlugs.has(en.slice(DOCS.en.base.length, -1)),
+    { en: DOCS.en.base, tr: DOCS.tr.base },
+  );
+  return fillLanguage(template, other)
     .replaceAll('__DOC_TITLE__', escapeHtml(page.title))
     .replaceAll('__DOC_DESCRIPTION__', escapeHtml(page.description))
     .replaceAll('__DOC_SLUG__', page.slug)
@@ -95,6 +181,16 @@ function renderDoc(template: string, pages: DocPage[], page: DocPage): string {
     .replace('<!--@docs:toc-->', toc)
     .replace('<!--@docs:content-->', page.html)
     .replace('<!--@docs:pager-->', pager);
+}
+
+/** Renders every docs page of one language from that language's template. */
+function renderDocs(root: string, locale: Locale, template: string) {
+  const pages = loadDocs(root, locale);
+  const otherSlugs = new Set(loadDocs(root, locale === 'en' ? 'tr' : 'en').map((p) => p.slug));
+  return pages.map((page) => ({
+    page,
+    html: renderDoc(template, locale, pages, page, otherSlugs),
+  }));
 }
 
 /** `## 0.1.0 · 2026-10-13` starts a release; everything up to the next one is its notes. */
@@ -115,9 +211,16 @@ function renderChangelog(root: string): string {
     .join('\n');
 }
 
+/** "/tr/download/index.html" → "/tr/download/"; "/404.html" stays as it is. */
+const pagePath = (file: string) => {
+  const path = `/${file.replace(/^\/+/, '').split('?')[0] ?? ''}`;
+  return path.endsWith('/index.html') ? path.slice(0, -'index.html'.length) : path;
+};
+
+const DOCS_URL = /^(\/tr)?\/docs\/([a-z0-9-]+)\/?(\?.*)?$/;
+
 export function sitePlugin(root: string): Plugin {
   const partial = (name: string) => readFileSync(join(root, 'src/partials', name), 'utf8');
-  const DOCS_TEMPLATE = 'docs/index.html';
 
   return {
     name: 'kovan-site',
@@ -126,7 +229,8 @@ export function sitePlugin(root: string): Plugin {
     configureServer(server) {
       // In dev every /docs/<slug>/ is the one template, filled in by transformIndexHtml below.
       server.middlewares.use((req, _res, next) => {
-        if (req.url && /^\/docs\/[a-z0-9-]+\/?(\?.*)?$/.test(req.url)) req.url = '/docs/index.html';
+        const match = req.url ? DOCS_URL.exec(req.url) : null;
+        if (match) req.url = `${match[1] ?? ''}/docs/index.html`;
         next();
       });
     },
@@ -134,36 +238,45 @@ export function sitePlugin(root: string): Plugin {
     transformIndexHtml: {
       order: 'pre',
       handler(html, ctx) {
+        const locale: Locale = /<html[^>]*\slang="tr"/.test(html) ? 'tr' : 'en';
+        const suffix = locale === 'tr' ? '.tr' : '';
         let out = html
-          .replace('<!--@head-->', partial('head.html'))
-          .replace('<!--@nav-->', partial('nav.html'))
-          .replace('<!--@footer-->', partial('footer.html'));
+          .replace('<!--@head-->', `${partial('head.html')}<!--@alternates-->`)
+          .replace('<!--@nav-->', partial(`nav${suffix}.html`))
+          .replace('<!--@footer-->', partial(`footer${suffix}.html`));
         if (out.includes('<!--@changelog-->'))
           out = out.replace('<!--@changelog-->', renderChangelog(root));
-        if (ctx.server && out.includes('<!--@docs:content-->')) {
-          const pages = loadDocs(root);
-          const slug = /^\/docs\/([a-z0-9-]+)/.exec(ctx.originalUrl ?? '')?.[1];
-          const page = pages.find((p) => p.slug === slug) ?? pages[0];
-          if (page) out = renderDoc(out, pages, page);
+        if (out.includes('<!--@docs:content-->')) {
+          // Docs pages are filled in per page: here in dev, in generateBundle for a build.
+          if (!ctx.server) return out;
+          const slug = DOCS_URL.exec(ctx.originalUrl ?? '')?.[2];
+          const rendered = renderDocs(root, locale, out);
+          return (rendered.find((r) => r.page.slug === slug) ?? rendered[0])?.html ?? out;
         }
-        return out;
+        const path = pagePath(ctx.path);
+        return fillLanguage(
+          out,
+          counterpart(path, locale, (en) => TRANSLATED_PAGES.has(en)),
+        );
       },
     },
 
-    // In a build the template is fanned out after Vite has put the hashed assets into it.
+    // In a build each template is fanned out after Vite has put the hashed assets into it.
     generateBundle(_options, bundle) {
-      const template = bundle[DOCS_TEMPLATE];
-      if (!template || template.type !== 'asset') return;
-      const html = String(template.source);
-      const pages = loadDocs(root);
-      for (const page of pages) {
-        this.emitFile({
-          type: 'asset',
-          fileName: `docs/${page.slug}/index.html`,
-          source: renderDoc(html, pages, page),
-        });
+      for (const locale of ['en', 'tr'] as const) {
+        const { template: name, base } = DOCS[locale];
+        const template = bundle[name];
+        if (!template || template.type !== 'asset') continue;
+        const rendered = renderDocs(root, locale, String(template.source));
+        for (const { page, html } of rendered) {
+          this.emitFile({
+            type: 'asset',
+            fileName: `${base.slice(1)}${page.slug}/index.html`,
+            source: html,
+          });
+        }
+        if (rendered[0]) template.source = rendered[0].html;
       }
-      if (pages[0]) template.source = renderDoc(html, pages, pages[0]);
     },
   };
 }

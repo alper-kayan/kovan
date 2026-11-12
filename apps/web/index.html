@@ -18,9 +18,9 @@
         <canvas class="hero-hive" data-hive aria-hidden="true"></canvas>
         <div class="hero-orbs" aria-hidden="true"><i></i><i></i><i></i></div>
         <div class="wrap hero-inner">
-          <a class="pill-new" href="#flow" data-reveal>
+          <a class="pill-new" href="/demo/#board" data-reveal>
             <span class="pill-dot"></span>
-            <b>New</b> Agent System 2.0: task graphs and verified completion
+            <b>Try it</b> Click around a sample of the app, in your browser
             <span aria-hidden="true">&rarr;</span>
           </a>
           <h1 id="hero-title" class="hero-title" data-reveal>
@@ -28,9 +28,9 @@
             and its coding agents.
           </h1>
           <p class="hero-sub" data-reveal>
-            Kovan is a multiplayer desktop IDE. People and AI agents share one live session: a lead
-            plans the work as a task graph, teammates build it in parallel, and nothing counts as
-            done until <em>your own checks</em> pass.
+            Kovan is a code editor, like VS Code, where you and your teammates each work with an AI
+            agent (Kovan&rsquo;s own, Claude Code or Codex) and everyone sees every agent&rsquo;s
+            work live. Use it alone, or bring your team.
           </p>
           <div class="hero-cta" data-reveal>
             <a class="btn btn-primary btn-xl" href="/download/" data-download-cta>
@@ -46,10 +46,12 @@
               </svg>
               <span data-download-label>Download</span>
             </a>
-            <a class="btn btn-secondary btn-xl" href="#flow">See how it works</a>
+            <a class="btn btn-secondary btn-xl" href="#session">See how it works</a>
           </div>
           <p class="hero-meta" data-reveal>
-            macOS (Apple silicon) · Windows x64 and ARM64 · Linux x64 · free to start
+            Free during early access: you pay only for the AI you use ·
+            <a href="https://github.com/alper-kayan/kovan">open source</a> · macOS (Apple silicon) ·
+            Windows · Linux
           </p>
 
           <!-- a live-looking session window -->
@@ -96,28 +98,28 @@
       <section class="ticker" aria-label="What Kovan does">
         <div class="ticker-row">
           <ul>
-            <li>Live lanes</li>
-            <li>Swarm</li>
-            <li>Task graphs</li>
-            <li>Verified completion</li>
-            <li>Independent review</li>
-            <li>JevRouter</li>
-            <li>180+ models</li>
-            <li>Agent Arena</li>
-            <li>Change impact</li>
-            <li>Session replay</li>
+            <li>See every agent work, live</li>
+            <li>Approve from your phone</li>
+            <li>Done means your tests pass</li>
+            <li>A second agent reviews</li>
+            <li>Hundreds of AI models</li>
+            <li>The right model per step</li>
+            <li>Spending limits</li>
+            <li>Replay any session</li>
+            <li>Teams of agents</li>
+            <li>Notes every agent reads</li>
           </ul>
           <ul aria-hidden="true">
-            <li>Live lanes</li>
-            <li>Swarm</li>
-            <li>Task graphs</li>
-            <li>Verified completion</li>
-            <li>Independent review</li>
-            <li>JevRouter</li>
-            <li>180+ models</li>
-            <li>Agent Arena</li>
-            <li>Change impact</li>
-            <li>Session replay</li>
+            <li>See every agent work, live</li>
+            <li>Approve from your phone</li>
+            <li>Done means your tests pass</li>
+            <li>A second agent reviews</li>
+            <li>Hundreds of AI models</li>
+            <li>The right model per step</li>
+            <li>Spending limits</li>
+            <li>Replay any session</li>
+            <li>Teams of agents</li>
+            <li>Notes every agent reads</li>
           </ul>
         </div>
         <div class="ticker-row reverse" aria-hidden="true">
@@ -125,26 +127,131 @@
             <li>Claude Code</li>
             <li>Codex</li>
             <li>OpenRouter</li>
-            <li>Git worktrees</li>
-            <li>MCP</li>
+            <li>Git and GitHub</li>
+            <li>Your own tools (MCP)</li>
             <li>GitHub issues</li>
-            <li>Monaco editor</li>
+            <li>A real code editor</li>
             <li>Your own keys</li>
-            <li>Budgets</li>
+            <li>A terminal agent</li>
             <li>AI teammates</li>
           </ul>
           <ul>
             <li>Claude Code</li>
             <li>Codex</li>
             <li>OpenRouter</li>
-            <li>Git worktrees</li>
-            <li>MCP</li>
+            <li>Git and GitHub</li>
+            <li>Your own tools (MCP)</li>
             <li>GitHub issues</li>
-            <li>Monaco editor</li>
+            <li>A real code editor</li>
             <li>Your own keys</li>
-            <li>Budgets</li>
+            <li>A terminal agent</li>
             <li>AI teammates</li>
           </ul>
+        </div>
+      </section>
+
+      <!-- ============ multiplayer session ============ -->
+      <section class="sec" id="session" aria-labelledby="session-title">
+        <div class="wrap split">
+          <div class="split-text">
+            <p class="label" data-reveal>01 · Working together</p>
+            <h2 id="session-title" data-reveal>
+              One session.<br /><span class="ink-sky">Everyone&rsquo;s</span> agents in it.
+            </h2>
+            <p class="lead" data-reveal>
+              Each person gives their own agent work, on their own computer. Everyone sees every
+              agent&rsquo;s work as it happens, and the session keeps one Git branch and one plan.
+            </p>
+            <ul class="ticks" data-reveal>
+              <li>
+                <b>Approvals anyone can answer.</b> Any editor can approve a command; the first
+                answer wins, and it covers that exact action once.
+              </li>
+              <li>
+                <b>Overlap warnings.</b> If your prompt touches files another agent is editing,
+                Kovan says so before it runs: join, split or carry on.
+              </li>
+              <li>
+                <b>Steer and hand off.</b> Redirect an agent mid-turn, comment on a diff, or hand a
+                task to a teammate with its plan.
+              </li>
+              <li>
+                <b>Roles on the server.</b> Viewer, commenter, editor and owner, checked on every
+                request.
+              </li>
+            </ul>
+          </div>
+          <div class="lanes-demo" data-lanes-demo data-reveal aria-hidden="true">
+            <div class="ld-lane" style="--c: var(--sky)">
+              <p class="ld-head"><i class="av">A</i><b>Ada</b><span>Kovan agent</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-lane" style="--c: var(--rose)">
+              <p class="ld-head"><i class="av">B</i><b>Ben</b><span>Claude Code</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-lane" style="--c: var(--mint)">
+              <p class="ld-head"><i class="av">&#11042;</i><b>Bob</b><span>AI teammate</span></p>
+              <div class="ld-feed"></div>
+            </div>
+            <div class="ld-approval">
+              <p><b>Run this?</b> <span class="mono">pnpm test src/limits.test.ts</span></p>
+              <p class="ld-actions">
+                <span class="ok">&#10003; Approve</span><span>&#10005; Deny</span>
+              </p>
+              <p class="ld-who">Ben approved · rev 14</p>
+            </div>
+            <div class="ld-overlap">
+              &#9888; Bob is editing <b>src/limits.ts</b> · <u>Join</u> · <u>Split</u> ·
+              <u>Carry on</u>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ modes ============ -->
+      <section class="sec sec-alt" id="modes" aria-labelledby="modes-title">
+        <div class="wrap split reverse">
+          <div class="split-text">
+            <p class="label" data-reveal>02 · Alone or as a team</p>
+            <h2 id="modes-title" data-reveal>
+              Alone, as a team,<br />or <span class="ink-mint">both</span>.
+            </h2>
+            <p class="lead" data-reveal>
+              Every workspace has a mode. Change it any time; Kovan adapts what it offers.
+            </p>
+          </div>
+          <div class="modes" data-modes data-reveal>
+            <div class="modes-tabs" role="tablist" aria-label="Workspace modes">
+              <button type="button" role="tab" aria-selected="true" data-mode="0">Solo</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="1">Team</button>
+              <button type="button" role="tab" aria-selected="false" data-mode="2">Adaptive</button>
+              <span class="modes-glider"></span>
+            </div>
+            <div class="modes-panels">
+              <div class="mode-panel is-on" role="tabpanel">
+                <h3>Solo</h3>
+                <p>
+                  Just you and your agents. No invites and no hand-offs, and suggested swarms stay
+                  small (two workers at most) so they don&rsquo;t outrun your attention.
+                </p>
+              </div>
+              <div class="mode-panel" role="tabpanel">
+                <h3>Team</h3>
+                <p>
+                  Shared sessions, live lanes, invites, hand-offs and approvals by any editor. AI
+                  teammates join the board alongside people.
+                </p>
+              </div>
+              <div class="mode-panel" role="tabpanel">
+                <h3>Adaptive</h3>
+                <p>
+                  Starts solo and opens up the team features the moment someone else joins the
+                  workspace.
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -152,7 +259,7 @@
       <section class="flow" id="flow" aria-labelledby="flow-title">
         <div class="wrap">
           <header class="sec-head" data-reveal>
-            <p class="label">01 · How the system works</p>
+            <p class="label">03 · Teams of agents</p>
             <h2 id="flow-title">
               From one sentence<br />to <span class="ink-mint">verified</span> code.
             </h2>
@@ -286,70 +393,11 @@
         </div>
       </section>
 
-      <!-- ============ multiplayer session ============ -->
-      <section class="sec" id="session" aria-labelledby="session-title">
-        <div class="wrap split">
-          <div class="split-text">
-            <p class="label" data-reveal>02 · Multiplayer</p>
-            <h2 id="session-title" data-reveal>
-              One session.<br /><span class="ink-sky">Everyone&rsquo;s</span> agents in it.
-            </h2>
-            <p class="lead" data-reveal>
-              Each person prompts their own agent in their own lane, on their own machine. Everyone
-              sees every lane as it streams, and the session keeps one branch and one plan.
-            </p>
-            <ul class="ticks" data-reveal>
-              <li>
-                <b>Approvals anyone can answer.</b> Any editor can approve a command; the first
-                answer wins, and it covers that exact action once.
-              </li>
-              <li>
-                <b>Overlap warnings.</b> If your prompt touches files another agent is editing,
-                Kovan says so before it runs: join, split or carry on.
-              </li>
-              <li>
-                <b>Steer and hand off.</b> Redirect an agent mid-turn, comment on a diff, or hand a
-                task to a teammate with its plan.
-              </li>
-              <li>
-                <b>Roles on the server.</b> Viewer, commenter, editor and owner, checked on every
-                request.
-              </li>
-            </ul>
-          </div>
-          <div class="lanes-demo" data-lanes-demo data-reveal aria-hidden="true">
-            <div class="ld-lane" style="--c: var(--sky)">
-              <p class="ld-head"><i class="av">A</i><b>Ada</b><span>Kovan agent</span></p>
-              <div class="ld-feed"></div>
-            </div>
-            <div class="ld-lane" style="--c: var(--rose)">
-              <p class="ld-head"><i class="av">B</i><b>Ben</b><span>Claude Code</span></p>
-              <div class="ld-feed"></div>
-            </div>
-            <div class="ld-lane" style="--c: var(--mint)">
-              <p class="ld-head"><i class="av">&#11042;</i><b>Bob</b><span>AI teammate</span></p>
-              <div class="ld-feed"></div>
-            </div>
-            <div class="ld-approval">
-              <p><b>Run this?</b> <span class="mono">pnpm test src/limits.test.ts</span></p>
-              <p class="ld-actions">
-                <span class="ok">&#10003; Approve</span><span>&#10005; Deny</span>
-              </p>
-              <p class="ld-who">Ben approved · rev 14</p>
-            </div>
-            <div class="ld-overlap">
-              &#9888; Bob is editing <b>src/limits.ts</b> · <u>Join</u> · <u>Split</u> ·
-              <u>Carry on</u>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- ============ AI teammates & memory ============ -->
-      <section class="sec sec-alt" id="teammates" aria-labelledby="mates-title">
+      <section class="sec" id="teammates" aria-labelledby="mates-title">
         <div class="wrap">
           <header class="sec-head center" data-reveal>
-            <p class="label">03 · AI teammates</p>
+            <p class="label">04 · AI teammates</p>
             <h2 id="mates-title">Teammates that <span class="ink-violet">remember</span>.</h2>
             <p>
               Add AI members to a workspace the way you add people. They keep their name, role and
@@ -410,17 +458,17 @@
       </section>
 
       <!-- ============ JevRouter & models ============ -->
-      <section class="sec" id="models" aria-labelledby="router-title">
+      <section class="sec sec-alt" id="models" aria-labelledby="router-title">
         <div class="wrap">
           <header class="sec-head" data-reveal>
-            <p class="label">04 · Models</p>
+            <p class="label">05 · Models</p>
             <h2 id="router-title">
               Every model.<br /><span class="ink-honey">Routed</span> per task.
             </h2>
             <p>
-              A native harness built into the app, more than 180 models through OpenRouter, and
-              JevRouter to choose between them. Use your own key, or managed usage at provider cost
-              plus 5%.
+              Kovan&rsquo;s own agent can use hundreds of AI models. JevRouter, its model picker,
+              sends easy steps to cheap models and hard ones to strong models. Pay with your own
+              OpenRouter key, or through Kovan at what the model costs plus 5%.
             </p>
           </header>
 
@@ -455,20 +503,22 @@
 
           <div class="stat-row">
             <div class="stat" data-reveal style="--i: 0">
-              <p class="stat-v"><span data-count="180">0</span>+</p>
+              <p class="stat-v"><span data-count="300">0</span>+</p>
               <p class="stat-l">models through OpenRouter</p>
             </div>
             <div class="stat" data-reveal style="--i: 1">
               <p class="stat-v">&times;<span data-count="1.05" data-decimals="2">0</span></p>
-              <p class="stat-l">provider cost on managed usage</p>
+              <p class="stat-l">provider cost through Kovan billing</p>
             </div>
             <div class="stat" data-reveal style="--i: 2">
               <p class="stat-v"><span data-count="4">0</span></p>
-              <p class="stat-l">permission modes: Plan, Request, Allow, Full</p>
+              <p class="stat-l">
+                ways to let an agent act: Plan only, Ask first, Edit freely, Full access
+              </p>
             </div>
             <div class="stat" data-reveal style="--i: 3">
               <p class="stat-v"><span data-count="1">0</span></p>
-              <p class="stat-l">key for all of them, or none with managed usage</p>
+              <p class="stat-l">key for all of them, or none with Kovan billing</p>
             </div>
           </div>
 
@@ -517,10 +567,10 @@
       </section>
 
       <!-- ============ control: limits, arena, impact, replay ============ -->
-      <section class="sec sec-alt" id="control" aria-labelledby="control-title">
+      <section class="sec" id="control" aria-labelledby="control-title">
         <div class="wrap">
           <header class="sec-head center" data-reveal>
-            <p class="label">05 · Control</p>
+            <p class="label">06 · Control</p>
             <h2 id="control-title">
               See what agents <span class="ink-rose">cost</span>, change and do.
             </h2>
@@ -630,63 +680,19 @@
         </div>
       </section>
 
-      <!-- ============ modes ============ -->
-      <section class="sec" id="modes" aria-labelledby="modes-title">
-        <div class="wrap split reverse">
-          <div class="split-text">
-            <p class="label" data-reveal>06 · Modes</p>
-            <h2 id="modes-title" data-reveal>
-              Alone, as a team,<br />or <span class="ink-mint">both</span>.
-            </h2>
-            <p class="lead" data-reveal>
-              Every workspace has a mode. Change it any time; Kovan adapts what it offers.
-            </p>
-          </div>
-          <div class="modes" data-modes data-reveal>
-            <div class="modes-tabs" role="tablist" aria-label="Workspace modes">
-              <button type="button" role="tab" aria-selected="true" data-mode="0">Solo</button>
-              <button type="button" role="tab" aria-selected="false" data-mode="1">Team</button>
-              <button type="button" role="tab" aria-selected="false" data-mode="2">Adaptive</button>
-              <span class="modes-glider"></span>
-            </div>
-            <div class="modes-panels">
-              <div class="mode-panel is-on" role="tabpanel">
-                <h3>Solo</h3>
-                <p>
-                  Just you and your agents. No invites and no hand-offs, and suggested swarms stay
-                  small (two workers at most) so they don&rsquo;t outrun your attention.
-                </p>
-              </div>
-              <div class="mode-panel" role="tabpanel">
-                <h3>Team</h3>
-                <p>
-                  Shared sessions, live lanes, invites, hand-offs and approvals by any editor. AI
-                  teammates join the board alongside people.
-                </p>
-              </div>
-              <div class="mode-panel" role="tabpanel">
-                <h3>Adaptive</h3>
-                <p>
-                  Starts solo and opens up the team features the moment someone else joins the
-                  workspace.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- ============ local-first ============ -->
       <section class="sec sec-alt" id="how" aria-labelledby="local-title">
         <div class="wrap">
           <header class="sec-head center" data-reveal>
-            <p class="label">07 · Local-first</p>
+            <p class="label">07 · Your code</p>
             <h2 id="local-title">
-              Your code never <span class="ink-sky">leaves</span> your machines.
+              Your repository <span class="ink-sky">stays</span> on your machines.
             </h2>
             <p>
               Agents edit your checkout and run commands locally. Work syncs through your own Git
-              remote with your own credentials. Kovan&rsquo;s server only coordinates.
+              remote with your own credentials. Kovan&rsquo;s server coordinates: it keeps what a
+              shared session needs, such as its transcript and its changes, encrypted, and never a
+              copy of your repository.
             </p>
           </header>
           <div class="topo" data-reveal aria-hidden="true">
@@ -723,6 +729,43 @@
               coordination tools over MCP.
             </p>
           </div>
+        </div>
+      </section>
+
+      <!-- ============ pricing ============ -->
+      <section class="sec" id="pricing" aria-labelledby="pricing-title">
+        <div class="wrap">
+          <header class="sec-head center" data-reveal>
+            <p class="label">08 · What it costs</p>
+            <h2 id="pricing-title">
+              Kovan is <span class="ink-honey">free</span>. The AI is what you pay for.
+            </h2>
+            <p>
+              During early access the app, teams and sessions cost nothing, with no seats and no
+              subscription. Your agents use AI models, and those are paid one of three ways.
+            </p>
+          </header>
+          <div class="price-grid" data-reveal>
+            <div class="price-card">
+              <h3>Your Claude or ChatGPT plan</h3>
+              <p>Claude Code and Codex run on the subscription you already have. Nothing extra.</p>
+            </div>
+            <div class="price-card">
+              <h3>Your own key</h3>
+              <p>Add an OpenRouter key (or your own model server) and pay the provider directly.</p>
+            </div>
+            <div class="price-card">
+              <h3>Through Kovan</h3>
+              <p>
+                What the model costs plus 5%, charged to a card, with a monthly limit you set. A
+                team can pay for its members.
+              </p>
+            </div>
+          </div>
+          <p class="price-note" data-reveal>
+            Prices of every model are on <a href="/models/">Models and pricing</a>; how billing
+            works is in <a href="/docs/managed-usage-and-billing/">the docs</a>.
+          </p>
         </div>
       </section>
 

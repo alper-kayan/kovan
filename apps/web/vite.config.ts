@@ -1,5 +1,10 @@
 import { resolve } from 'node:path';
-import { BILLING_CONSENT, BILLING_CONSENT_VERSION, MANAGED_MARKUP } from '@kovan/shared';
+import {
+  BILLING_CONSENT,
+  BILLING_CONSENT_VERSION,
+  MANAGED_MARKUP,
+  ROLE_WORDS,
+} from '@kovan/shared';
 import { defineConfig } from 'vite';
 import { sitePlugin } from './plugins/site';
 
@@ -11,11 +16,17 @@ export default defineConfig({
   root,
   appType: 'mpa',
   plugins: [sitePlugin(root)],
+  resolve: {
+    // Only the i18n helpers of @kovan/shared run in the browser; its package entry would also
+    // bring its schemas (and zod) into every page.
+    alias: { '@kovan/shared/i18n': resolve(root, '../../packages/shared/src/i18n.ts') },
+  },
   // Billing constants come from @kovan/shared at build time, so the site never ships its schemas.
   define: {
     __BILLING_CONSENT__: JSON.stringify(BILLING_CONSENT),
     __BILLING_CONSENT_VERSION__: JSON.stringify(BILLING_CONSENT_VERSION),
     __MANAGED_MARKUP__: JSON.stringify(MANAGED_MARKUP),
+    __ROLE_WORDS__: JSON.stringify(ROLE_WORDS),
   },
   server: {
     port: 4810,
@@ -35,12 +46,16 @@ export default defineConfig({
     rollupOptions: {
       input: {
         home: page('index.html'),
+        homeTr: page('tr/index.html'),
         demo: page('demo/index.html'),
         docs: page('docs/index.html'),
+        docsTr: page('tr/docs/index.html'),
         models: page('models/index.html'),
         changelog: page('changelog/index.html'),
         download: page('download/index.html'),
+        downloadTr: page('tr/download/index.html'),
         account: page('account/index.html'),
+        join: page('join/index.html'),
         billing: page('account/billing/index.html'),
         security: page('security/index.html'),
         privacy: page('privacy/index.html'),

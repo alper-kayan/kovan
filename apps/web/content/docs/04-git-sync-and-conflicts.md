@@ -1,4 +1,4 @@
-# Git sync and conflicts
+# Sharing changes and fixing conflicts
 
 Git is the source of truth. Your code lives in your checkouts and moves through your own remote with your own credentials. The Kovan server coordinates sessions; it does not store source code.
 

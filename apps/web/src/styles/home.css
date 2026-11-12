@@ -89,21 +89,24 @@
 
 /* ---------- reveal on scroll ---------- */
 
-[data-reveal] {
-  opacity: 0;
-  transform: translateY(28px);
-  filter: blur(6px);
-  transition:
-    opacity 0.9s var(--ease),
-    transform 0.9s var(--ease),
-    filter 0.9s var(--ease);
-  transition-delay: calc(var(--i, 0) * 110ms);
-}
+/* Hidden until scrolled to only when scripts run: without them the page reads as it is. */
+@media (scripting: enabled) {
+  [data-reveal] {
+    opacity: 0;
+    transform: translateY(28px);
+    filter: blur(6px);
+    transition:
+      opacity 0.9s var(--ease),
+      transform 0.9s var(--ease),
+      filter 0.9s var(--ease);
+    transition-delay: calc(var(--i, 0) * 110ms);
+  }
 
-[data-reveal].is-in {
-  opacity: 1;
-  transform: none;
-  filter: none;
+  [data-reveal].is-in {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
 }
 
 /* ---------- hero ---------- */
@@ -746,7 +749,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  opacity: 0.28;
+  opacity: 0.6;
   transition: opacity 0.5s;
 }
 
@@ -2535,9 +2538,47 @@
 
 /* With less motion: everything shown in its final state. */
 @media (prefers-reduced-motion: reduce) {
-  [data-reveal] {
+  [data-reveal],
+  .story-step {
     opacity: 1;
     transform: none;
     filter: none;
   }
+}
+
+/* ---------- pricing ---------- */
+
+.price-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-top: 36px;
+}
+
+.price-card {
+  padding: 22px;
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.price-card h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.price-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+
+.price-note {
+  margin-top: 22px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.price-note a {
+  color: var(--honey);
 }

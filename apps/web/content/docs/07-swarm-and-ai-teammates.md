@@ -38,7 +38,7 @@ Agents write to each other in the Swarm chat, and people can write to one agent 
 
 ### Learning
 
-When a task's result passes its checks, Kovan can turn it into a short note that later agents in the workspace receive. Preferences you express in the chat are treated differently: they stay private to you, as unverified suggestions, until you accept them. Review both under **Learning**, where you can accept, correct or forget each one.
+When a task's result passes its checks, Kovan can turn it into a short note that later agents in the workspace receive. Preferences you express in the chat are treated differently: they stay private to you, as unverified suggestions, until you accept them. Review both on the **Brain** page (the brain icon in the left bar) under **Learning**, where you can accept, correct or forget each one.
 
 ## AI teammates
 

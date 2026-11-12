@@ -1,6 +1,6 @@
 import '../site';
 import '../styles/pages.css';
-import type { AccountDeletionPlan } from '@kovan/shared';
+import type { AccountDeletionPlan, User, Workspace } from '@kovan/shared';
 import { api, signOut } from '../lib/api';
 import { h } from '../lib/dom';
 import { errorText, mountSession } from '../lib/session';
@@ -16,7 +16,29 @@ mountSession(root, 'Account', ({ user, orgs }, view) => {
 
   const orgList = h('dl', { class: 'fields' });
   for (const org of orgs)
-    orgList.append(h('dt', {}, org.role === 'owner' ? 'Owner' : 'Member'), h('dd', {}, org.name));
+    orgList.append(h('dt', {}, org.name), h('dd', {}, org.role === 'owner' ? 'Owner' : 'Member'));
+
+  // The workspaces you're in, read-only: where to look for your team's work.
+  const spaces = h('div', {}, h('p', { class: 'panel-text' }, 'Loading…'));
+  void api
+    .get<{ workspaces: Workspace[] }>('/api/workspaces')
+    .then(({ workspaces }) => {
+      if (!workspaces.length) {
+        spaces.replaceChildren(
+          h(
+            'p',
+            { class: 'panel-text' },
+            'None yet. Open a project folder in the desktop app to make one, or ask a teammate to invite you.',
+          ),
+        );
+        return;
+      }
+      const list = h('dl', { class: 'fields' });
+      for (const w of workspaces)
+        list.append(h('dt', {}, w.name), h('dd', {}, w.role[0]!.toUpperCase() + w.role.slice(1)));
+      spaces.replaceChildren(list);
+    })
+    .catch(view.fail);
 
   root.replaceChildren(
     h(
@@ -34,7 +56,7 @@ mountSession(root, 'Account', ({ user, orgs }, view) => {
         'dl',
         { class: 'fields' },
         h('dt', {}, 'Name'),
-        h('dd', {}, user.name),
+        h('dd', {}, nameEditor(user)),
         h('dt', {}, 'Email'),
         h(
           'dd',
@@ -63,11 +85,33 @@ mountSession(root, 'Account', ({ user, orgs }, view) => {
     h(
       'section',
       { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h2', {}, 'Workspaces')),
+      spaces,
+    ),
+    h(
+      'section',
+      { class: 'panel' },
+      h('div', { class: 'panel-head' }, h('h2', {}, 'The apps')),
+      h(
+        'p',
+        { class: 'panel-text' },
+        'Agents run in the desktop app (or the terminal); the phone app follows and answers them.',
+      ),
+      h(
+        'div',
+        { class: 'actions' },
+        h('a', { class: 'btn btn-primary', href: '/download/' }, 'Desktop app'),
+        h('a', { class: 'btn btn-secondary', href: '/download/#phone' }, 'Phone app'),
+      ),
+    ),
+    h(
+      'section',
+      { class: 'panel' },
       h('div', { class: 'panel-head' }, h('h2', {}, 'Billing and usage')),
       h(
         'p',
         { class: 'panel-text' },
-        'Your allowance, saved card, invoices and the last 30 days of managed usage.',
+        'Your monthly limit, saved card, invoices and the last 30 days of models paid through Kovan.',
       ),
       h('a', { class: 'btn btn-primary', href: '/account/billing/' }, 'Open billing'),
     ),
@@ -76,10 +120,33 @@ mountSession(root, 'Account', ({ user, orgs }, view) => {
     h(
       'p',
       { class: 'note' },
-      'Name, connected accounts and privacy settings are changed in the desktop app. This tab forgets your session when you close it.',
+      'Connected accounts and privacy settings are changed in the desktop app. This tab forgets your session when you close it.',
     ),
   );
 });
+
+/** Your name as teammates see it, changed in place. */
+function nameEditor(user: User): HTMLElement {
+  const input = h('input', {
+    class: 'input',
+    value: user.name,
+    maxlength: '80',
+    'aria-label': 'Your name',
+  }) as HTMLInputElement;
+  const save = h('button', { class: 'btn btn-secondary', type: 'button' }, 'Save');
+  const note = h('span', { class: 'panel-text' });
+  save.addEventListener('click', () => {
+    const name = input.value.trim();
+    if (!name) return;
+    save.disabled = true;
+    api
+      .patch<{ user: User }>('/api/me', { name })
+      .then(() => (note.textContent = ' Saved. Teammates see it from now on.'))
+      .catch((e: unknown) => (note.textContent = ` ${errorText(e)}`))
+      .finally(() => (save.disabled = false));
+  });
+  return h('span', { class: 'name-edit' }, input, save, note);
+}
 
 const WORD = 'delete';
 const usd = (n: number) => `$${n < 1 ? n.toFixed(4) : n.toFixed(2)}`;
@@ -153,7 +220,7 @@ function confirmView(plan: AccountDeletionPlan, reload: () => void): HTMLElement
       { class: 'note' },
       'Repositories on GitHub and code on people’s computers aren’t touched.',
       plan.unbilled > 0
-        ? ` Managed usage not charged yet (${usd(plan.unbilled)}) won’t be charged.`
+        ? ` Kovan billing usage not charged yet (${usd(plan.unbilled)}) is charged to your card as the account is deleted (under $0.50, it’s waived).`
         : '',
     ),
   );

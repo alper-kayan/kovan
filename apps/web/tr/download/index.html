@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <!--@head-->
+    <title>İndir · Kovan</title>
+    <meta
+      name="description"
+      content="Kovan masaüstü uygulamasını macOS, Windows ya da Linux için indirin veya Kovan’ın terminaldeki kodlama ajanı kovan’ı kurun."
+    />
+    <script type="module" src="/src/pages/download.ts"></script>
+  </head>
+  <body>
+    <!--@nav-->
+    <main id="main" class="wrap page">
+      <header class="page-head">
+        <p class="label">İndir</p>
+        <h1>Kovan’ı bilgisayarınıza kurun.</h1>
+        <p>
+          macOS, Windows ve Linux için tek bir masaüstü uygulaması. Erken erişim boyunca ücretsiz;
+          yalnızca ajanlarınızın kullandığı yapay zekâ modelleri için ödersiniz (<a
+            class="link"
+            href="/tr/#pricing"
+            >nasıl</a
+          >).
+        </p>
+      </header>
+      <section class="need" aria-labelledby="need-title">
+        <h2 id="need-title">Neye ihtiyacınız var</h2>
+        <ul>
+          <li>
+            <b>Git’te bir proje</b>, bu bilgisayara klonlanmış olarak (Kovan her klasörü açar; işi
+            ekip arkadaşlarınızla paylaşmanızı sağlayan Git’tir). Bir ekibe mi katılıyorsunuz? Önce
+            GitHub ya da GitLab’deki deposuna erişim isteyin.
+          </li>
+          <li>
+            <b>Bir yapay zekâ modeli ya da hesabı</b>: Claude Code ya da Codex girişiniz, bir
+            OpenRouter anahtarı ya da Kovan üzerinden ödeme. Başlarken uygulama seçmenize yardım
+            eder.
+          </li>
+          <li>
+            <b>Bir hesap</b>, yalnızca başkalarıyla çalışmak ya da telefon uygulamasını kullanmak
+            için. Tek başınızaysanız atlayabilirsiniz.
+          </li>
+        </ul>
+      </section>
+      <div class="platforms">
+        <article class="platform" data-platform="mac">
+          <h2>macOS</h2>
+          <p>Apple silicon (M1 ve sonrası). Intel Mac’te aşağıdaki terminal ajanını kullanın.</p>
+          <p class="mono">.dmg</p>
+          <a class="btn btn-primary" href="/download/mac">macOS için indir</a>
+        </article>
+        <article class="platform" data-platform="windows-x64">
+          <h2>Windows</h2>
+          <p>64 bit Intel ve AMD bilgisayarlar.</p>
+          <p class="mono">x64 kurulum dosyası</p>
+          <a class="btn btn-primary" href="/download/windows-x64">Windows x64 için indir</a>
+          <p class="platform-note">
+            Windows ilk açılışta &ldquo;bilgisayarınızı korudu&rdquo; (Windows protected your PC)
+            uyarısı gösterebilir: <b>Ek bilgi</b> (More info), ardından <b>Yine de çalıştır</b> (Run
+            anyway) seçin.
+          </p>
+        </article>
+        <article class="platform" data-platform="windows-arm64">
+          <h2>Windows (ARM)</h2>
+          <p>Snapdragon ve diğer ARM64 bilgisayarlar.</p>
+          <p class="mono">ARM64 kurulum dosyası</p>
+          <a class="btn btn-primary" href="/download/windows-arm64">Windows ARM64 için indir</a>
+          <p class="platform-note">
+            Windows ilk açılışta uyarabilir: <b>Ek bilgi</b> (More info), ardından
+            <b>Yine de çalıştır</b> (Run anyway).
+          </p>
+        </article>
+        <article class="platform" data-platform="linux">
+          <h2>Linux</h2>
+          <p>64 bit Intel ve AMD, AppImage olarak.</p>
+          <p class="mono">x64 .AppImage</p>
+          <a class="btn btn-primary" href="/download/linux">Linux için indir</a>
+          <p class="platform-note">
+            Bir kez çalıştırılabilir yapın: <span class="mono">chmod +x Kovan-*.AppImage</span>
+          </p>
+        </article>
+      </div>
+      <section class="cli" id="terminal" aria-labelledby="terminal-title">
+        <div class="cli-text">
+          <h2 id="terminal-title">Terminalde</h2>
+          <p>
+            Terminali mi tercih ediyorsunuz, ya da Intel Mac mi kullanıyorsunuz?
+            <span class="mono">kovan</span>, Kovan&rsquo;ın uygulamasız kodlama ajanıdır: Claude
+            Code gibi bir terminalde onunla konuşursunuz ve sohbetleri masaüstü uygulamasında da
+            görünür. Node.js 22 ya da daha yenisini ister, yalnızca sizin için kurulur (yönetici
+            izni gerekmez), indirilen dosyanın imzasını denetler ve kendini güncel tutar.
+          </p>
+        </div>
+        <p class="cli-os">macOS ve Linux</p>
+        <div class="cli-cmd">
+          <code data-cli-command>curl -fsSL https://kovan.alperkayan.dev/install.sh | sh</code>
+          <button class="btn cli-copy" type="button" data-cli-copy>Kopyala</button>
+        </div>
+        <p class="cli-os">Windows (PowerShell)</p>
+        <div class="cli-cmd">
+          <code data-cli-command>irm https://kovan.alperkayan.dev/install.ps1 | iex</code>
+          <button class="btn cli-copy" type="button" data-cli-copy>Kopyala</button>
+        </div>
+        <p class="cli-more">
+          Sonra bir proje klasöründe <span class="mono">kovan</span> çalıştırın.
+          <a class="link" href="/tr/docs/terminal-agent/">Nasıl çalışır</a>
+        </p>
+      </section>
+      <section class="cli" id="phone" aria-labelledby="phone-title">
+        <div class="cli-text">
+          <h2 id="phone-title">Telefonunuzda</h2>
+          <p>
+            Kovan telefon uygulaması ekibinizin işini takip eder: her ajanın ne yaptığını, bir ajan
+            onay istediğinde vereceğiniz cevabı ve bilgisayarınızda başlatılan işleri. Ajanların
+            kendisi bir bilgisayarda çalışır, bu yüzden Kovan&rsquo;ı oraya da kurun.
+          </p>
+        </div>
+        <p class="cli-more" data-phone-stores>Uygulama App Store ve Google Play’e gelmek üzere.</p>
+      </section>
+      <p class="note" data-platform-note hidden>
+        Telefonda mısınız? Ajanlar bir bilgisayarda çalışır: Kovan&rsquo;ı kurmak için bu sayfayı
+        bir Mac, Windows ya da Linux bilgisayarda açın. Telefonun kendisi için
+        <a class="link" href="#phone">Telefonunuzda</a> bölümüne bakın.
+      </p>
+      <p class="note">
+        Yeni misiniz? <a class="link" href="/tr/docs/getting-started/">Başlarken</a> sayfası ilk
+        oturumu adım adım anlatır.
+      </p>
+    </main>
+    <!--@footer-->
+  </body>
+</html>

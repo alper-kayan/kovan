@@ -1,8 +1,8 @@
-# Agents and harnesses
+# Agents: Kovan's own, Claude Code and Codex
 
-A harness is the program that runs an agent: it talks to the model, offers it tools and applies what it does. Kovan has its own and can also drive the command-line agents you already use.
+An agent here means the program that does the work: it talks to an AI model, offers it tools (read a file, edit, run a command) and applies what it does. Kovan has its own and can also run the command-line agents you already use, Claude Code and Codex.
 
-## The Kovan harness
+## Kovan's own agent
 
 Kovan's built-in agent works in your repository with these tools:
 
@@ -18,14 +18,14 @@ Press <kbd>Esc</kbd> to stop. The command's whole process group is ended and too
 
 ## Permission modes
 
-| Mode    | Behaviour                                                                     |
-| ------- | ----------------------------------------------------------------------------- |
-| Plan    | Read-only tools. The agent investigates and writes a plan; nothing is edited. |
-| Request | Every edit and every command asks first. This is the default.                 |
-| Allow   | Edits go ahead; commands ask first.                                           |
-| Full    | Everything runs without asking.                                               |
+| Mode        | Behaviour                                                                     |
+| ----------- | ----------------------------------------------------------------------------- |
+| Plan only   | Read-only tools. The agent investigates and writes a plan; nothing is edited. |
+| Ask first   | Every edit and every command asks first. This is the default in the app.      |
+| Edit freely | Edits go ahead; commands ask first.                                           |
+| Full access | Everything runs without asking.                                               |
 
-An approval covers one exact action, once. In a session, switching an agent to Full is shown to everyone.
+An approval covers one exact action, once. In a session, switching an agent to Full access is shown to everyone.
 
 ## Claude Code and Codex
 
@@ -43,7 +43,7 @@ There are two ways to run a CLI:
 A few differences are worth knowing:
 
 - Claude Code's permission requests arrive as Kovan approval cards.
-- Codex cannot pause in the chat surface to ask, so Request mode is read-only there. Use the terminal for step-by-step approval with Codex.
+- Codex cannot pause in the chat surface to ask, so Ask first is read-only there. Use the terminal for step-by-step approval with Codex.
 - Neither CLI can be steered in the middle of a turn. A steer message is delivered with the next prompt.
 
 ## Coordination tools

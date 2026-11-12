@@ -28,7 +28,7 @@ const COLUMNS: { key: SortKey; label: string; text?: boolean }[] = [
   { key: 'context', label: 'Context' },
   { key: 'input', label: 'Input $/M' },
   { key: 'output', label: 'Output $/M' },
-  { key: 'managed', label: `Managed × ${__MANAGED_MARKUP__}` },
+  { key: 'managed', label: `Through Kovan (× ${__MANAGED_MARKUP__})` },
 ];
 
 const host = document.querySelector<HTMLElement>('[data-models]')!;
@@ -73,7 +73,9 @@ function contextLabel(tokens: number | null): string {
 const managed = (value: number | null) => (value === null ? null : value * __MANAGED_MARKUP__);
 
 function sortValue(row: Row, key: SortKey): string | number | null {
-  if (key === 'managed') return managed(row.input);
+  // What a model costs through Kovan, reading and writing together.
+  if (key === 'managed')
+    return row.input === null || row.output === null ? null : managed(row.input + row.output);
   return row[key];
 }
 
@@ -153,13 +155,13 @@ function render(): void {
           h('span', { class: 'model-name' }, row.name),
           h('span', { class: 'model-id' }, row.id),
         ),
-        h('td', { class: 'left' }, row.provider),
-        h('td', { class: 'num' }, contextLabel(row.context)),
-        h('td', { class: 'num' }, money(row.input)),
-        h('td', { class: 'num' }, money(row.output)),
+        h('td', { class: 'left', 'data-label': 'Provider' }, row.provider),
+        h('td', { class: 'num', 'data-label': 'Context' }, contextLabel(row.context)),
+        h('td', { class: 'num', 'data-label': 'Input' }, money(row.input)),
+        h('td', { class: 'num', 'data-label': 'Output' }, money(row.output)),
         h(
           'td',
-          { class: 'num managed' },
+          { class: 'num managed', 'data-label': 'Through Kovan' },
           fixed ? `${money(managed(row.input))} / ${money(managed(row.output))}` : 'varies',
         ),
       ),

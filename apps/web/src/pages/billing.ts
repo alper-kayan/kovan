@@ -63,7 +63,7 @@ function statusPanel(billing: BillingState): HTMLElement {
     h(
       'div',
       { class: 'panel-head' },
-      h('h2', {}, 'Managed usage'),
+      h('h2', {}, 'Kovan billing'),
       billing.status === 'past_due'
         ? h('span', { class: 'tag-bad' }, 'payment failed')
         : h(
@@ -195,9 +195,9 @@ function allowancePanel(billing: BillingState, view: SessionView): HTMLElement {
     h(
       'p',
       { class: 'panel-text' },
-      'The allowance is the most managed usage you can run before requests stop. It is shared by all your workspaces and runs, includes the × ',
+      'The allowance is the most you can spend on models through Kovan in a calendar month before requests stop. It is shared by all your workspaces and runs, includes the × ',
       String(__MANAGED_MARKUP__),
-      ' and excludes tax. Saving it starts the count again.',
+      ' and excludes tax. It starts again on the 1st; raising it keeps what you spent this month.',
     ),
     h(
       'label',
@@ -207,7 +207,7 @@ function allowancePanel(billing: BillingState, view: SessionView): HTMLElement {
       h('span', { class: 'mono' }, '$'),
       amount,
     ),
-    h('label', { class: 'choice', for: 'limit-open' }, open, 'Unlimited: no cap on managed usage'),
+    h('label', { class: 'choice', for: 'limit-open' }, open, 'Unlimited: no monthly cap'),
     h('label', { class: 'consent', for: 'consent' }, consent, h('span', {}, __BILLING_CONSENT__)),
     notice,
     h('div', {}, save),
@@ -376,7 +376,7 @@ function usagePanel(billing: BillingState): HTMLElement {
     h(
       'p',
       { class: 'panel-text' },
-      'What you paid for managed usage, with the number of model calls.',
+      'What you paid for models through Kovan, with the number of model calls.',
     ),
     h(
       'div',
@@ -397,7 +397,7 @@ function renderBilling(billing: BillingState, view: SessionView, notice?: string
     h(
       'p',
       {},
-      `Managed usage costs the provider's token price × ${__MANAGED_MARKUP__}, charged to your card once a day.`,
+      `Kovan billing costs what the model costs × ${__MANAGED_MARKUP__}, charged to your card once a day.`,
     ),
   );
   if (!billing.available) {
@@ -406,7 +406,7 @@ function renderBilling(billing: BillingState, view: SessionView, notice?: string
       h(
         'p',
         { class: 'message warn' },
-        "This server doesn't offer managed usage. You can still run models with your own provider key in the app.",
+        "This Kovan server doesn't sell model usage. You can still run models with your own key in the app (Settings → Model keys & spend).",
       ),
     );
     return;

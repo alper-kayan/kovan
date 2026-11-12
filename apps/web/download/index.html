@@ -15,12 +15,32 @@
       <header class="page-head">
         <p class="label">Download</p>
         <h1>Get Kovan for your desktop.</h1>
-        <p>One desktop app for macOS, Windows and Linux.</p>
+        <p>
+          One desktop app for macOS, Windows and Linux. Free during early access; you pay only for
+          the AI models your agents use (<a class="link" href="/#pricing">how</a>).
+        </p>
       </header>
+      <section class="need" aria-labelledby="need-title">
+        <h2 id="need-title">What you need</h2>
+        <ul>
+          <li>
+            <b>A project in Git</b>, cloned on this computer (Kovan opens any folder; Git is what
+            lets teammates share the work). Joining a team? Ask for access to its repository on
+            GitHub or GitLab first.
+          </li>
+          <li>
+            <b>An AI model or account</b>: your Claude Code or Codex sign-in, an OpenRouter key, or
+            paying through Kovan. The app helps you pick when you start.
+          </li>
+          <li>
+            <b>An account</b> only to work with others or use the phone app. Alone, you can skip it.
+          </li>
+        </ul>
+      </section>
       <div class="platforms">
         <article class="platform" data-platform="mac">
           <h2>macOS</h2>
-          <p>Apple silicon (M1 and later).</p>
+          <p>Apple silicon (M1 and later). On an Intel Mac, use the terminal agent below.</p>
           <p class="mono">.dmg</p>
           <a class="btn btn-primary" href="/download/mac">Download for macOS</a>
         </article>
@@ -29,27 +49,38 @@
           <p>64-bit Intel and AMD PCs.</p>
           <p class="mono">x64 installer</p>
           <a class="btn btn-primary" href="/download/windows-x64">Download for Windows x64</a>
+          <p class="platform-note">
+            Windows may say &ldquo;Windows protected your PC&rdquo; the first time: choose
+            <b>More info</b>, then <b>Run anyway</b>.
+          </p>
         </article>
         <article class="platform" data-platform="windows-arm64">
           <h2>Windows on ARM</h2>
           <p>Snapdragon and other ARM64 PCs.</p>
           <p class="mono">ARM64 installer</p>
           <a class="btn btn-primary" href="/download/windows-arm64">Download for Windows ARM64</a>
+          <p class="platform-note">
+            Windows may warn you the first time: <b>More info</b>, then <b>Run anyway</b>.
+          </p>
         </article>
         <article class="platform" data-platform="linux">
           <h2>Linux</h2>
           <p>64-bit Intel and AMD, as an AppImage.</p>
           <p class="mono">x64 .AppImage</p>
           <a class="btn btn-primary" href="/download/linux">Download for Linux</a>
+          <p class="platform-note">
+            Make it runnable once: <span class="mono">chmod +x Kovan-*.AppImage</span>
+          </p>
         </article>
       </div>
       <section class="cli" id="terminal" aria-labelledby="terminal-title">
         <div class="cli-text">
           <h2 id="terminal-title">In the terminal</h2>
           <p>
-            <span class="mono">kovan</span> is Kovan's coding agent on its own, for macOS, Linux and
-            Windows. It needs Node.js 22 or newer, installs for you alone (no admin rights), checks
-            the download's signature and keeps itself up to date.
+            Prefer the terminal, or on an Intel Mac? <span class="mono">kovan</span> is Kovan's
+            coding agent without the app: you talk to it in a terminal, like Claude Code, and its
+            chats show up in the desktop app too. It needs Node.js 22 or newer, installs for you
+            alone (no admin rights), checks the download's signature and keeps itself up to date.
           </p>
         </div>
         <p class="cli-os">macOS and Linux</p>
@@ -67,9 +98,23 @@
           <a class="link" href="/docs/terminal-agent/">How it works</a>
         </p>
       </section>
+      <section class="cli" id="phone" aria-labelledby="phone-title">
+        <div class="cli-text">
+          <h2 id="phone-title">On your phone</h2>
+          <p>
+            The Kovan phone app follows your team's work: what each agent is doing, a yes when one
+            asks for it, and work started on your computer. The agents themselves run on a computer,
+            so install Kovan there too.
+          </p>
+        </div>
+        <p class="cli-more" data-phone-stores>
+          The app is on its way to the App Store and Google Play.
+        </p>
+      </section>
       <p class="note" data-platform-note hidden>
-        Kovan is a desktop app. Open this page on a Mac, a Windows PC or a Linux machine to install
-        it.
+        On a phone? The agents run on a computer: open this page on a Mac, a Windows PC or a Linux
+        machine to install Kovan there. For the phone itself, see
+        <a class="link" href="#phone">On your phone</a>.
       </p>
       <p class="note">
         New here? <a class="link" href="/docs/getting-started/">Getting started</a> walks through

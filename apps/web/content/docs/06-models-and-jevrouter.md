@@ -1,6 +1,6 @@
-# Models and JevRouter
+# AI models and JevRouter
 
-Kovan reaches more than 180 models through OpenRouter. You can pick one yourself or let JevRouter pick one for each task.
+Kovan's own agent can use hundreds of models through OpenRouter ([the current list](/models/)). You can pick one yourself or let JevRouter pick one for each task.
 
 ## The catalog
 
@@ -12,14 +12,14 @@ The composer has a single model pill. Click it for a searchable picker with pric
 
 The composer always shows the exact model the next turn will use and who pays for it.
 
-## Your key or managed usage
+## Your key or Kovan billing
 
 There are two ways to pay for models:
 
 - **Your own OpenRouter key.** Kovan stores it in your operating system's keychain. You pay OpenRouter directly and Kovan adds nothing.
-- **Managed usage.** Kovan's server calls the model for you and bills you the provider's cost × 1.05. See [Managed usage and billing](/docs/managed-usage-and-billing/).
+- **Kovan billing.** Kovan's server calls the model for you and bills you the provider's cost × 1.05. See [Paying for AI](/docs/managed-usage-and-billing/).
 
-You can also add any OpenAI-compatible endpoint as a custom provider in **Settings → Providers & spend**.
+You can also add any OpenAI-compatible endpoint as a custom provider in **Settings → Model keys & spend**.
 
 ## JevRouter
 
@@ -51,4 +51,4 @@ Routing decisions use a small model, and those calls are part of the run's cost.
 
 ## Spend
 
-**Settings → Providers & spend** shows what each workspace has spent. A session's side panel shows usage per turn.
+**Settings → Model keys & spend** shows what each workspace has spent. A session's side panel shows usage per turn.

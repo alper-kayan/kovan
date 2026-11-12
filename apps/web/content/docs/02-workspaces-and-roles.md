@@ -1,4 +1,4 @@
-# Workspaces and roles
+# Workspaces and who can do what
 
 A workspace is one repository plus the people who work on it. Roles are set per workspace, and the server checks them on every action.
 
@@ -29,7 +29,9 @@ Role changes apply on the server straight away. If someone is demoted while the 
 
 ## Inviting people
 
-On the **People** page, choose **Invite**, enter a GitHub username or an email address, and pick a role. Someone who already has a Kovan account is added at once. Otherwise the invitation waits and is accepted when they first sign in. Either way they get an email.
+On the **People** page, choose **Invite**, enter a GitHub username or an email address, and pick a role. Someone who already has a Kovan account is added at once and gets an email saying so.
+
+Otherwise the invitation waits. It is accepted when they first sign in with that GitHub account or that email address, or when they open the invite link: the link joins them with whichever account they sign in with, so an Apple private address or a second email works too. An email invite carries the link. A GitHub username gets no email: Kovan gives you the link to send them yourself (**Copy link**). Anyone holding the link can join with it once, so send it only to the person you invited.
 
 Owners can change roles and remove members from the same page. Members can leave a workspace themselves.
 

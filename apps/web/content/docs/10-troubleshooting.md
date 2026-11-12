@@ -17,9 +17,9 @@ Kovan gives one reason at a time, with a fix:
 | Reason                      | What to do                                                                 |
 | --------------------------- | -------------------------------------------------------------------------- |
 | Your role does not allow it | Ask an owner for the editor role. Viewers and commenters can watch.        |
-| No free seat                | A session holds up to 20 agents. Watch, or wait for a seat.                |
+| The session is full         | A session holds up to 20 agents. Watch, or wait until someone leaves.      |
 | Workspace not open here     | Set the workspace up on this machine.                                      |
-| No agent available          | Add a provider key, set up managed usage, or install Claude Code or Codex. |
+| No agent available          | Add a provider key, set up Kovan billing, or install Claude Code or Codex. |
 | Wrong branch                | Use the button to switch to the session's branch.                          |
 | Cannot push                 | See "Sync paused" below.                                                   |
 
@@ -43,11 +43,11 @@ Switching branches by hand inside a session's worktree pauses the session. Use *
 
 ## My agent asks for approval for everything
 
-That is Request mode, the default. Change the mode in the composer: **Allow** lets edits through and asks for commands; **Full** asks for nothing. <kbd>Shift Tab</kbd> cycles the modes.
+That is Ask first, the default. Change the mode in the chat box: **Edit freely** lets edits through and asks for commands; **Full access** asks for nothing. <kbd>Shift Tab</kbd> cycles the modes.
 
 ## Codex doesn't ask before acting in chat
 
-Codex cannot pause to ask in the chat surface, so Request mode is read-only there. Open it in the terminal for step-by-step approval.
+Codex cannot pause to ask in the chat surface, so Ask first is read-only there. Open it in the terminal for step-by-step approval.
 
 ## The agent stopped with a usage limit
 
@@ -67,8 +67,16 @@ A push, deploy or similar command was cut off part-way. Kovan will not run it ag
 
 ## The email link doesn't work
 
-Sign-in and verification links expire after a short time and work once. An email sign-in link must be opened on the computer where Kovan is waiting. Request a new one if it has expired.
+Sign-in and verification links expire after a short time and work once. You can open an email sign-in link on any device; its page asks for the code that Kovan (or the page you signed in from) shows while it waits. The code is never in the email. Type a wrong code five times and the link stops working: start signing in again. Request a new link if it has expired.
+
+## I was invited but don't see the workspace
+
+An invitation joins the account it was sent to: that GitHub username, or that email address once it is verified. Signed in with another address (an Apple private address, say)? Open the invite link from the email and join from there with the account you use. No email came, because the invite was for a GitHub username? Ask the person who invited you for the invite link.
+
+## Kovan can't clone the repository
+
+Kovan clones with your own Git access. If cloning fails with "not found" or "access denied", your GitHub account can't open the repository yet: ask its owner to add you there, then try again.
 
 ## Still stuck
 
-For a security problem, write to **kovan@alperkayan.dev**. For anything else, check the [changelog](/changelog/) to make sure you are on the current version.
+For a security problem, write to **kovan@alperkayan.dev**. For anything else, write to us too: [Contact](/contact/) says what to include, and a person reads it. It helps to check the [changelog](/changelog/) first, in case it's fixed in a newer version.

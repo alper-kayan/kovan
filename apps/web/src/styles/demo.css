@@ -1379,3 +1379,46 @@ a.node.sess:hover {
     animation: none !important;
   }
 }
+
+/* Opened on its own: what this is, and the way back. */
+.demo-bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 36px;
+  padding: 0 16px;
+  background: #1a1408;
+  border-bottom: 1px solid #5a4410;
+  color: #e8e0cc;
+  font:
+    13px/1 'DM Sans Variable',
+    system-ui,
+    sans-serif;
+}
+
+.demo-bar span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-bar a {
+  color: #ffb829;
+  text-decoration: none;
+}
+
+.demo-bar .demo-bar-cta {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background: #ffb829;
+  color: #111;
+}
+
+.has-demo-bar [data-app] {
+  margin-top: 36px;
+}

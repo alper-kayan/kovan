@@ -72,6 +72,7 @@ export const api = {
   get: <T>(path: string) => request<T>(path, 'GET', undefined, true),
   post: <T>(path: string, body: unknown = {}) => request<T>(path, 'POST', body, true),
   put: <T>(path: string, body: unknown) => request<T>(path, 'PUT', body, true),
+  patch: <T>(path: string, body: unknown) => request<T>(path, 'PATCH', body, true),
 };
 
 export async function signOut(): Promise<void> {
@@ -94,6 +95,8 @@ export interface SignInHandle {
   done: Promise<void>;
   /** The sign-in page, for a link when the browser blocked the new tab. */
   url: Promise<string>;
+  /** The code an emailed sign-in link's page asks for. */
+  code: Promise<string | null>;
   cancel: () => void;
 }
 
@@ -108,11 +111,18 @@ export function signIn(): SignInHandle {
   let cancelled = false;
   let giveUrl: (url: string) => void = () => {};
   const url = new Promise<string>((resolve) => (giveUrl = resolve));
+  let giveCode: (code: string | null) => void = () => {};
+  const code = new Promise<string | null>((resolve) => (giveCode = resolve));
 
   const done = (async () => {
     const secret = base64url(crypto.getRandomValues(new Uint8Array(32)));
     const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(secret));
-    const start = await request<{ loginId: string; url: string; expiresInSeconds: number }>(
+    const start = await request<{
+      loginId: string;
+      url: string;
+      expiresInSeconds: number;
+      code?: string;
+    }>(
       '/auth/desktop/start',
       'POST',
       { secretHash: base64url(new Uint8Array(digest)), intent: 'login', machineId: null },
@@ -122,6 +132,7 @@ export function signIn(): SignInHandle {
     if (!page)
       throw new ApiError(0, 'bad_url', 'The server sent a sign-in link that cannot be opened.');
     giveUrl(page);
+    giveCode(start.code ?? null);
     if (tab && !tab.closed) {
       tab.opener = null;
       tab.location.replace(page);
@@ -158,5 +169,5 @@ export function signIn(): SignInHandle {
     if (tab && !tab.closed && tab.location.href === 'about:blank') tab.close();
   });
 
-  return { done, url, cancel: () => (cancelled = true) };
+  return { done, url, code, cancel: () => (cancelled = true) };
 }

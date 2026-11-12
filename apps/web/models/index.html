@@ -5,7 +5,7 @@
     <title>Models and pricing · Kovan</title>
     <meta
       name="description"
-      content="Every model Kovan can run through OpenRouter, with context size and price per million tokens. Managed usage is the provider's price × 1.05."
+      content="Every model Kovan can run through OpenRouter, with context size and price per million tokens. Through Kovan billing it's the provider's price × 1.05."
     />
     <script type="module" src="/src/pages/models.ts"></script>
   </head>
@@ -16,11 +16,29 @@
         <p class="label">Models and pricing</p>
         <h1>Every model. One key.</h1>
         <p>
-          Kovan reaches models through OpenRouter. Bring your own key and pay the provider&rsquo;s
-          price, or use managed usage at the provider&rsquo;s price &times; 1.05, billed daily.
-          Prices are USD per million tokens.
+          <b>Kovan itself is free during early access.</b> What you pay for is the AI models your
+          agents use: with your own OpenRouter key at the provider&rsquo;s price, through Kovan at
+          that price &times; 1.05 (charged to a card, with a monthly limit you set), or nothing
+          extra when Claude Code or Codex runs on your own plan.
+        </p>
+        <p>
+          Prices below are in US dollars per million tokens (a token is about three quarters of a
+          word; a model is charged for what it reads, &ldquo;input&rdquo;, and what it writes,
+          &ldquo;output&rdquo;). On our small test tasks a whole task cost from about $0.001
+          (GPT-5.6 Luna) to $0.03 (Claude Sonnet 5); bigger tasks cost more.
         </p>
       </header>
+      <section class="need" aria-labelledby="picks-title">
+        <h2 id="picks-title">Not sure? Start with one of these</h2>
+        <ul>
+          <li>
+            <b>JevRouter</b> (Kovan&rsquo;s default): picks a model for each step, cheap for easy
+            ones, stronger for hard ones.
+          </li>
+          <li><b>Claude Sonnet 5</b>: strong at code, mid-priced.</li>
+          <li><b>GPT-5.6 Luna</b>: very cheap and good enough for small, clear tasks.</li>
+        </ul>
+      </section>
       <div class="models-tools">
         <label class="sr-only" for="model-search">Search models</label>
         <input
