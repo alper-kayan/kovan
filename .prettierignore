@@ -11,3 +11,4 @@ apps/mobile/.expo/
 apps/mobile/expo-env.d.ts
 apps/mobile/google-services.json
 apps/server/drizzle/meta/
+.release-staging
