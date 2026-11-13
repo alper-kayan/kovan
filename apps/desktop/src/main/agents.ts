@@ -531,7 +531,8 @@ export class AgentManager {
         turnId: started.turnId,
         reason: 'error',
         cost: 0,
-        error: 'Kovan was closed while this was running. Try again to carry on.',
+        error:
+          'Kovan was closed while this was running. Press Try again to run your last message again.',
       });
     const live: Live = {
       stored,

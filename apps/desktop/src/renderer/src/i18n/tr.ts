@@ -1178,8 +1178,8 @@ export const TR: Readonly<Record<string, string>> = {
     'Çalıştırma başına deneme: ilki, sonra başarısız kontrollerin ardından yapılan düzeltmeler',
   'Try again': 'Yeniden dene',
   Continue: 'Devam et',
-  'Kovan was closed while this was running. Try again to carry on.':
-    'Bu çalışırken Kovan kapandı. Devam etmek için yeniden dene.',
+  'Kovan was closed while this was running. Press Try again to run your last message again.':
+    'Bu çalışırken Kovan kapandı. Son mesajınızı yeniden çalıştırmak için “Yeniden dene”ye basın.',
   'Try earlier': 'Daha önce dene',
   'Try later': 'Daha sonra dene',
   'Turn off': 'Kapat',
