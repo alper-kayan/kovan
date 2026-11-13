@@ -1236,7 +1236,9 @@ export function Composer() {
       else if (isExternal)
         notify({
           kind: 'info',
-          message: `${HARNESS_NAMES[harness]} can't take guidance mid-turn. Queue it instead, or stop it (Esc).`,
+          message: t("{agent} can't take guidance mid-turn. Queue it instead, or stop it (Esc).", {
+            agent: HARNESS_NAMES[harness],
+          }),
         });
       return;
     }

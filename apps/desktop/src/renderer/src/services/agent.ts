@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { Effort, ModelInfo } from '@kovan/model-gateway';
 import {
   JEV_MODEL_ID,
@@ -232,7 +233,7 @@ export async function saveOpenRouterKey(key: string | null): Promise<boolean> {
       notify({
         kind: 'info',
         title: 'OpenRouter connected',
-        message: `Your key is stored in ${secretStore()}.`,
+        message: t('Your key is stored in {store}.', { store: secretStore() }),
       });
       await loadModels(true);
     }

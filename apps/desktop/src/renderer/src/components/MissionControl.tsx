@@ -417,26 +417,26 @@ function Alerts({ sessions }: { sessions: Session[] }) {
  */
 function WhatGoesOut({ workspace, branch }: { workspace: Workspace; branch: string | null }) {
   const remote = workspace.repoUrl ? workspace.repoUrl.replace(/^https?:\/\/|\.git$/g, '') : null;
-  const where = remote ? <b>{remote}</b> : "the folder's Git remote (if it has one)";
+  const where = remote ?? t("the folder's Git remote (if it has one)");
   return (
     <p className="small muted what-goes-out">
-      {branch ? (
-        <>
-          The branch <span className="mono">{branch}</span> is pushed to {where} so teammates start
-          from the same commit.{' '}
-        </>
-      ) : null}
-      {workspace.autoGitSync ? (
-        <>
-          While it runs, everyone's work in it (uncommitted edits too) is saved to {where} as hidden
-          checkpoints, so teammates see it and can take it over. Turn this off with <b>Git sync</b>{' '}
-          in Settings → Workspaces.
-        </>
-      ) : (
-        <>
-          Git sync is off in this workspace: work stays on each person's machine until they push it.
-        </>
-      )}
+      {branch
+        ? `${t(
+            'The branch {branch} is pushed to {where} so teammates start from the same commit.',
+            {
+              branch,
+              where,
+            },
+          )} `
+        : null}
+      {workspace.autoGitSync
+        ? t(
+            "While it runs, everyone's work in it (uncommitted edits too) is saved to {where} as hidden checkpoints, so teammates see it and can take it over. Turn this off with Git sync in Settings → Workspaces.",
+            { where },
+          )
+        : t(
+            "Git sync is off in this workspace: work stays on each person's machine until they push it.",
+          )}
     </p>
   );
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   can,
   effectiveMode,
@@ -220,8 +221,11 @@ function handleMessage(message: ServerMessage): void {
         if (before)
           notify({
             kind: 'info',
-            title: `Removed from ${before.name}`,
-            message: `You no longer have access to ${before.name}: its sessions and teammates are gone from here. Your own files stay as they are.`,
+            title: t('Removed from {name}', { name: before.name }),
+            message: t(
+              'You no longer have access to {name}: its sessions and teammates are gone from here. Your own files stay as they are.',
+              { name: before.name },
+            ),
             sticky: true,
           });
         // Out of its sessions at once: a room you can't see any more doesn't stay open.
@@ -237,7 +241,10 @@ function handleMessage(message: ServerMessage): void {
           void api.invoke('agent:stop', lane.id).catch(() => undefined);
         notify({
           kind: 'info',
-          title: `You're ${ROLE_WORDS[message.role].split(':')[0]} in ${before.name} now`,
+          title: t("You're {role} in {name} now", {
+            role: ROLE_WORDS[message.role].split(':')[0]!,
+            name: before.name,
+          }),
           message: `As ${ROLE_WORDS[message.role]}.${!canWork && laneHere ? ' Your agent there stopped.' : ''}`,
           sticky: true,
         });
@@ -375,18 +382,20 @@ export async function addWorkspace(chosen?: string): Promise<void> {
     if (existing)
       notify({
         kind: 'info',
-        title: 'Already shared',
-        message: `${workspace.name} was already a workspace; this folder is now linked to it.`,
+        title: t('Already shared'),
+        message: t('{name} was already a workspace; this folder is now linked to it.', {
+          name: workspace.name,
+        }),
       });
     else
       // Say what just happened: a shared workspace, by this name, in this organization.
       notify({
         kind: 'info',
-        title: `${workspace.name} is a workspace in ${org.name} now`,
-        message: `Your files stay on this computer; sessions, plans and comments about it are shared with the people you invite.${info.remoteUrl ? '' : ' It has no Git remote yet, so teammates can watch but not work on the same code.'} Rename it in Settings → Workspaces.`,
+        title: t('{name} is a workspace in {org} now', { name: workspace.name, org: org.name }),
+        message: `${t('Your files stay on this computer; sessions, plans and comments about it are shared with the people you invite.')}${info.remoteUrl ? '' : ` ${t('It has no Git remote yet, so teammates can watch but not work on the same code.')}`} ${t('Rename it in Settings → Workspaces.')}`,
         sticky: true,
         action: {
-          label: 'Invite people',
+          label: t('Invite people'),
           run: () => {
             showView('people');
             setState({ inviteOpen: true });
@@ -441,7 +450,7 @@ export async function chooseLocalClone(workspace: Workspace): Promise<void> {
 export async function cloneWorkspace(workspace: Workspace): Promise<void> {
   if (!workspace.repoUrl) return;
   try {
-    notify({ kind: 'info', message: `Cloning ${workspace.repoUrl}…` });
+    notify({ kind: 'info', message: t('Cloning {url}…', { url: workspace.repoUrl }) });
     const dest = await api.invoke('repo:clone', `https://${workspace.repoUrl}.git`, workspace.name);
     if (dest) await bindAndOpen(workspace, dest);
   } catch (error) {
@@ -500,13 +509,13 @@ export async function invite(
     if (result.member)
       notify({
         kind: 'info',
-        title: `${result.member.name} joined`,
+        title: t('{name} joined', { name: result.member.name }),
         message: 'They already had an account, so they were added straight away.',
       });
     else if (who.email)
       notify({
         kind: 'info',
-        title: `Invite sent to ${who.email}`,
+        title: t('Invite sent to {email}', { email: who.email }),
         message:
           'The email has a link that joins them with any account they sign in with, an Apple private address too.',
         ...(copy ? { action: copy } : {}),
@@ -515,8 +524,11 @@ export async function invite(
       // A GitHub username gets no email: the link is how they hear of it.
       notify({
         kind: 'info',
-        title: `Invite saved for @${who.githubLogin}`,
-        message: `No email goes to a GitHub username. They join when they sign in with GitHub @${who.githubLogin}, or with this link: send it to them yourself.`,
+        title: t('Invite saved for @{login}', { login: who.githubLogin ?? '' }),
+        message: t(
+          'No email goes to a GitHub username. They join when they sign in with GitHub @{login}, or with this link: send it to them yourself.',
+          { login: who.githubLogin ?? '' },
+        ),
         sticky: true,
         ...(copy ? { action: copy } : {}),
       });

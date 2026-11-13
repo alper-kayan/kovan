@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { initResync } from './services/resync';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -45,7 +46,7 @@ async function boot(): Promise<void> {
       notice: notify({
         kind: 'info',
         sticky: true,
-        title: `Kovan ${update.version} is ready`,
+        title: t('Kovan {version} is ready', { version: update.version ?? '' }),
         message: 'Restart to finish updating. Running agents stop when the app restarts.',
         action: { label: 'Restart to update', run: installUpdate },
       }),

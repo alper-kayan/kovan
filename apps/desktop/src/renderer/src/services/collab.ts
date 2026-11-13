@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type {
   Comment,
   CommentAnchor,
@@ -127,7 +128,7 @@ function noticeMention(c: Comment): void {
   const sessionId = c.sessionId;
   notify({
     kind: 'info',
-    title: `${c.authorName} mentioned you`,
+    title: t('{name} mentioned you', { name: c.authorName }),
     message: c.body.length > 160 ? `${c.body.slice(0, 159)}…` : c.body,
     sticky: true,
     ...(sessionId

@@ -572,6 +572,37 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'Kovan {version} is ready': 'Kovan {version} hazır',
+  'Restart to finish updating. Running agents stop when the app restarts.':
+    'Güncellemeyi bitirmek için yeniden başlatın. Çalışan ajanlar uygulama yeniden başlayınca durur.',
+  '{name} mentioned you': '{name} sizi andı',
+  'Removed from {name}': '{name} çalışma alanından çıkarıldınız',
+  'You no longer have access to {name}: its sessions and teammates are gone from here. Your own files stay as they are.':
+    'Artık {name} çalışma alanına erişiminiz yok: oturumları ve ekip arkadaşları buradan kalktı. Kendi dosyalarınız olduğu gibi kalır.',
+  "You're {role} in {name} now": 'Artık {name} içinde {role}siniz',
+  'Cloning {url}…': '{url} klonlanıyor…',
+  '{name} joined': '{name} katıldı',
+  'Invite sent to {email}': 'Davet {email} adresine gönderildi',
+  'Invite saved for @{login}': '@{login} için davet kaydedildi',
+  'No email goes to a GitHub username. They join when they sign in with GitHub @{login}, or with this link: send it to them yourself.':
+    'Bir GitHub kullanıcı adına e-posta gitmez. @{login} GitHub ile giriş yaptığında ya da bu bağlantıyla katılır: bağlantıyı ona kendiniz gönderin.',
+  "{agent} can't take guidance mid-turn. Queue it instead, or stop it (Esc).":
+    '{agent} tur ortasında yönlendirme alamaz. Bunun yerine sıraya alın ya da durdurun (Esc).',
+  'Your key is stored in {store}.': 'Anahtarınız {store} içinde saklanıyor.',
+  "the folder's Git remote (if it has one)": 'klasörün Git uzak deposu (varsa)',
+  'The branch {branch} is pushed to {where} so teammates start from the same commit.':
+    "{branch} dalı {where} içine gönderilir; böylece ekip arkadaşları aynı commit'ten başlar.",
+  "While it runs, everyone's work in it (uncommitted edits too) is saved to {where} as hidden checkpoints, so teammates see it and can take it over. Turn this off with Git sync in Settings → Workspaces.":
+    'Çalışırken, içindeki herkesin işi (kaydedilmemiş düzenlemeler dahil) {where} içine gizli kontrol noktaları olarak kaydedilir; böylece ekip arkadaşları görür ve devralabilir. Bunu Ayarlar → Çalışma alanları içindeki Git eşitlemesi ile kapatabilirsiniz.',
+  '{name} was already a workspace; this folder is now linked to it.':
+    '{name} zaten bir çalışma alanıydı; bu klasör artık ona bağlandı.',
+  '{name} is a workspace in {org} now': '{name} artık {org} içinde bir çalışma alanı',
+  'Your files stay on this computer; sessions, plans and comments about it are shared with the people you invite.':
+    'Dosyalarınız bu bilgisayarda kalır; onunla ilgili oturumlar, planlar ve yorumlar davet ettiğiniz kişilerle paylaşılır.',
+  'It has no Git remote yet, so teammates can watch but not work on the same code.':
+    'Henüz Git uzak deposu yok; ekip arkadaşları izleyebilir ama aynı kod üzerinde çalışamaz.',
+  'Rename it in Settings → Workspaces.':
+    'Adını Ayarlar → Çalışma alanları içinde değiştirebilirsiniz.',
   "Pick the folder of a project you work on (a Git repository works best). You'll see its files, a terminal and your changes, and your AI agent works in it.":
     'Üzerinde çalıştığınız bir projenin klasörünü seçin (en iyisi bir Git deposu). Dosyalarını, bir terminali ve değişikliklerinizi göreceksiniz; YZ ajanınız orada çalışır.',
   'It becomes a workspace your team can share once you invite them; the files stay on this computer.':
