@@ -61,37 +61,74 @@ function localTime(at: number | string): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-export const USAGE = `kovan ${VERSION}: Kovan's coding agent in the terminal.
-
-  kovan                       chat with the agent in this folder
-  kovan "fix the tests"       one message: it does the work and exits
-  kovan -c                    continue the last chat in this folder
-  kovan -r <name|id>          continue a chat by its name or id, in its own folder
-  kovan login [--server <url>]  sign in to a Kovan account (confirmed in the browser)
-  kovan logout | whoami       sign out | who you are signed in as
-  kovan update                update itself
-  kovan sessions [--json]     chats (the same list as in the Kovan desktop app)
-  kovan sessions export <id>  a summary of one chat (JSON)
-  kovan setup                 choose the model: an OpenRouter key, your Kovan account, or your own gateway
-  kovan config                which server and model it talks to
-
-  -m, --model <id>            the AI model (see /models in a chat)
-  --mode <plan|request|allow|full>
-                              how much it may do without asking: plan (plan only: reads) · request (ask first: before
-                              every edit and command) · allow (edit freely: edits, asks before commands; the default) ·
-                              full (full access: never asks)
-  --effort <level>            how hard the model thinks, for models that can: low, medium, high (or none … max)
-  --context-file <file>       a file of extra instructions for the agent
-  --reasoning                 show the model's thinking
-  --cwd <folder>              work in another folder
-
-The AI: 'kovan setup' picks it. Your own key comes first (OPENROUTER_API_KEY, or a server of your own with KOVAN_BASE_URL +
-KOVAN_MODEL); without one, your Kovan account from 'kovan login' (Kovan bills you what the model costs plus 5%). Claude Code
-and Codex, if installed, run on your own plan: pick them with /models. Chats also show in the Kovan desktop app.
-Reads what Claude Code reads: skills in the repository and in ~/.claude (/skill-name), CLAUDE.md / AGENTS.md / KOVAN.md,
-~/.claude/CLAUDE.md, .claude/commands/*.md (custom commands). KOVAN_NO_CLAUDE=1 turns all of that off.
-In a chat: /help /mode /model /models /clear /cost /context /skills /exit
-`;
+/** The help screen: a few lines to start with, then everything else. */
+export function usage(): string {
+  const WIDTH = 100;
+  const HANG = 30;
+  /** A command and what it does; a long description wraps under itself. */
+  const cmd = (left: string, right: string) => {
+    const lead =
+      left.length >= HANG - 2 ? `  ${left}\n${' '.repeat(HANG)}` : `  ${left.padEnd(HANG - 2)}`;
+    const words = right.split(' ');
+    const lines: string[] = [];
+    let line = '';
+    for (const word of words) {
+      if (line && HANG + line.length + 1 + word.length > WIDTH) {
+        lines.push(line);
+        line = word;
+      } else line = line ? `${line} ${word}` : word;
+    }
+    lines.push(line);
+    return `${lead}${lines.join(`\n${' '.repeat(HANG)}`)}`.trimEnd();
+  };
+  return [
+    tr("kovan {version}: Kovan's coding agent in the terminal.", { version: VERSION }),
+    '',
+    tr('Start here'),
+    cmd('kovan', tr('chat with the agent in this folder')),
+    cmd('kovan "fix the tests"', tr('give it one task: it does the work and exits')),
+    cmd('kovan -c', tr('carry on with the last chat in this folder')),
+    cmd(
+      'kovan setup',
+      tr('first time: choose the AI model (a key, your Kovan account, or your own server)'),
+    ),
+    '',
+    tr('More'),
+    cmd('kovan -r <name|id>', tr('continue a chat by its name or id, in its own folder')),
+    cmd('kovan sessions [--json]', tr('your chats (the same list as in the Kovan desktop app)')),
+    cmd('kovan sessions export <id>', tr('a summary of one chat (JSON)')),
+    cmd(
+      'kovan login [--server <url>]',
+      tr('sign in to a Kovan account (confirmed in the browser)'),
+    ),
+    cmd('kovan logout | whoami', tr('sign out | who you are signed in as')),
+    cmd('kovan update', tr('update itself')),
+    cmd('kovan config', tr('which server and model it talks to')),
+    '',
+    tr('Options'),
+    cmd('-m, --model <id>', tr('the AI model (see /models in a chat)')),
+    cmd('--mode <plan|request|allow|full>', ''),
+    tr(
+      '      how much it may do without asking: plan (only reads) · request (asks before every edit and command) · allow (edits freely, asks before commands; the default) · full (never asks)',
+    ),
+    cmd(
+      '--effort <level>',
+      tr('how hard the model thinks, for models that can: low, medium, high (or none … max)'),
+    ),
+    cmd('--context-file <file>', tr('a file of extra instructions for the agent')),
+    cmd('--reasoning', tr("show the model's thinking")),
+    cmd('--cwd <folder>', tr('work in another folder')),
+    '',
+    tr(
+      "The AI: 'kovan setup' picks it. Your own key comes first (OPENROUTER_API_KEY, or a server of your own with KOVAN_BASE_URL + KOVAN_MODEL); without one, your Kovan account from 'kovan login' (Kovan bills you what the model costs plus 5%). Claude Code and Codex, if installed, run on your own plan: pick them with /models. Chats also show in the Kovan desktop app.",
+    ),
+    tr(
+      'Reads what Claude Code reads: skills in the repository and in ~/.claude (/skill-name), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md, .claude/commands/*.md (custom commands). KOVAN_NO_CLAUDE=1 turns all of that off.',
+    ),
+    tr('In a chat: /help /mode /model /models /clear /cost /context /skills /exit'),
+    '',
+  ].join('\n');
+}
 
 /** What `kovan` needs from the terminal. Real in index.ts, scripted in tests. */
 export interface Terminal {
@@ -180,7 +217,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
   }
   switch (args.command) {
     case 'help':
-      out(USAGE);
+      out(usage());
       return 0;
     case 'version':
       out(VERSION);
@@ -196,7 +233,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
           sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
         });
         deps.auth.save(a);
-        out(`Signed in: ${a.user?.name ?? '—'} (${a.server})`);
+        out(tr('Signed in: {name} ({server})', { name: a.user?.name ?? '—', server: a.server }));
         return 0;
       } catch (e) {
         deps.err(e instanceof LoginError ? e.message : String(e));
@@ -206,18 +243,18 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
     case 'logout': {
       const a = deps.auth.load();
       if (!a) {
-        out("You weren't signed in.");
+        out(tr("You weren't signed in."));
         return 0;
       }
       await logout(a, fetchImpl);
       deps.auth.clear();
-      out('Signed out.');
+      out(tr('Signed out.'));
       return 0;
     }
     case 'whoami': {
       const a = deps.auth.load();
       if (!a) {
-        out("You're not signed in. Sign in with 'kovan login'.");
+        out(tr("You're not signed in. Sign in with 'kovan login'."));
         return 1;
       }
       try {
@@ -241,7 +278,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
     }
     case 'setup': {
       if (!t.isTTY) {
-        deps.err("'kovan setup' asks questions: run it in a terminal.");
+        deps.err(tr("'kovan setup' asks questions: run it in a terminal."));
         return 1;
       }
       const ok = await chooseSetup({
@@ -260,7 +297,9 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
               sleep: deps.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms))),
             });
             deps.auth.save(a);
-            out(`Signed in: ${a.user?.name ?? '—'} (${a.server})`);
+            out(
+              tr('Signed in: {name} ({server})', { name: a.user?.name ?? '—', server: a.server }),
+            );
             return true;
           } catch (e) {
             deps.err(e instanceof LoginError ? e.message : String(e));
@@ -309,7 +348,7 @@ export async function main(argv: readonly string[], deps: Deps): Promise<number>
             })),
           ),
         );
-      else if (list.length === 0) out('No chats yet.');
+      else if (list.length === 0) out(tr('No chats yet.'));
       else
         for (const c of list)
           out(
@@ -405,7 +444,9 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
   if (!deps.model && !auth && !own.ok && own.noKey && deps.env['KOVAN_PROVIDER'] !== 'own') {
     if (!t.isTTY) {
       deps.err(
-        "No model is set up yet. Run 'kovan setup' in a terminal to choose one, or set OPENROUTER_API_KEY.",
+        tr(
+          "No model is set up yet. Run 'kovan setup' in a terminal to choose one, or set OPENROUTER_API_KEY.",
+        ),
       );
       return 1;
     }
@@ -488,7 +529,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     if (saved) {
       conv = saved;
       resumed = true;
-    } else deps.err('No chat to continue in this folder; starting a new one.');
+    } else deps.err(tr('No chat to continue in this folder; starting a new one.'));
   }
   let mode: PermissionMode = args.mode ?? (resumed ? conv!.mode : 'allow');
   let effort = args.effort ?? (resumed ? conv!.effort : null);
@@ -1143,7 +1184,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     if (!line) continue;
     if (line === '/exit' || line === '/quit') break;
     if (line === '/help') {
-      out(USAGE);
+      out(usage());
       continue;
     }
     if (line === '/cost') {
@@ -1166,7 +1207,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
       claudeSession = null;
       codexThread = null;
       conv = deps.store.create(root, { model: provider.model, effort, mode });
-      out('Cleared: new chat.');
+      out(tr('Cleared: new chat.'));
       continue;
     }
     if (/^\/mode(\s|$)/.test(line)) {
@@ -1216,7 +1257,7 @@ async function chat(args: Args, deps: Deps, server: string): Promise<number> {
     if (line.startsWith('/')) {
       const s = await slash(line);
       if (!s) {
-        out('Unknown command. See /help and /skills.');
+        out(tr('Unknown command. See /help and /skills.'));
         continue;
       }
       await turn(s.send);

@@ -11,6 +11,65 @@ const wanted = (env['KOVAN_LANG'] || env['LC_ALL'] || env['LC_MESSAGES'] || env[
 export const LOCALE: 'en' | 'tr' = wanted.startsWith('tr') ? 'tr' : 'en';
 
 const TR: Readonly<Record<string, string>> = {
+  "kovan {version}: Kovan's coding agent in the terminal.":
+    "kovan {version}: Kovan'ın terminaldeki kodlama ajanı.",
+  'Start here': 'Buradan başlayın',
+  'chat with the agent in this folder': 'bu klasörde ajanla sohbet edin',
+  'give it one task: it does the work and exits': 'ona tek bir görev verin: işi yapar ve çıkar',
+  'carry on with the last chat in this folder': 'bu klasördeki son sohbete devam edin',
+  'first time: choose the AI model (a key, your Kovan account, or your own server)':
+    'ilk kez: yapay zekâ modelini seçin (bir anahtar, Kovan hesabınız ya da kendi sunucunuz)',
+  More: 'Daha fazlası',
+  'continue a chat by its name or id, in its own folder':
+    'bir sohbeti adı ya da kimliğiyle, kendi klasöründe sürdürün',
+  'your chats (the same list as in the Kovan desktop app)':
+    'sohbetleriniz (Kovan masaüstü uygulamasındakiyle aynı liste)',
+  'a summary of one chat (JSON)': 'bir sohbetin özeti (JSON)',
+  'sign in to a Kovan account (confirmed in the browser)':
+    'bir Kovan hesabına giriş yapın (tarayıcıda onaylanır)',
+  'sign out | who you are signed in as': 'çıkış yap | hangi hesapla girdiğiniz',
+  'update itself': 'kendini güncelle',
+  'which server and model it talks to': 'hangi sunucu ve modelle konuştuğu',
+  Options: 'Seçenekler',
+  'the AI model (see /models in a chat)': "yapay zekâ modeli (sohbette /models'a bakın)",
+  'how much it may do without asking: plan (only reads) · request (asks before every edit and command) · allow (edits freely, asks before commands; the default) · full (never asks)':
+    '      sormadan ne kadar yapabileceği: plan (yalnız okur) · request (her düzenleme ve komuttan önce sorar) · allow (özgürce düzenler, komutlardan önce sorar; varsayılan) · full (hiç sormaz)',
+  'how hard the model thinks, for models that can: low, medium, high (or none … max)':
+    'düşünebilen modeller için ne kadar derin düşüneceği: low, medium, high (ya da none … max)',
+  'a file of extra instructions for the agent': 'ajan için ek yönergeler içeren bir dosya',
+  "show the model's thinking": 'modelin düşüncesini göster',
+  'work in another folder': 'başka bir klasörde çalış',
+  "The AI: 'kovan setup' picks it. Your own key comes first (OPENROUTER_API_KEY, or a server of your own with KOVAN_BASE_URL + KOVAN_MODEL); without one, your Kovan account from 'kovan login' (Kovan bills you what the model costs plus 5%). Claude Code and Codex, if installed, run on your own plan: pick them with /models. Chats also show in the Kovan desktop app.":
+    "Yapay zekâ: 'kovan setup' seçtirir. Önce kendi anahtarınız gelir (OPENROUTER_API_KEY ya da KOVAN_BASE_URL + KOVAN_MODEL ile kendi sunucunuz); yoksa 'kovan login' ile Kovan hesabınız (Kovan size modelin maliyetini ve %5 fazlasını faturalar). Claude Code ve Codex kuruluysa kendi planınızda çalışır: /models ile seçin. Sohbetler Kovan masaüstü uygulamasında da görünür.",
+  'Reads what Claude Code reads: skills in the repository and in ~/.claude (/skill-name), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md, .claude/commands/*.md (custom commands). KOVAN_NO_CLAUDE=1 turns all of that off.':
+    "Claude Code'un okuduklarını okur: depodaki ve ~/.claude içindeki beceriler (/beceri-adı), CLAUDE.md / AGENTS.md / KOVAN.md, ~/.claude/CLAUDE.md, .claude/commands/*.md (özel komutlar). KOVAN_NO_CLAUDE=1 bunların hepsini kapatır.",
+  'In a chat: /help /mode /model /models /clear /cost /context /skills /exit':
+    'Sohbette: /help /mode /model /models /clear /cost /context /skills /exit',
+  '{flag} needs a value': '{flag} bir değer ister',
+  "Unknown mode '{v}'. Choose one of: {list}.":
+    "Bilinmeyen kip '{v}'. Şunlardan birini seçin: {list}.",
+  "Unknown effort '{v}'. Choose one of: {list}.":
+    "Bilinmeyen düzey '{v}'. Şunlardan birini seçin: {list}.",
+  "Unknown option '{arg}'. See 'kovan --help'.":
+    "Bilinmeyen seçenek '{arg}'. 'kovan --help' komutuna bakın.",
+  "'kovan sessions export' needs a chat id: see 'kovan sessions'.":
+    "'kovan sessions export' bir sohbet kimliği ister: 'kovan sessions' komutuna bakın.",
+  "'{word}' is not a command. Did you mean 'kovan {guess}'? To give the agent a task, write it as a sentence in quotes.":
+    "'{word}' bir komut değil. 'kovan {guess}' mu demek istediniz? Ajana görev vermek için onu tırnak içinde bir cümle olarak yazın.",
+  "You weren't signed in.": 'Zaten giriş yapmamıştınız.',
+  'Signed out.': 'Çıkış yapıldı.',
+  "You're not signed in. Sign in with 'kovan login'.":
+    "Giriş yapmadınız. 'kovan login' ile giriş yapın.",
+  'No chats yet.': 'Henüz sohbet yok.',
+  'No chat to continue in this folder; starting a new one.':
+    'Bu klasörde devam edilecek sohbet yok; yenisi başlatılıyor.',
+  'Cleared: new chat.': 'Temizlendi: yeni sohbet.',
+  'Unknown command. See /help and /skills.': "Bilinmeyen komut. /help ve /skills'e bakın.",
+  "No model is set up yet. Run 'kovan setup' in a terminal to choose one, or set OPENROUTER_API_KEY.":
+    "Henüz bir model kurulmadı. Seçmek için bir terminalde 'kovan setup' çalıştırın ya da OPENROUTER_API_KEY ayarlayın.",
+  "'kovan setup' asks questions: run it in a terminal.":
+    "'kovan setup' sorular sorar: bir terminalde çalıştırın.",
+  'Signed in: {name} ({server})': 'Giriş yapıldı: {name} ({server})',
   'Kovan needs a model to work with. Choose how:':
     'Kovan’ın çalışmak için bir yapay zekâ modeline ihtiyacı var. Nasıl olacağını seçin:',
   '  1  Paste an OpenRouter key (kept in {file}, readable only by you)':

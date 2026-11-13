@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { parseArgs } from './args.js';
 import { loadProvider } from './config.js';
 import { Renderer } from './render.js';
-import { main, type Terminal } from './run.js';
+import { main, usage, type Terminal } from './run.js';
 import { AuthStore } from './auth.js';
 import {
   conversationsDirFor,
@@ -133,12 +133,27 @@ describe('arguments', () => {
     // …but only as the first word: later it is part of the message.
     expect(parseArgs(['bunu', 'config', 'yap']).task).toBe('bunu config yap');
   });
+  it('a mistyped command is not sent to the agent as a task', () => {
+    expect(parseArgs(['stauts']).error).toBeNull(); // too far from any command
+    expect(parseArgs(['sesions']).error).toMatch(/Did you mean 'kovan sessions'/);
+    expect(parseArgs(['setpu']).error).toMatch(/Did you mean 'kovan setup'/);
+    // Real tasks and short words go through.
+    expect(parseArgs(['fix', 'the', 'tests']).error).toBeNull();
+    expect(parseArgs(['hello']).task).toBe('hello');
+    expect(parseArgs(['sessions']).error).toBeNull();
+  });
+  it('the help screen starts with how to begin, and is the same in every line width', () => {
+    const help = usage();
+    expect(help.indexOf('Start here')).toBeLessThan(help.indexOf('More'));
+    expect(help).toMatch(/kovan setup\s+first time/);
+    expect(help).toMatch(/kovan "fix the tests"/);
+  });
   it.each([
-    [['--mode', 'bogus'], /unknown mode/],
-    [['--effort', 'huge'], /unknown effort/],
+    [['--mode', 'bogus'], /Unknown mode 'bogus'/],
+    [['--effort', 'huge'], /Unknown effort 'huge'/],
     [['--model'], /needs a value/],
-    [['--nope'], /unknown option/],
-    [['sessions', 'export'], /needs a session id/],
+    [['--nope'], /Unknown option '--nope'/],
+    [['sessions', 'export'], /needs a chat id/],
   ])('%j is refused with a reason', (argv, why) => {
     expect(parseArgs(argv).error).toMatch(why);
   });
