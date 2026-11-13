@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { RepoStatus } from '@kovan/git-engine';
 import { create } from 'zustand';
 import type {
@@ -430,9 +431,11 @@ export function updateTab(id: string, patch: Partial<Tab>): void {
 /** Where secrets are kept on this system, in the words its users know. */
 export function secretStore(): string {
   const platform = getState().appInfo?.platform;
-  return platform === 'darwin'
-    ? 'the macOS keychain'
-    : platform === 'win32'
-      ? "Windows' protected storage"
-      : "your system's keyring";
+  return t(
+    platform === 'darwin'
+      ? 'the macOS keychain'
+      : platform === 'win32'
+        ? "Windows' protected storage"
+        : "your system's keyring",
+  );
 }

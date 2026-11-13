@@ -1495,6 +1495,23 @@ textarea.input {
   padding: 0 16px;
 }
 
+.setup-options {
+  margin-top: 8px;
+  text-align: left;
+}
+
+.setup-options .key-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.setup-options .key-form .input {
+  flex: 1;
+  min-width: 140px;
+}
+
 .start-title {
   margin: 0 0 4px;
   font-size: 15px;

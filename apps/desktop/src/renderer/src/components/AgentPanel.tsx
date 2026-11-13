@@ -1,5 +1,6 @@
 import type { Effort } from '@kovan/model-gateway';
 import { ChatAnnouncer } from './ChatAnnouncer';
+import { t } from '../i18n';
 import {
   ArrowUp,
   Bot,
@@ -9,6 +10,8 @@ import {
   CircleDot,
   CircleHelp,
   CornerDownLeft,
+  CreditCard,
+  KeyRound,
   ListChecks,
   ListPlus,
   MessageSquarePlus,
@@ -204,47 +207,77 @@ function useReadiness(choice: {
 function ProviderSetup({ billing }: { billing: boolean }) {
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   return (
     <div className="agent-empty">
       <Zap size={22} />
-      <div className="empty-title">Connect a model provider</div>
+      <div className="empty-title">Choose how your agent runs</div>
       <p className="empty-text">
-        Kovan's agent runs on your machine and calls models through OpenRouter with your own key.
-        The key stays in {secretStore()}.
+        Pick one to start. You can change it any time in Settings, and add the others later.
       </p>
-      <form
-        className="key-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          setBusy(true);
-          void saveOpenRouterKey(key.trim()).then((ok) => {
-            setBusy(false);
-            if (ok) setKey('');
-          });
-        }}
-      >
-        <input
-          className="input mono"
-          type="password"
-          placeholder="sk-or-v1-…"
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-        />
-        <button className="btn btn-primary" disabled={busy || key.trim().length < 10}>
-          {busy ? 'Checking…' : 'Save key'}
+      <div className="start-here setup-options">
+        <button className="start-card" onClick={() => openFix('accounts')}>
+          <Bot size={20} />
+          <span className="start-card-text">
+            <span className="start-card-title">My Claude Code or Codex</span>
+            <span className="start-card-desc">
+              Uses the subscription you already pay for. Nothing extra to pay.
+            </span>
+          </span>
         </button>
-      </form>
-      <a className="link-btn" href="https://openrouter.ai/keys" target="_blank" rel="noreferrer">
-        Get a key at openrouter.ai
-      </a>
-      <div className="empty-alternatives">
-        <span className="muted small">Or, instead of a key:</span>
-        <button className="link-btn" onClick={() => openFix('accounts')}>
-          Use your Claude Code or Codex account
+        <button className="start-card" onClick={() => setAsking(!asking)} aria-expanded={asking}>
+          <KeyRound size={20} />
+          <span className="start-card-text">
+            <span className="start-card-title">An OpenRouter key</span>
+            <span className="start-card-desc">
+              {t('180+ models, paid by the use. The key stays in {store}.', {
+                store: secretStore(),
+              })}
+            </span>
+          </span>
         </button>
+        {asking && (
+          <form
+            className="key-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setBusy(true);
+              void saveOpenRouterKey(key.trim()).then((ok) => {
+                setBusy(false);
+                if (ok) setKey('');
+              });
+            }}
+          >
+            <input
+              className="input mono"
+              type="password"
+              placeholder="sk-or-v1-…"
+              autoFocus
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+            />
+            <button className="btn btn-primary" disabled={busy || key.trim().length < 10}>
+              {busy ? 'Checking…' : 'Save key'}
+            </button>
+            <a
+              className="link-btn"
+              href="https://openrouter.ai/keys"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Get a key at openrouter.ai
+            </a>
+          </form>
+        )}
         {billing && (
-          <button className="link-btn" onClick={() => openFix('billing')}>
-            Pay for models through Kovan
+          <button className="start-card" onClick={() => openFix('billing')}>
+            <CreditCard size={20} />
+            <span className="start-card-text">
+              <span className="start-card-title">Pay through Kovan</span>
+              <span className="start-card-desc">
+                No key to manage. Kovan bills the model cost plus a small fee.
+              </span>
+            </span>
           </button>
         )}
       </div>

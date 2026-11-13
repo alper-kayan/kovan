@@ -572,6 +572,19 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'Choose how your agent runs': 'Ajanınızın nasıl çalışacağını seçin',
+  'Pick one to start. You can change it any time in Settings, and add the others later.':
+    'Başlamak için birini seçin. Ayarlar’dan istediğiniz zaman değiştirebilir, diğerlerini sonra ekleyebilirsiniz.',
+  'My Claude Code or Codex': 'Claude Code ya da Codex’im',
+  'Uses the subscription you already pay for. Nothing extra to pay.':
+    'Zaten ödediğiniz aboneliği kullanır. Ek ücret yok.',
+  'An OpenRouter key': 'Bir OpenRouter anahtarı',
+  '180+ models, paid by the use. The key stays in {store}.':
+    '180’den fazla model, kullandıkça ödenir. Anahtar {store} içinde kalır.',
+  'Pay through Kovan': 'Kovan üzerinden öde',
+  'No key to manage. Kovan bills the model cost plus a small fee.':
+    'Yönetecek anahtar yok. Kovan model maliyetini ve küçük bir ücreti faturalar.',
+
   'What would you like to do?': 'Ne yapmak istersiniz?',
   'One task you work on with your team. Everyone joins with their own AI agent.':
     'Ekibinizle birlikte çalıştığınız tek bir görev. Herkes kendi YZ ajanıyla katılır.',
@@ -1125,6 +1138,8 @@ export const TR: Readonly<Record<string, string>> = {
   Why: 'Neden',
   'Why this change?': 'Neden bu değişiklik?',
   "Windows' protected storage": "Windows'un korumalı deposu",
+  'the macOS keychain': 'macOS anahtar zinciri',
+  "your system's keyring": 'sisteminizin anahtarlığı',
   'Word wrap': 'Sözcük kaydırma',
   'Work was handed to you': 'İş size devredildi',
   Working: 'Çalışıyor',
