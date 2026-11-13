@@ -572,6 +572,10 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'Work on a project on this computer': 'Bu bilgisayardaki bir proje üzerinde çalışın',
+  'Open a folder first': 'Önce bir klasör açın',
+  'Just you and an AI agent': 'Yalnız siz ve bir YZ ajanı',
+  'A task with your team': 'Ekibinizle bir görev',
   'Choose how your agent runs': 'Ajanınızın nasıl çalışacağını seçin',
   'Pick one to start. You can change it any time in Settings, and add the others later.':
     'Başlamak için birini seçin. Ayarlar’dan istediğiniz zaman değiştirebilir, diğerlerini sonra ekleyebilirsiniz.',

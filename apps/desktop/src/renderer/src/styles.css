@@ -459,6 +459,84 @@ textarea.input {
   padding-left: 84px;
 }
 
+.new-menu {
+  position: relative;
+  -webkit-app-region: no-drag;
+}
+
+.new-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--bg4);
+  border: 1px solid var(--line2);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.new-menu-button:hover,
+.new-menu-button[aria-expanded='true'] {
+  background: var(--sel);
+}
+
+.new-menu-list {
+  position: absolute;
+  top: 28px;
+  right: 0;
+  z-index: 60;
+  display: grid;
+  gap: 2px;
+  width: 270px;
+  padding: 6px;
+  background: var(--bg3);
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.new-menu-list button {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  font: inherit;
+  font-weight: 400;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.new-menu-list button:hover:not(:disabled),
+.new-menu-list button:focus-visible {
+  background: var(--sel);
+}
+
+.new-menu-list button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.new-menu-list b {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.new-menu-list small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11.5px;
+  color: var(--fg3);
+}
+
 /* Windows draws its window buttons over the right end of this bar. */
 .titlebar-win {
   padding-right: 150px;
@@ -763,7 +841,7 @@ textarea.input {
 
 /* The activity strip on the far left, as in VS Code: side-bar views, then the app's pages. */
 .activity {
-  width: 62px;
+  width: 68px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -7249,9 +7327,9 @@ button.swarm-chat-head:hover .swarm-chat-open {
 }
 
 .activity-label {
-  max-width: 56px;
+  max-width: 62px;
   overflow: hidden;
-  font-size: 9.5px;
+  font-size: 10.5px;
   line-height: 1.1;
   letter-spacing: 0.01em;
   text-overflow: ellipsis;
