@@ -17,6 +17,7 @@ import { openFile } from '../services/editor';
 import { activeTeamWorkspace, setState, useStore } from '../store';
 import { PageHeader } from './PageHeader';
 import { EmptyState, Segmented } from './ui';
+import { t } from '../i18n';
 
 const EMPTY: Memory[] = [];
 const NO_LEARNINGS: Learning[] = [];
@@ -457,11 +458,12 @@ export function BrainPage() {
       {!signedIn || !ws ? (
         <EmptyState icon={<Brain size={40} strokeWidth={1.2} />} title="Your team's memory">
           <p className="empty-text">
-            The Brain keeps what your team decided and learned (conventions, gotchas, why the code
-            is the way it is), and every AI agent working in the workspace reads it.{' '}
+            {t(
+              'The Brain keeps what your team decided and learned (conventions, gotchas, why the code is the way it is), and every AI agent working in the workspace reads it.',
+            )}{' '}
             {signedIn
-              ? 'Add a workspace to start one.'
-              : 'It is shared with your team, so it needs an account.'}
+              ? t('Add a workspace to start one.')
+              : t('It is shared with your team, so it needs an account.')}
           </p>
           {signedIn ? (
             <button className="btn btn-primary btn-sm" onClick={() => void addWorkspace()}>

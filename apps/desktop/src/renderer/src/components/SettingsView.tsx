@@ -1357,7 +1357,12 @@ function Providers({ s }: { s: Settings }) {
         </Row>
         <Row
           title="Model catalog"
-          desc={`${models.filter((m) => !parseCustomModelId(m.id)).length} OpenRouter models that can use tools, refreshed daily (your own providers are listed below).`}
+          desc={t(
+            '{n} OpenRouter models that can use tools, refreshed daily (your own providers are listed below).',
+            {
+              n: models.filter((m) => !parseCustomModelId(m.id)).length,
+            },
+          )}
         >
           <button className="btn btn-sm" onClick={() => void loadModels(true)}>
             Refresh now
@@ -1399,7 +1404,7 @@ function Providers({ s }: { s: Settings }) {
       <Group title="Spend">
         {openFolder && (
           <Row
-            title={`This workspace (${openFolder})`}
+            title={t('This workspace ({name})', { name: openFolder })}
             desc="What the agent conversations in the open workspace cost, as their providers reported it (with Kovan billing, what you pay: the × 1.05 is in it)."
           >
             <span className="mono">{formatCost(spent)}</span>
@@ -1588,7 +1593,9 @@ function AccountUsage() {
     <>
       <Row
         title="Your account, last 30 days"
-        desc={`${summary.calls} model calls across all workspaces, reported by your apps.`}
+        desc={t('{n} model calls across all workspaces, reported by your apps.', {
+          n: summary.calls,
+        })}
       >
         <span className="mono">${summary.total.toFixed(summary.total < 0.01 ? 6 : 4)}</span>
       </Row>
@@ -1624,7 +1631,7 @@ function ConnectRepoRow() {
   if (!workspace?.isRepo) return null;
   return (
     <Row
-      title={`Connect ${workspace.name} to agents`}
+      title={t('Connect {name} to agents', { name: workspace.name })}
       desc="Hooks, the MCP server and coordination instructions in this repository, so a claude or codex you start yourself sees the team, locks and Brain notes. The files stay local: they're never committed, and tracked files are left alone."
     >
       <button

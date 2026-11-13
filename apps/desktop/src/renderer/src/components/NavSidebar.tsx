@@ -427,7 +427,9 @@ function WorkspacesList() {
             {signedIn && (
               <button
                 className="btn btn-sm nav-ws-share"
-                title={`Make ${r.name} a workspace your team can join (the files stay here)`}
+                title={t('Make {name} a workspace your team can join (the files stay here)', {
+                  name: r.name,
+                })}
                 onClick={() => void addWorkspace(r.root)}
               >
                 {t('Share')}

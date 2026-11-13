@@ -30,6 +30,7 @@ import {
   Sparkles,
   Undo2,
 } from 'lucide-react';
+import { t } from '../i18n';
 
 const isStaged = (f: FileStatus) =>
   f.kind !== 'untracked' && f.kind !== 'conflicted' && f.index !== '.';
@@ -330,8 +331,12 @@ export function GitPanel() {
     busy || canCommit
       ? null
       : committing.length === 0
-        ? 'Nothing to commit: no changes.'
-        : `Write a commit message (or ✨ writes one) to commit ${committing.length === 1 ? 'the change' : `${committing.length} files`}.`;
+        ? t('Nothing to commit: no changes.')
+        : committing.length === 1
+          ? t('Write a commit message (or ✨ writes one) to commit the change.')
+          : t('Write a commit message (or ✨ writes one) to commit {n} files.', {
+              n: committing.length,
+            });
 
   // A small model writes the message from the staged changes (or all of them).
   const writeMessage = async () => {
@@ -399,7 +404,7 @@ export function GitPanel() {
                 placeholder={
                   writing
                     ? 'Writing a message from your changes…'
-                    : `Commit message (${isMac ? '⌘' : 'Ctrl'}+Enter to commit)`
+                    : t('Commit message ({key}+Enter to commit)', { key: isMac ? '⌘' : 'Ctrl' })
                 }
                 value={message}
                 rows={3}

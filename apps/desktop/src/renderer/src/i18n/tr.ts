@@ -572,6 +572,118 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  "Pick the folder of a project you work on (a Git repository works best). You'll see its files, a terminal and your changes, and your AI agent works in it.":
+    'Üzerinde çalıştığınız bir projenin klasörünü seçin (en iyisi bir Git deposu). Dosyalarını, bir terminali ve değişikliklerinizi göreceksiniz; YZ ajanınız orada çalışır.',
+  'It becomes a workspace your team can share once you invite them; the files stay on this computer.':
+    'Ekibinizi davet ettiğinizde paylaşabileceğiniz bir çalışma alanına dönüşür; dosyalar bu bilgisayarda kalır.',
+  'is verified.': 'doğrulandı.',
+  'Kovan uses GitHub to invite teammates by username and, later, to open pull requests. Your local git credentials and SSH keys stay on this machine.':
+    "Kovan, ekip arkadaşlarını kullanıcı adıyla davet etmek ve ileride pull request açmak için GitHub'ı kullanır. Yerel git kimlik bilgileriniz ve SSH anahtarlarınız bu makinede kalır.",
+  'Kovan tells you when an agent finishes or needs your approval, so you can work elsewhere while it runs. Notifications only appear while Kovan is in the background.':
+    'Bir ajan bitince ya da onayınıza ihtiyaç duyunca Kovan size haber verir; o çalışırken başka yerde çalışabilirsiniz. Bildirimler yalnızca Kovan arka plandayken görünür.',
+  'A session is one task your team works on together, on its own Git branch. Everyone in it brings their own AI agent, and all of them see what each agent does as it happens.':
+    'Oturum, ekibinizin kendi Git dalında birlikte çalıştığı tek bir görevdir. İçindeki herkes kendi YZ ajanını getirir ve hepsi her ajanın yaptığını anında görür.',
+  'Working alone? The agent chat is enough; sessions are for working with others.':
+    'Yalnız mı çalışıyorsunuz? Ajan sohbeti yeterli; oturumlar başkalarıyla çalışmak içindir.',
+  'Connect {name} to agents': '{name} klasörünü ajanlara bağla',
+  'Detected. Native support is planned; use it from the terminal for now.':
+    'Algılandı. Yerel destek planlanıyor; şimdilik terminalden kullanın.',
+  'Cursor Agent is not installed on this machine.': 'Cursor Agent bu makinede kurulu değil.',
+  "Hooks, the MCP server and coordination instructions in this repository, so a claude or codex you start yourself sees the team, locks and Brain notes. The files stay local: they're never committed, and tracked files are left alone.":
+    'Bu depodaki kancalar, MCP sunucusu ve eşgüdüm yönergeleri; kendi başlattığınız bir claude ya da codex ekibi, kilitleri ve Brain notlarını görebilsin diye. Dosyalar yerelde kalır: asla commit edilmez, izlenen dosyalara dokunulmaz.',
+  "Use this computer's Claude Code": "Bu bilgisayardaki Claude Code'u kullan",
+  "The sign-in Claude Code already has here, with your own settings. Kovan doesn't change them.":
+    "Claude Code'un burada zaten sahip olduğu giriş, kendi ayarlarınızla. Kovan bunları değiştirmez.",
+  "Use this computer's Codex": "Bu bilgisayardaki Codex'i kullan",
+  "The sign-in Codex already has here, with your own settings. Kovan doesn't change them.":
+    "Codex'in burada zaten sahip olduğu giriş, kendi ayarlarınızla. Kovan bunları değiştirmez.",
+  "For another Claude account (say, Work and Personal). A terminal opens with Claude Code's own sign-in; finish it there (type /login if it does not ask).":
+    "Başka bir Claude hesabı için (örneğin İş ve Kişisel). Claude Code'un kendi girişiyle bir terminal açılır; orada bitirin (sormazsa /login yazın).",
+  'Rank the agents and models you want used, first to last. Auto starts a task with the first one that is ready, and when an account runs out the conversation continues with the next. The same agent can be ranked more than once with different models.':
+    'Kullanılmasını istediğiniz ajanları ve modelleri ilkten sona doğru sıralayın. Auto, bir göreve hazır olan ilkiyle başlar; bir hesabın hakkı bitince konuşma sıradakiyle sürer. Aynı ajan farklı modellerle birden çok kez sıralanabilir.',
+  'Claude Code (no account yet)': 'Claude Code (henüz hesap yok)',
+  'Codex (no account yet)': 'Codex (henüz hesap yok)',
+  'A model of Claude Code; Default lets Auto pick by how hard the task is.':
+    "Claude Code'un bir modeli; Varsayılan, Auto'nun görevin zorluğuna göre seçmesine izin verir.",
+  'Add a Claude Code account first, under Accounts.':
+    'Önce Hesaplar bölümünden bir Claude Code hesabı ekleyin.',
+  'When an agent runs out of usage, Kovan asks which of your ready agents the conversation goes on with. Off: the next one in your order takes over by itself.':
+    'Bir ajanın kullanım hakkı bitince Kovan, konuşmanın hazır ajanlarınızdan hangisiyle süreceğini sorar. Kapalıyken sıradaki, sıranıza göre kendiliğinden devralır.',
+  "Once per conversation, before a switch moves it from a subscription (Claude Code, Codex) to Kovan's pay-per-use models.":
+    "Konuşma başına bir kez, bir geçiş onu bir abonelikten (Claude Code, Codex) Kovan'ın kullandıkça öde modellerine taşımadan önce.",
+  'Add a Claude Code account first, under Accounts':
+    'Önce Hesaplar bölümünden bir Claude Code hesabı ekleyin',
+  'One key gives the agent access to every model. Get one at openrouter.ai/keys.':
+    'Tek bir anahtar ajana her modele erişim verir. openrouter.ai/keys adresinden alın.',
+  '{n} OpenRouter models that can use tools, refreshed daily (your own providers are listed below).':
+    'Araç kullanabilen {n} OpenRouter modeli, günlük yenilenir (kendi sağlayıcılarınız aşağıda listelenir).',
+  ", run with Kovan's agent and are billed (if at all) by that provider, not through Kovan.":
+    ", Kovan'ın ajanıyla çalışır ve (varsa) Kovan üzerinden değil, o sağlayıcı tarafından faturalanır.",
+  'Kovan checks the address by listing its models.':
+    'Kovan adresi, modellerini listeleyerek kontrol eder.',
+  'This workspace ({name})': 'Bu çalışma alanı ({name})',
+  '{n} model calls across all workspaces, reported by your apps.':
+    'Tüm çalışma alanlarında {n} model çağrısı, uygulamalarınız tarafından bildirildi.',
+  'Every model your agents can use, with its price and how it did on our test tasks.':
+    'Ajanlarınızın kullanabileceği her model, fiyatı ve test görevlerimizdeki başarısıyla.',
+  'models that can use tools (edit files, run commands)':
+    'araç kullanabilen modeller (dosya düzenleme, komut çalıştırma)',
+  'No models to list yet: the catalog comes from your model provider. Add an OpenRouter key (or your own provider) in Model keys, or set up Kovan billing, then refresh.':
+    'Henüz listelenecek model yok: katalog model sağlayıcınızdan gelir. Model anahtarları bölümünde bir OpenRouter anahtarı (ya da kendi sağlayıcınızı) ekleyin veya Kovan faturalamasını kurun, sonra yenileyin.',
+  'self-checking coding tasks (easy to hard), run':
+    'kendini denetleyen kodlama görevi (kolaydan zora), çalıştırma',
+  '. Score: tasks solved. Cost: one full task, as billed by OpenRouter. Results vary by workload.':
+    ". Puan: çözülen görevler. Maliyet: tam bir görev, OpenRouter'ın faturaladığı gibi. Sonuçlar iş yüküne göre değişir.",
+  'JevRouter gives each step to the cheapest model likely to get it right and moves to a stronger one when a step is hard.':
+    'JevRouter her adımı doğrusunu bulması olası en ucuz modele verir ve adım zorlaşınca daha güçlüsüne geçer.',
+  'On this small set every model solved every task, so a fixed cheap model cost least; JevRouter pays off on mixed work, where a cheap model alone gets stuck. If your tasks are simple, pick a cheap model in Agents.':
+    'Bu küçük sette her model her görevi çözdü, bu yüzden sabit ucuz bir model en az maliyetliydi; JevRouter, ucuz bir modelin tek başına takıldığı karışık işlerde karşılığını verir. Görevleriniz basitse Ajanlar bölümünden ucuz bir model seçin.',
+  '· USD per 1M tokens, as listed by OpenRouter. Long prompts can cost more on some models (for example GPT-5.6 above 272K input tokens: 2× input, 1.5× output).':
+    "· 1 milyon token başına USD, OpenRouter'da listelendiği gibi. Uzun istemler bazı modellerde daha pahalı olabilir (örneğin 272 bin girdi tokenının üstünde GPT-5.6: girdi 2×, çıktı 1,5×).",
+  "This Kovan server doesn't sell model usage. Use your own model key instead: in the app, Settings → Model keys & spend; in the terminal, kovan setup. Or add your own OpenRouter key in Settings → Model keys & spend.":
+    'Bu Kovan sunucusu model kullanımı satmaz. Bunun yerine kendi model anahtarınızı kullanın: uygulamada Ayarlar → Model anahtarları ve harcama; terminalde kovan setup. Ya da Ayarlar → Model anahtarları ve harcama bölümüne kendi OpenRouter anahtarınızı ekleyin.',
+  "Runs the same task for each configuration of Kovan's agent, one after another, each in its own throwaway copy of":
+    "Kovan'ın ajanının her yapılandırması için aynı görevi sırayla çalıştırır, her biri kendi geçici kopyasında",
+  "at its current commit (your checkout and uncommitted changes are left out). Each run is checked with the project's own checks and measured. Model calls are paid the way your agent's are (your model key, or Kovan billing), up to the budget per run.":
+    "şu anki commit'inde (çalışma kopyanız ve kaydedilmemiş değişiklikleriniz dışarıda kalır). Her çalıştırma projenin kendi kontrolleriyle denetlenir ve ölçülür. Model çağrıları ajanınızınkiler gibi ödenir (model anahtarınız ya da Kovan faturalaması), çalıştırma başına bütçeye kadar.",
+  'The task, e.g. Add median() to src/stats.js with a test':
+    'Görev, örn. src/stats.js dosyasına testiyle birlikte median() ekle',
+  'Development builds do not update themselves.': 'Geliştirme sürümleri kendini güncellemez.',
+  'Click a shortcut, then press the new key combination. Escape cancels.':
+    'Bir kısayola tıklayın, sonra yeni tuş birleşimine basın. Escape iptal eder.',
+  "This Kovan server doesn't sell model usage, so there's nothing to pay here. Your agents run on your own model key or your Claude Code and Codex accounts.":
+    'Bu Kovan sunucusu model kullanımı satmaz, burada ödenecek bir şey yok. Ajanlarınız kendi model anahtarınızla ya da Claude Code ve Codex hesaplarınızla çalışır.',
+  'Session transcripts and the final changes of ended sessions hold code. They are redacted for secrets, encrypted, and deleted for good after this many days. A shorter time deletes older ones right away.':
+    'Oturum dökümleri ve biten oturumların son değişiklikleri kod içerir. Gizli bilgilerden arındırılır, şifrelenir ve bu kadar gün sonra kalıcı olarak silinir. Daha kısa bir süre, eski olanları hemen siler.',
+  'For another team or company: its own workspaces, members, billing and settings. You own it; workspaces you add while it is the current one go there.':
+    'Başka bir ekip ya da şirket için: kendi çalışma alanları, üyeleri, faturalaması ve ayarları. Sahibi sizsiniz; o geçerliyken eklediğiniz çalışma alanları oraya gider.',
+  'One API key, one webhook and one event stream for all of': 'Tüm',
+  "'s workspaces, those made later too; machines registered here serve every workspace whose repository they hold. Usually what you want; Settings → Workspaces has the same for one workspace only.":
+    'çalışma alanları için tek API anahtarı, tek webhook ve tek olay akışı; sonradan yapılanlar da dahil; burada kayıtlı makineler deposuna sahip olduğu her çalışma alanına hizmet verir. Genelde istediğiniz budur; Ayarlar → Çalışma alanları aynısını yalnız tek çalışma alanı için sunar.',
+  'Leave every box empty to get all events.': 'Tüm olayları almak için tüm kutuları boş bırakın.',
+  'Who changed members, roles, invites and settings in':
+    'Şu kuruluştaki üyeleri, rolleri, davetleri ve ayarları kim değiştirdi:',
+  '. Kept for 400 days.': '. 400 gün saklanır.',
+  'Getting started: {done} of {total} steps done': 'Başlarken: {total} adımın {done} tanesi tamam',
+  'Make {name} a workspace your team can join (the files stay here)':
+    '{name} klasörünü ekibinizin katılabileceği bir çalışma alanı yapın (dosyalar burada kalır)',
+  'Nothing to commit: no changes.': 'Kaydedilecek bir şey yok: değişiklik yok.',
+  'Write a commit message (or ✨ writes one) to commit the change.':
+    'Değişikliği kaydetmek için bir commit mesajı yazın (ya da ✨ sizin yerinize yazsın).',
+  'Write a commit message (or ✨ writes one) to commit {n} files.':
+    '{n} dosyayı kaydetmek için bir commit mesajı yazın (ya da ✨ sizin yerinize yazsın).',
+  'Commit message ({key}+Enter to commit)': 'Commit mesajı (kaydetmek için {key}+Enter)',
+  'No changes.': 'Değişiklik yok.',
+  'The Brain keeps what your team decided and learned (conventions, gotchas, why the code is the way it is), and every AI agent working in the workspace reads it.':
+    'Brain, ekibinizin kararlarını ve öğrendiklerini (kurallar, tuzaklar, kodun neden böyle olduğu) saklar ve çalışma alanındaki her YZ ajanı bunu okur.',
+  'A session is one task your team works on together. Teammates join with their own AI agents, and everyone sees what each agent does as it happens.':
+    'Oturum, ekibinizin birlikte çalıştığı tek bir görevdir. Ekip arkadaşları kendi YZ ajanlarıyla katılır ve herkes her ajanın yaptığını anında görür.',
+  'How your teammates see you in sessions, comments and invites.':
+    'Ekip arkadaşlarınızın sizi oturumlarda, yorumlarda ve davetlerde nasıl gördüğü.',
+  'Deletes your account and the workspaces only you are in. Shared workspaces stay with your teammates.':
+    'Hesabınızı ve yalnızca sizin olduğunuz çalışma alanlarını siler. Paylaşılan çalışma alanları ekip arkadaşlarınızda kalır.',
+  'Commit every change, then push with your Git credentials':
+    'Tüm değişiklikleri commit edin, sonra Git kimlik bilgilerinizle push edin',
   'Work on a project on this computer': 'Bu bilgisayardaki bir proje üzerinde çalışın',
   'Open a folder first': 'Önce bir klasör açın',
   'Just you and an AI agent': 'Yalnız siz ve bir YZ ajanı',
