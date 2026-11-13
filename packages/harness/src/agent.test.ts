@@ -478,6 +478,46 @@ describe('Agent', () => {
     expect((events.at(-1) as Extract<AgentEvent, { type: 'turn_end' }>).cost).toBeCloseTo(0.0021);
   });
 
+  it('says a price is unknown (null) instead of reporting a made-up $0', async () => {
+    const model = scripted([
+      [
+        { type: 'text', text: 'Hi' },
+        {
+          type: 'done',
+          finishReason: 'stop',
+          model: 'own/model',
+          reasoningDetails: [],
+          usage: {
+            promptTokens: 100,
+            completionTokens: 10,
+            cachedTokens: 0,
+            reasoningTokens: 0,
+            cost: null,
+          },
+        },
+      ],
+    ]);
+    const events: AgentEvent[] = [];
+    const agent = new Agent({
+      model,
+      modelId: 'own/model',
+      effort: null,
+      mode: 'request',
+      root,
+      isRepo: false,
+      systemPrompt: 's',
+      approve: async () => true,
+      onEvent: (e) => events.push(e),
+      price: () => null,
+    });
+    await agent.send('hello');
+    const usage = events.find((e) => e.type === 'usage') as Extract<AgentEvent, { type: 'usage' }>;
+    expect(usage.usage.cost).toBeNull();
+    expect(usage.estimated).toBe(false);
+    // Budgets still add up: an unknown price counts as nothing, not as NaN.
+    expect((events.at(-1) as Extract<AgentEvent, { type: 'turn_end' }>).cost).toBe(0);
+  });
+
   it('reports model failures and keeps the history consistent', async () => {
     const model: ModelStreamer = {
       // eslint-disable-next-line require-yield

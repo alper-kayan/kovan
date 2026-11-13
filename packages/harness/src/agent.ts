@@ -597,10 +597,17 @@ export class Agent {
 
   /** Emits a usage event and returns its cost, pricing it from the rate card when needed. */
   private recordUsage(usage: Usage, model: string | null, kind: 'model' | 'routing'): number {
-    const estimated = usage.cost === null;
-    const cost = usage.cost ?? (model ? this.options.price?.(model, usage) : null) ?? 0;
-    this.options.onEvent({ type: 'usage', usage: { ...usage, cost }, model, kind, estimated });
-    return cost;
+    // The provider's own figure, else our estimate from the model's list price. When nobody knows
+    // the price (a model on your own provider, say), say so with `null` instead of a made-up $0.
+    const known = usage.cost ?? (model ? (this.options.price?.(model, usage) ?? null) : null);
+    this.options.onEvent({
+      type: 'usage',
+      usage: { ...usage, cost: known },
+      model,
+      kind,
+      estimated: usage.cost === null && known !== null,
+    });
+    return known ?? 0;
   }
 
   private lastProgress = new Map<string, { at: number; text: string }>();
