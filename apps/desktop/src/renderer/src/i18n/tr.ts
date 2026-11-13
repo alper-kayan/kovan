@@ -571,6 +571,12 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization': 'Yeni kuruluş',
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
+  'New chat': 'Yeni sohbet',
+  'What would you like to do?': 'Ne yapmak istersiniz?',
+  'One task you work on with your team. Everyone joins with their own AI agent.':
+    'Ekibinizle birlikte çalıştığınız tek bir görev. Herkes kendi YZ ajanıyla katılır.',
+  'Ask an AI agent about this folder. Just you, nobody else sees it.':
+    'Bu klasör hakkında bir YZ ajanına sorun. Yalnız siz, başka kimse görmez.',
   'New swarm': 'Yeni Swarm',
   'New terminal': 'Yeni terminal',
   'New webhook': 'Yeni webhook',

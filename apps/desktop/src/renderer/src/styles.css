@@ -1482,6 +1482,62 @@ textarea.input {
   color: var(--fg3);
 }
 
+.editor-empty {
+  align-content: center;
+  justify-items: center;
+  gap: 36px;
+}
+
+.start-here {
+  display: grid;
+  gap: 10px;
+  width: min(420px, 100%);
+  padding: 0 16px;
+}
+
+.start-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.start-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 16px;
+  text-align: left;
+  color: var(--fg2);
+  background: var(--bg3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.start-card:hover,
+.start-card:focus-visible {
+  color: var(--fg);
+  border-color: var(--line2);
+}
+
+.start-card-text {
+  display: grid;
+  gap: 3px;
+}
+
+.start-card-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg);
+}
+
+.start-card-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--fg3);
+}
+
 .editor-empty dl {
   display: grid;
   gap: 12px;

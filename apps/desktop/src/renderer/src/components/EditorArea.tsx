@@ -1,7 +1,10 @@
 import { formatAccelerator } from '../../../shared/keybindings';
 import { BranchFileView, DraftFileView } from './BranchFileView';
 import { currentKeybindings } from '../commands';
-import { useStore } from '../store';
+import { MessageSquare, Users } from 'lucide-react';
+import { newConversation } from '../services/agent';
+import { openNewSession } from '../services/sessions';
+import { setState, showView, useStore } from '../store';
 import { CodeEditor } from './CodeEditor';
 import { DiffView } from './DiffView';
 import { TabBar } from './TabBar';
@@ -15,8 +18,37 @@ function EmptyEditor() {
     ['Toggle terminal', 'view.toggleTerminal'],
     ['Source control', 'view.git'],
   ];
+  const startSession = () => {
+    showView('sessions');
+    openNewSession();
+  };
+  const startChat = () => {
+    setState({ agentOpen: true });
+    void newConversation();
+  };
   return (
     <div className="editor-empty">
+      <div className="start-here">
+        <h2 className="start-title">What would you like to do?</h2>
+        <button className="start-card" onClick={startSession}>
+          <Users size={20} />
+          <span className="start-card-text">
+            <span className="start-card-title">New session</span>
+            <span className="start-card-desc">
+              One task you work on with your team. Everyone joins with their own AI agent.
+            </span>
+          </span>
+        </button>
+        <button className="start-card" onClick={startChat}>
+          <MessageSquare size={20} />
+          <span className="start-card-text">
+            <span className="start-card-title">New chat</span>
+            <span className="start-card-desc">
+              Ask an AI agent about this folder. Just you, nobody else sees it.
+            </span>
+          </span>
+        </button>
+      </div>
       <dl>
         {hints.map(([label, id]) =>
           keys[id] ? (

@@ -663,7 +663,7 @@ export function MissionControlPage() {
           </button>
         )}
         <button className="btn btn-primary" onClick={openNewSession}>
-          <Plus size={14} /> New
+          <Plus size={14} /> New session
         </button>
       </PageHeader>
       {tab === 'active' && <Alerts sessions={live} />}
