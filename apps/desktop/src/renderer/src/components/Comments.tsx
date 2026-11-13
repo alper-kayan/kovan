@@ -84,7 +84,9 @@ export function CommentComposer({
       />
       <div className="comment-composer-actions">
         <span className="muted small">
-          {formatAccelerator('Mod+Enter', isMac)} to post · comments don't use any model
+          {t("{keys} to post · comments don't use any model", {
+            keys: formatAccelerator('Mod+Enter', isMac),
+          })}
         </span>
         {onCancel && (
           <button className="btn btn-sm" onClick={onCancel}>

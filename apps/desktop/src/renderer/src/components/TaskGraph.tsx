@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { can, graphColumns, swarmBadge, type PlanStep, type Session } from '@kovan/shared';
 import { Pause, Square } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -89,7 +90,9 @@ export function TaskGraph({ session }: { session: Session }) {
       <div className="task-graph-head">
         <span className="muted small">
           {workspace ? `${workspace.name} · ${mode === 'solo' ? 'Solo' : 'Team'}` : ''}
-          {role ? ` · you are ${role}${canApprove ? ', you can approve tasks' : ''}` : ''}
+          {role
+            ? ` · ${t('you are {role}', { role })}${canApprove ? `, ${t('you can approve tasks')}` : ''}`
+            : ''}
         </span>
         <span className="task-graph-counts mono small">
           {Object.entries(counts)

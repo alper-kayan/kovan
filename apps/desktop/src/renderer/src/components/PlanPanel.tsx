@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { can, type PlanStep, type Session, type StepStatus } from '@kovan/shared';
 import { Check, Circle, CircleDot, MoreHorizontal, Plus } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -165,7 +166,9 @@ export function PlanPanel({ session }: { session: Session }) {
 
       {steps.length === 0 && (
         <div className="rail-empty">
-          No plan yet. {canManage ? 'Add steps below, or let an agent propose a split.' : ''}
+          {canManage
+            ? t('No plan yet. Add steps below, or let an agent propose a split.')
+            : t('No plan yet.')}
         </div>
       )}
       {steps.map((step) => {

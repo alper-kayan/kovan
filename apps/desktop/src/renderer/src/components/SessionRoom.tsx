@@ -1024,10 +1024,11 @@ function SwarmSetup({ session, swarm }: { session: Session; swarm: Swarm | null 
   if (agents.length === 0)
     return (
       <p className="muted small">
-        A swarm puts several AI teammates on one goal: a lead splits it, the others work in
-        parallel. Add AI teammates on the People page first.{' '}
+        {t(
+          'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Add AI teammates on the People page first.',
+        )}{' '}
         <button className="link-btn" onClick={() => showView('people')}>
-          Open People
+          {t('Open People')}
         </button>
       </p>
     );
@@ -1770,6 +1771,18 @@ export function SessionRoom() {
                     Join with your agent to take a lane. Everyone in the session sees every lane
                     live; watchers are visible too.
                   </p>
+                  {session.status === 'active' &&
+                    !session.participants.some(
+                      (p) => p.userId === user?.id && p.mode === 'join',
+                    ) && (
+                      <button
+                        className="btn btn-primary"
+                        disabled={room.joining}
+                        onClick={() => void joinSession(session)}
+                      >
+                        <LogIn size={14} /> {room.joining ? 'Checking…' : 'Join with your agent'}
+                      </button>
+                    )}
                 </div>
               )}
             </div>

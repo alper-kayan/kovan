@@ -572,6 +572,19 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'you are {role}': 'rolünüz: {role}',
+  'you can approve tasks': 'görevleri onaylayabilirsiniz',
+  'No conflicts. When you and a teammate change the same lines, both versions are kept here to compare and pick; nothing is overwritten.':
+    'Çakışma yok. Siz ve bir ekip arkadaşınız aynı satırları değiştirirseniz, ikisi de burada karşılaştırıp seçmeniz için saklanır; hiçbir şey ezilmez.',
+  'Nothing recorded yet. Agent work in this session (plans, tasks, checks, costs, tool calls) shows up here as it happens.':
+    'Henüz kayıt yok. Bu oturumdaki ajan işi (planlar, görevler, kontroller, maliyetler, araç çağrıları) oldukça burada görünür.',
+  'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Add AI teammates on the People page first.':
+    'Bir Swarm, birkaç YZ ekip arkadaşını tek bir hedefe verir: lider onu böler, diğerleri paralel çalışır. Önce Kişiler sayfasından YZ ekip arkadaşları ekleyin.',
+  "{keys} to post · comments don't use any model":
+    '{keys} ile gönder · yorumlar hiçbir modeli kullanmaz',
+  'No plan yet. Add steps below, or let an agent propose a split.':
+    'Henüz plan yok. Aşağıya adım ekleyin ya da bir ajanın görevi bölmesini isteyin.',
+  'No plan yet.': 'Henüz plan yok.',
   'Kovan {version} is ready': 'Kovan {version} hazır',
   'Restart to finish updating. Running agents stop when the app restarts.':
     'Güncellemeyi bitirmek için yeniden başlatın. Çalışan ajanlar uygulama yeniden başlayınca durur.',
