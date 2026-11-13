@@ -572,6 +572,9 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  Owner: 'Sahip',
+  Viewer: 'İzleyici',
+  Commenter: 'Yorumcu',
   'you are {role}': 'rolünüz: {role}',
   'you can approve tasks': 'görevleri onaylayabilirsiniz',
   'No conflicts. When you and a teammate change the same lines, both versions are kept here to compare and pick; nothing is overwritten.':
@@ -802,7 +805,7 @@ export const TR: Readonly<Record<string, string>> = {
   'Not running': 'Çalışmıyor',
   'Not running on any machine': 'Hiçbir makinede çalışmıyor',
   'Not set up': 'Kurulmadı',
-  'Not set up yet': 'Henüz kurulmadı',
+  'Not set up yet': 'Henüz bağlanmadı',
   'Not signed in': 'Giriş yapılmadı',
   'Not used': 'Kullanılmıyor',
   'Not verified yet: invites and alerts may not reach you.':

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import { ROLES, type AiAgent, type Role } from '@kovan/shared';
 import { DialogKeys } from './DialogKeys';
 import { JEV_MODEL_ID, parseCustomModelId } from '../../../shared/agent';
@@ -124,7 +125,7 @@ function InviteDialog({ defaultWorkspace }: { defaultWorkspace: string | null })
                 >
                   {ROLES.map((r) => (
                     <option key={r} value={r}>
-                      {r[0]!.toUpperCase() + r.slice(1)}: {ROLE_HELP[r]}
+                      {t(r[0]!.toUpperCase() + r.slice(1))}: {ROLE_HELP[r]}
                     </option>
                   ))}
                 </select>
@@ -520,7 +521,7 @@ export function PeoplePage() {
                       >
                         {ROLES.map((r) => (
                           <option key={r} value={r}>
-                            {r[0]!.toUpperCase() + r.slice(1)}
+                            {t(r[0]!.toUpperCase() + r.slice(1))}
                           </option>
                         ))}
                       </select>
