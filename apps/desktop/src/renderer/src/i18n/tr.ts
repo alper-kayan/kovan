@@ -572,6 +572,7 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'Needs an account.': 'Hesap gerekir.',
   Owner: 'Sahip',
   Viewer: 'İzleyici',
   Commenter: 'Yorumcu',

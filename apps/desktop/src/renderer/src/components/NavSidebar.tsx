@@ -42,12 +42,20 @@ import { GitPanel } from './GitPanel';
 import { KovanMark } from './Logo';
 import { Avatar, ProgressRing, WorkspaceIcon } from './ui';
 
+/** The pages that are about working with a team: they show up once there is a shared workspace. */
+const TEAM_PAGES: readonly View[] = ['brain', 'people', 'agents'];
+
 /** The app's pages: a short word under each icon, the whole name on hover. */
 const NAV: { view: View; label: string; short: string; icon: typeof LayoutGrid }[] = [
   { view: 'sessions', label: 'Sessions: shared tasks', short: 'Sessions', icon: LayoutGrid },
   { view: 'brain', label: "Brain: the team's notes and decisions", short: 'Brain', icon: Brain },
   { view: 'people', label: 'People and AI teammates', short: 'People', icon: Users },
-  { view: 'agents', label: 'Agent map: every agent at work', short: 'Map', icon: Workflow },
+  {
+    view: 'agents',
+    label: 'Agent map: every agent at work',
+    short: 'Agent map',
+    icon: Workflow,
+  },
 ];
 
 const MIN_WIDTH = 190;
@@ -102,6 +110,8 @@ export function ActivityBar() {
   const user = useStore((s) => s.user);
   const update = useStore((s) => s.update);
   const done = doneCount(onboarding);
+  // On your own there is nothing to put in the team pages: they appear with the first shared workspace.
+  const hasTeam = useStore((s) => s.signedIn && s.teamWorkspaces.length > 0);
 
   const sideItem = (
     id: SideView,
@@ -141,19 +151,21 @@ export function ActivityBar() {
       {isRepo && sideItem('git', 'Source Control: changes and commits', 'Git', GitCompare, changes)}
       {sideItem('workspaces', "Workspaces: your folders and your team's", 'Workspaces', Layers)}
       <span className="activity-sep" />
-      {NAV.map(({ view: v, label, short, icon: Icon }) => (
-        <button
-          key={v}
-          className={`activity-item labelled ${view === v ? 'on' : ''}`}
-          title={t(label)}
-          aria-label={t(label)}
-          aria-current={view === v ? 'page' : undefined}
-          onClick={() => showView(v)}
-        >
-          <Icon size={18} />
-          <span className="activity-label">{t(short)}</span>
-        </button>
-      ))}
+      {NAV.filter(({ view: v }) => hasTeam || view === v || !TEAM_PAGES.includes(v)).map(
+        ({ view: v, label, short, icon: Icon }) => (
+          <button
+            key={v}
+            className={`activity-item labelled ${view === v ? 'on' : ''}`}
+            title={t(label)}
+            aria-label={t(label)}
+            aria-current={view === v ? 'page' : undefined}
+            onClick={() => showView(v)}
+          >
+            <Icon size={18} />
+            <span className="activity-label">{t(short)}</span>
+          </button>
+        ),
+      )}
       <span className="spacer" />
       {/* Until every step is done: a named way back to the guide, not a lone ring. */}
       {done < STEPS.length && (

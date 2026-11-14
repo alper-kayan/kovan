@@ -11,6 +11,7 @@ import { TabBar } from './TabBar';
 
 function EmptyEditor() {
   const isMac = useStore((s) => s.isMac);
+  const signedIn = useStore((s) => s.signedIn);
   const keys = currentKeybindings();
   const hints: [string, string][] = [
     ['Go to file', 'palette.files'],
@@ -37,6 +38,7 @@ function EmptyEditor() {
             <span className="start-card-desc">
               One task you work on with your team. Everyone joins with their own AI agent.
             </span>
+            {!signedIn && <span className="start-card-desc">Needs an account.</span>}
           </span>
         </button>
         <button className="start-card" onClick={startChat}>
