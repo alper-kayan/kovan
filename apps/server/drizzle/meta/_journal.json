@@ -288,6 +288,13 @@
       "when": 1794470961388,
       "tag": "0040_user_locale",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794694429382,
+      "tag": "0041_agent_role",
+      "breakpoints": true
     }
   ]
 }

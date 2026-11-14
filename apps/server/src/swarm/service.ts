@@ -122,6 +122,7 @@ export class SwarmService {
       effort: row.a.effort,
       mode: row.a.mode,
       instructions: row.a.instructions,
+      role: row.a.role,
       monthlyLimit: row.a.monthlyLimit,
       monthSpent: await this.agentMonthSpent(row.a.userId),
       createdBy: row.a.createdBy,
@@ -176,6 +177,7 @@ export class SwarmService {
           effort: input.effort,
           mode: input.mode,
           instructions: input.instructions,
+          role: input.role,
           monthlyLimit: input.monthlyLimit,
         })
         .returning();
@@ -222,6 +224,7 @@ export class SwarmService {
       effort: lead.a.effort,
       mode: 'allow',
       instructions: input.instructions,
+      role: null,
       // It spends within the workspace's limit; a limit of its own is the owner's to give.
       monthlyLimit: null,
     });

@@ -785,6 +785,8 @@ export const aiAgents = pgTable(
       .notNull()
       .default('allow'),
     instructions: text('instructions').notNull().default(''),
+    /** Its job title when it came from a catalog role ("Code reviewer"); null for a custom teammate. */
+    role: text('role'),
     /** USD a month its work may cost (swarm tasks and direct tasks); null: no limit of its own. */
     monthlyLimit: doublePrecision('monthly_limit'),
     /** The swarm whose lead added it (through the agent factory), if one did. */

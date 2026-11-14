@@ -92,6 +92,30 @@ describe('AI teammates', () => {
     expect(after.map((a: { name: string }) => a.name)).not.toContain('Rook');
   });
 
+  it('keep the role they were made from, and a long set of instructions', async () => {
+    const long = 'Reviews every change carefully. '.repeat(400);
+    const made = await api(alice, 'POST', `/api/workspaces/${workspaceId}/agents`, {
+      name: 'Ruth',
+      model: 'openai/gpt-5.6-luna',
+      instructions: long,
+      role: 'Code reviewer',
+    });
+    expect(made.status).toBe(200);
+    expect(made.body.agent).toMatchObject({ name: 'Ruth', role: 'Code reviewer' });
+    expect(made.body.agent.instructions).toBe(long);
+    const listed = await api(alice, 'GET', `/api/workspaces/${workspaceId}/agents`);
+    expect(listed.body.agents.find((a: { name: string }) => a.name === 'Ruth').role).toBe(
+      'Code reviewer',
+    );
+    // A custom teammate has no role, and a role can be changed.
+    const plain = await agent('Sam');
+    expect(plain.body.agent.role).toBeNull();
+    const patched = await api(alice, 'PATCH', `/api/agents/${plain.body.agent.id}`, {
+      role: 'Debugger',
+    });
+    expect(patched.body.agent.role).toBe('Debugger');
+  });
+
   it('stream their lane only from the machine running them; steering goes there', async () => {
     const s = await session('Seat race');
     const lark = (await agent('Lark')).body.agent;

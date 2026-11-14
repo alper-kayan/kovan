@@ -21,6 +21,8 @@ export interface AiAgent {
   mode: z.infer<typeof PermissionModeSchema>;
   /** What it is good at and how it should work ("Writes tests first; keeps changes small"). */
   instructions: string;
+  /** Its job title when it came from a catalog role ("Code reviewer"); null for a custom teammate. */
+  role: string | null;
   /** USD a month its work may cost, swarms and direct tasks together; null: no limit of its own. */
   monthlyLimit: number | null;
   /** What its work cost this calendar month (UTC). */
@@ -68,7 +70,8 @@ const AI_AGENT_FIELDS = {
   model: z.string().trim().min(1).max(200),
   effort: EffortSchema.nullable(),
   mode: PermissionModeSchema,
-  instructions: z.string().max(4000),
+  instructions: z.string().max(60_000),
+  role: z.string().trim().min(1).max(80).nullable(),
   monthlyLimit: z.number().min(0.01).max(100_000).nullable(),
 };
 
@@ -77,6 +80,7 @@ export const CreateAiAgentSchema = z.object({
   effort: AI_AGENT_FIELDS.effort.default(null),
   mode: AI_AGENT_FIELDS.mode.default('allow'),
   instructions: AI_AGENT_FIELDS.instructions.default(''),
+  role: AI_AGENT_FIELDS.role.default(null),
   monthlyLimit: AI_AGENT_FIELDS.monthlyLimit.default(null),
 });
 
