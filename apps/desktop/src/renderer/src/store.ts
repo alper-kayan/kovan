@@ -187,6 +187,8 @@ interface State {
 
   /** The right panel beside the editor (agent, explorer, source control). */
   agentOpen: boolean;
+  /** The person chose the agent panel on the start screen: it stays, instead of giving way to the one box. */
+  startScreenOff: boolean;
   sideView: SideView;
   explorerTab: 'files' | 'conflicts';
   gitTab: 'changes' | 'graph';
@@ -318,6 +320,7 @@ export const useStore = create<State>(() => ({
   inviteOpen: false,
   verifyResendAt: 0,
   agentOpen: readLocal('kovan.agentOpen', true),
+  startScreenOff: false,
   sideView: readLocal<SideView>('kovan.sideView', 'explorer'),
   explorerTab: 'files',
   gitTab: 'changes',
@@ -391,6 +394,19 @@ export function showView(view: View): void {
 }
 
 /** The shared workspace whose local folder is open right now, if any. */
+/**
+ * The start screen: nothing open in the editor and nothing said in the chat yet. It is one box in
+ * the middle; the agent panel waits until there is a conversation or a file, so there is never
+ * a second place to type.
+ */
+export function isWelcome(s: Pick<State, 'tabs' | 'conversation' | 'startScreenOff'>): boolean {
+  return (
+    !s.startScreenOff &&
+    s.tabs.length === 0 &&
+    !(s.conversation?.events.some((e) => e.type === 'user') ?? false)
+  );
+}
+
 export function activeTeamWorkspace(
   s: Pick<State, 'workspace' | 'bindings' | 'teamWorkspaces'>,
 ): Workspace | null {

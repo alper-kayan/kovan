@@ -10,7 +10,7 @@ import {
 import { runCommand } from '../commands';
 import { resumeSync, switchBackAndResume } from '../services/sync';
 import type { PresenceEntry } from '@kovan/shared';
-import { activeTeamWorkspace, setState, useStore } from '../store';
+import { activeTeamWorkspace, isWelcome, setState, useStore } from '../store';
 import { BottomPanel } from './BottomPanel';
 import { CommentsPanel } from './Comments';
 import { EditorArea } from './EditorArea';
@@ -56,6 +56,7 @@ export function WorkspaceView() {
   const panel = useStore((s) => s.panel);
   const terminalOpen = useStore((s) => s.terminalOpen);
   const agentOpen = useStore((s) => s.agentOpen);
+  const welcome = useStore(isWelcome);
   const agentRunning = useStore((s) => s.conversation?.running ?? false);
   const navCollapsed = useStore((s) => s.navCollapsed);
   const team = useStore(activeTeamWorkspace);
@@ -144,7 +145,7 @@ export function WorkspaceView() {
           <EditorArea />
           <BottomPanel />
         </div>
-        {agentOpen && <RightPanel />}
+        {agentOpen && !welcome && <RightPanel />}
       </div>
     </section>
   );

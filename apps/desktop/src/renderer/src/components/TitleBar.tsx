@@ -1,5 +1,5 @@
 import { PRODUCT_NAME } from '@kovan/shared';
-import { ChevronDown, FolderOpen, MessageSquare, Plus, Users } from 'lucide-react';
+import { ChevronDown, FolderOpen, Hexagon, MessageSquare, Plus, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { t } from '../i18n';
 import { newConversation } from '../services/agent';
@@ -53,15 +53,16 @@ function NewMenu() {
         <div className="new-menu-list" role="menu">
           <button
             role="menuitem"
+            disabled={!hasFolder}
             onClick={run(() => {
-              showView('sessions');
-              openNewSession();
+              showView('workspace');
+              setState({ conversation: null, startScreenOff: false });
             })}
           >
-            <Users size={14} />
+            <Hexagon size={14} />
             <span>
-              <b>New session</b>
-              <small>A task with your team</small>
+              <b>A task for a lead</b>
+              <small>{hasFolder ? 'Write the goal; a team opens' : 'Open a folder first'}</small>
             </span>
           </button>
           <button
@@ -69,14 +70,28 @@ function NewMenu() {
             disabled={!hasFolder}
             onClick={run(() => {
               showView('workspace');
-              setState({ agentOpen: true });
-              void newConversation();
+              void newConversation().then(() =>
+                setState({ agentOpen: true, startScreenOff: true }),
+              );
             })}
           >
             <MessageSquare size={14} />
             <span>
               <b>New chat</b>
               <small>{hasFolder ? 'Just you and an AI agent' : 'Open a folder first'}</small>
+            </span>
+          </button>
+          <button
+            role="menuitem"
+            onClick={run(() => {
+              showView('sessions');
+              openNewSession();
+            })}
+          >
+            <Users size={14} />
+            <span>
+              <b>New session, by hand</b>
+              <small>A task with your team</small>
             </span>
           </button>
           <button role="menuitem" onClick={run(() => void openWorkspaceDialog())}>

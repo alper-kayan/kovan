@@ -572,6 +572,12 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'A task for a lead': 'Lider için görev',
+  'Write the goal; a team opens': 'Hedefi yazın, bir takım açılır',
+  'New session, by hand': 'Yeni oturum, elle',
+  'A new task for a lead': 'Lider için yeni bir görev',
+  'Write the goal; the lead opens its own agents and you watch their screens.':
+    'Hedefi yazın; lider kendi ajanlarını açar, siz ekranlarını izlersiniz.',
   "Nothing from {name}'s agent yet.": '{name} adlı ajandan henüz bir şey yok.',
   'Runs on {host}': '{host} üzerinde çalışır',
   "Runs on {host}'s machine · paid by {host}": '{host} makinesinde çalışır · {host} öder',

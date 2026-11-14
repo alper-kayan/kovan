@@ -10,7 +10,15 @@ import {
   type AgentAccount,
   type ExternalHarness,
 } from '../../../shared/agent';
-import { getState, notify, reportError, setState, writeLocal, secretStore } from '../store';
+import {
+  getState,
+  isWelcome,
+  notify,
+  reportError,
+  setState,
+  writeLocal,
+  secretStore,
+} from '../store';
 import { api } from './api';
 import { newTerminal } from './terminal';
 
@@ -92,7 +100,8 @@ export async function loadConversations(openNewest: boolean): Promise<void> {
 
 export async function newConversation(): Promise<void> {
   try {
-    setState({ conversation: await api.invoke('agent:create') });
+    // A new chat starts on the start screen again, with its one box.
+    setState({ conversation: await api.invoke('agent:create'), startScreenOff: false });
   } catch (error) {
     reportError(error);
   }
@@ -245,8 +254,13 @@ export async function saveOpenRouterKey(key: string | null): Promise<boolean> {
 }
 
 export function toggleAgentPanel(): void {
+  // On the start screen the panel is hidden for the one box; asking for it is asking to chat here.
+  if (getState().agentOpen && isWelcome(getState())) {
+    setState({ startScreenOff: true });
+    return;
+  }
   const agentOpen = !getState().agentOpen;
-  setState({ agentOpen });
+  setState({ agentOpen, ...(agentOpen ? {} : { startScreenOff: false }) });
   writeLocal('kovan.agentOpen', agentOpen);
 }
 
