@@ -10,6 +10,10 @@ Kovan telefon uygulaması (iPhone ve Android), masanızdan uzaktayken ekibinizin
 - **Swarm**: durumu ve bütçesi, sohbeti ve ajanlarının bir insana sorduğu sorular. Bunları telefondan cevaplayabilirsiniz.
 - **Ajanınızdan bir şey isteyin**: iş masaüstünüzde başlar, bu yüzden Kovan'ın orada açık olması gerekir.
 
+## Lider için görev
+
+Bir çalışma alanında **Lider için görev**, ne yapılmasını istediğinizi tek cümleyle ister. Çalışma alanında takım yoksa Kovan bir tane kurar (cümlenize göre seçilen bir lider ve işçiler), kendi dalında bir oturum açar ve 2 dolarlık bütçeyle bir Swarm başlatır. Bilgisayarınızda ya da hiçbir bilgisayarınız açık değilse çalışma alanının bir makinesinde çalışır; ajanlarının şeritlerinin oturumda belirmesini izlersiniz. Her YZ ekip arkadaşının adının yanında iş unvanı görünür.
+
 ## Bildirimler
 
 **Hesap → Bildirimler** (Account → Notifications) her bildirim türünü bir anahtarla listeler. Bildirimler yalnızca masaüstünüzden uzaktayken (penceresi kullanılmıyorken) gönderilir.

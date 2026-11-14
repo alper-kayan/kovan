@@ -61,3 +61,18 @@ export function machineWorker(m: Machine | undefined): string {
     ? "Claude Code, on its owner's subscription"
     : "Kovan's agent, with that machine's OpenRouter key";
 }
+
+/**
+ * Where a swarm started from one sentence runs. This computer's own agent needs a model key or
+ * Kovan billing; when it has neither, a free machine of the workspace (agentd, on Claude Code or
+ * Codex) can take the work, and Kovan picks the least busy one.
+ */
+export function placeForSwarm(
+  thisComputerReady: boolean,
+  machines: Machine[],
+  repoUrl: string | null,
+): 'here' | 'auto' {
+  if (thisComputerReady) return 'here';
+  const auto = machineOptions(machines, repoUrl).find((o) => o.value === 'auto');
+  return auto && auto.unavailable === null ? 'auto' : 'here';
+}

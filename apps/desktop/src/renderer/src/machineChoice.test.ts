@@ -1,6 +1,6 @@
 import type { Machine } from '@kovan/shared';
 import { describe, expect, it } from 'vitest';
-import { machineOptions, machineWorker } from './machineChoice';
+import { machineOptions, machineWorker, placeForSwarm } from './machineChoice';
 
 const machine = (name: string, over: Partial<Machine> = {}): Machine => ({
   id: `00000000-0000-4000-8000-00000000000${name.length}`,
@@ -65,5 +65,25 @@ describe('where a swarm can run', () => {
       agents: [{ name: 'claude', version: '2.1.302', ready: true, works: false }],
     });
     expect(machineWorker(older)).toBe('the agent set up there');
+  });
+});
+
+describe('placeForSwarm', () => {
+  const repo = 'github.com/acme/shop';
+
+  it('stays on this computer when its own agent is ready', () => {
+    expect(placeForSwarm(true, [machine('pi')], repo)).toBe('here');
+  });
+
+  it('moves to a free machine that holds the repository when this computer has no model', () => {
+    expect(placeForSwarm(false, [machine('pi')], repo)).toBe('auto');
+  });
+
+  it('stays here when no machine can take it: offline, busy, or without the repository', () => {
+    expect(placeForSwarm(false, [], repo)).toBe('here');
+    expect(placeForSwarm(false, [machine('pi', { online: false })], repo)).toBe('here');
+    expect(placeForSwarm(false, [machine('pi', { running: 1 })], repo)).toBe('here');
+    expect(placeForSwarm(false, [machine('pi')], 'github.com/acme/other')).toBe('here');
+    expect(placeForSwarm(false, [machine('pi')], null)).toBe('here');
   });
 });

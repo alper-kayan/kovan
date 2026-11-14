@@ -10,6 +10,10 @@ The Kovan phone app (iPhone and Android) follows your team's work while you're a
 - **Swarm**: its state and budget, its chat, and the questions its agents ask a person. You can answer them from the phone.
 - **Ask your agent** to do something: it starts on your desktop, so Kovan needs to be open there.
 
+## A task for a lead
+
+In a workspace, **A task for a lead** takes one sentence: what you want built. Kovan sets up a team if the workspace has none (a lead and builders picked from your sentence), opens a session on its own branch and starts a Swarm with a $2 budget. It runs on your desktop, or on a machine of the workspace when no desktop of yours is open, and you watch the lanes of its agents appear in the session. Each AI teammate shows its job title next to its name.
+
 ## Notifications
 
 Account → Notifications lists each kind with a switch. They're sent only while you're away from your desktop (its window isn't in use).

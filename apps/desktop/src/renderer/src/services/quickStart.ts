@@ -1,11 +1,13 @@
 import { suggestTeam } from '@kovan/jevrouter';
-import type { AiAgent } from '@kovan/shared';
+import type { AiAgent, Workspace } from '@kovan/shared';
 import { t } from '../i18n';
 import { activeTeamWorkspace, getState, setState, toast } from '../store';
+import { placeForSwarm } from '../machineChoice';
+import { api } from './api';
 import { sendPrompt } from './agent';
 import { startSession } from './sessions';
 import { createDefaultTeam, launchSwarm, saveSwarm } from './swarm';
-import { workspaceMode } from './team';
+import { loadMachines, workspaceMode } from './team';
 
 /** What a swarm may spend before it pauses, when it is started from one sentence. */
 const QUICK_BUDGET = 2;
@@ -15,6 +17,20 @@ export function canStartTeam(): boolean {
   const s = getState();
   const ws = activeTeamWorkspace(s);
   return s.signedIn && ws !== null && (ws.role === 'owner' || ws.role === 'editor');
+}
+
+/** This computer when its agent can run; a free machine of the workspace when it has no model of its own. */
+async function whereToRun(ws: Workspace): Promise<'here' | 'auto'> {
+  const readiness = await api
+    .invoke('agent:readiness', {
+      auto: false,
+      harness: 'kovan',
+      model: getState().settings.agentModel,
+    })
+    .catch(() => null);
+  if (readiness === null || readiness.ready) return 'here';
+  const machines = await loadMachines(`/api/workspaces/${ws.id}`).catch(() => []);
+  return placeForSwarm(false, machines, ws.repoUrl ?? null);
 }
 
 /** "kovan/" and the goal's first words, with a short tail so two goals never share a branch. */
@@ -75,7 +91,7 @@ export async function startFromGoal(goal: string): Promise<'swarm' | 'chat' | nu
     mode: 'allow',
   });
   if (!saved) return null;
-  await launchSwarm(session, saved, 'here');
+  await launchSwarm(session, saved, await whereToRun(ws));
   toast(
     t(
       'The lead is splitting your goal. Its agents show up as lanes here as they start (budget ${budget}).',

@@ -17,6 +17,7 @@ import {
   loadAiAgents,
   retireAiAgent,
   updateAiAgent,
+  createDefaultTeam,
   createTeammates,
   type AiAgentInput,
 } from '../services/swarm';
@@ -471,6 +472,11 @@ export function PeoplePage() {
     setState({ inviteOpen: true });
   };
 
+  const [settingUp, setSettingUp] = useState(false);
+  const teamTarget =
+    filter === 'all'
+      ? (workspaces.find((w) => w.role === 'owner' || w.role === 'editor')?.id ?? null)
+      : filter;
   return (
     <section className="page">
       <PageHeader title="People">
@@ -595,6 +601,21 @@ export function PeoplePage() {
               {ai.length === 0 && (
                 <div className="muted">
                   No AI teammates yet. Add one to give it tasks in sessions or to run a swarm.
+                  {teamTarget && (
+                    <>
+                      {' '}
+                      <button
+                        className="link-btn"
+                        disabled={settingUp}
+                        onClick={() => {
+                          setSettingUp(true);
+                          void createDefaultTeam(teamTarget).then(() => setSettingUp(false));
+                        }}
+                      >
+                        {settingUp ? t('Setting up…') : t('Set up a team for me')}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
               <div className="people">
