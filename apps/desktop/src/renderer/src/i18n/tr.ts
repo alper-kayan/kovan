@@ -572,6 +572,102 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  "Nothing from {name}'s agent yet.": '{name} adlı ajandan henüz bir şey yok.',
+  'Runs on {host}': '{host} üzerinde çalışır',
+  "Runs on {host}'s machine · paid by {host}": '{host} makinesinde çalışır · {host} öder',
+  'Give {name} a task…': '{name} için bir görev yazın…',
+  'given to this teammate': 'bu ekip arkadaşına verildi',
+  prompt: 'istem',
+  'paid by {payer}': '{payer} öder',
+  'Tech lead': 'Teknik lider',
+  'Splits a goal into tasks, hands them out and reviews the results.':
+    'Hedefi görevlere böler, dağıtır ve sonuçları inceler.',
+  'Full-stack developer': 'Full-stack geliştirici',
+  'A feature through every layer: data, API and screen.':
+    'Her katmanda bir özellik: veri, API ve ekran.',
+  'Frontend developer': 'Frontend geliştirici',
+  'Screens and components in your framework and design system.':
+    'Kullandığınız çatı ve tasarım sistemiyle ekranlar ve bileşenler.',
+  'Backend developer': 'Backend geliştirici',
+  'Endpoints, services and jobs on the server side.':
+    'Sunucu tarafında uç noktalar, servisler ve işler.',
+  'Mobile developer': 'Mobil geliştirici',
+  'The phone app, on iOS and Android.': "iOS ve Android'de telefon uygulaması.",
+  'API designer': 'API tasarımcısı',
+  'Designs an API before it is built.': "Bir API'yi yazılmadan önce tasarlar.",
+  'UI designer': 'Arayüz tasarımcısı',
+  'How it looks and feels: layout, type, colour, states.':
+    'Görünüm ve his: yerleşim, yazı, renk, durumlar.',
+  'TypeScript developer': 'TypeScript geliştirici',
+  'Strict, precise types across client and server.': 'İstemci ve sunucuda katı, kesin tipler.',
+  'Python developer': 'Python geliştirici',
+  'Modern, typed Python with tests.': 'Testli, modern, tipli Python.',
+  'React developer': 'React geliştirici',
+  'React components, state and performance.': 'React bileşenleri, durum ve performans.',
+  'Code reviewer': 'Kod inceleyici',
+  'Reviews a change like a careful colleague.':
+    'Bir değişikliği özenli bir meslektaş gibi inceler.',
+  'Architecture reviewer': 'Mimari inceleyici',
+  'Reviews the shape of a change: boundaries, coupling, scale.':
+    'Değişikliğin biçimini inceler: sınırlar, bağlılık, ölçek.',
+  'QA engineer': 'Kalite (QA) mühendisi',
+  'Plans and checks quality; tries to break the change.':
+    'Kaliteyi planlar ve denetler; değişikliği bozmaya çalışır.',
+  'Test automation engineer': 'Test otomasyon mühendisi',
+  'Writes and maintains automated tests.': 'Otomatik testleri yazar ve bakımını yapar.',
+  'Security auditor': 'Güvenlik denetçisi',
+  'Looks for what an attacker would use.': 'Saldırganın kullanacağı yerleri arar.',
+  Debugger: 'Hata ayıklayıcı',
+  'Finds the cause of a failure and fixes it there.':
+    'Bir hatanın nedenini bulur ve orada düzeltir.',
+  'Performance engineer': 'Performans mühendisi',
+  'Makes it faster, with numbers.': 'Sayılarla daha hızlı yapar.',
+  'Refactoring specialist': 'Yeniden düzenleme uzmanı',
+  'Cleans up structure without changing behaviour.': 'Davranışı değiştirmeden yapıyı temizler.',
+  'DevOps engineer': 'DevOps mühendisi',
+  'Build, CI/CD and deployment.': 'Derleme, CI/CD ve dağıtım.',
+  'Reliability engineer (SRE)': 'Güvenilirlik mühendisi (SRE)',
+  'Alerts, SLOs, runbooks and failure modes.':
+    "Uyarılar, SLO'lar, çalıştırma kılavuzları ve hata durumları.",
+  'Database engineer': 'Veritabanı mühendisi',
+  'Schemas, indexes and safe migrations.': 'Şemalar, indeksler ve güvenli geçişler (migration).',
+  'Data engineer': 'Veri mühendisi',
+  'Pipelines: ingestion, transforms, quality checks.':
+    'Veri hatları: alım, dönüşüm, kalite kontrolleri.',
+  'Documentation engineer': 'Dokümantasyon mühendisi',
+  'Keeps docs true to the code.': 'Dokümanları koda uygun tutar.',
+  'Technical writer': 'Teknik yazar',
+  'Writes for the reader: tutorials, guides, references.':
+    'Okur için yazar: öğreticiler, rehberler, başvuru.',
+  'Product manager': 'Ürün yöneticisi',
+  'Turns a goal into buildable, ordered steps.': 'Hedefi yapılabilir, sıralı adımlara çevirir.',
+  'Project manager': 'Proje yöneticisi',
+  'Keeps the work moving and reports progress.': 'İşi akıtır ve ilerlemeyi bildirir.',
+  Build: 'Geliştirme',
+  Quality: 'Kalite',
+  Infrastructure: 'Altyapı',
+  Data: 'Veri',
+  'Docs and product': 'Doküman ve ürün',
+  'Browse {n} ready-made teammates': 'Hazır {n} ekip arkadaşına göz atın',
+  'Hide ready-made teammates': 'Hazır ekip arkadaşlarını gizle',
+  'Adding…': 'Ekleniyor…',
+  'Set up a team for me': 'Takımı benim için kur',
+  'Setting up…': 'Kuruluyor…',
+  'Starting…': 'Başlatılıyor…',
+  'Tell the lead what to build, e.g. Add total, product and mean helpers with tests':
+    'Lidere ne yapılacağını yazın, örn. Testleriyle birlikte toplam, çarpım ve ortalama yardımcıları ekle',
+  'Ask your agent anything about this folder': 'Ajanınıza bu klasör hakkında istediğinizi sorun',
+  "The lead splits it up and opens its own agents. You'll see their screens here, one after another.":
+    'Lider işi böler ve kendi ajanlarını açar. Onların ekranlarını burada sırayla göreceksiniz.',
+  'It goes to your agent. Share this folder and sign in to let a lead open a whole team.':
+    'Ajanınıza gider. Bir liderin tüm takımı açabilmesi için giriş yapın ve bu klasörü paylaşın.',
+  'Start with a lead': 'Lidere başlat',
+  'New session, set up by hand': 'Yeni oturum, elle kurulum',
+  'Just a chat with one agent': 'Yalnızca tek bir ajanla sohbet',
+  '{names} joined the workspace as AI teammates.':
+    '{names} çalışma alanına YZ ekip arkadaşı olarak katıldı.',
+  'The lead is splitting your goal. Its agents show up as lanes here as they start (budget ${budget}).':
+    'Lider hedefinizi bölüyor. Ajanları başladıkça burada şerit olarak görünür (bütçe ${budget}).',
   'Needs an account.': 'Hesap gerekir.',
   Owner: 'Sahip',
   Viewer: 'İzleyici',
@@ -582,8 +678,8 @@ export const TR: Readonly<Record<string, string>> = {
     'Çakışma yok. Siz ve bir ekip arkadaşınız aynı satırları değiştirirseniz, ikisi de burada karşılaştırıp seçmeniz için saklanır; hiçbir şey ezilmez.',
   'Nothing recorded yet. Agent work in this session (plans, tasks, checks, costs, tool calls) shows up here as it happens.':
     'Henüz kayıt yok. Bu oturumdaki ajan işi (planlar, görevler, kontroller, maliyetler, araç çağrıları) oldukça burada görünür.',
-  'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Add AI teammates on the People page first.':
-    'Bir Swarm, birkaç YZ ekip arkadaşını tek bir hedefe verir: lider onu böler, diğerleri paralel çalışır. Önce Kişiler sayfasından YZ ekip arkadaşları ekleyin.',
+  'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Kovan can set up a lead and two builders for you, or you can add your own on the People page.':
+    'Bir Swarm, birkaç YZ ekip arkadaşını tek bir hedefe verir: lider onu böler, diğerleri paralel çalışır. Kovan sizin için bir lider ve iki işçi kurabilir ya da kendinizinkileri Kişiler sayfasından ekleyebilirsiniz.',
   "{keys} to post · comments don't use any model":
     '{keys} ile gönder · yorumlar hiçbir modeli kullanmaz',
   'No plan yet. Add steps below, or let an agent propose a split.':

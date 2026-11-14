@@ -700,7 +700,7 @@ export function Chat({
                       {assigned ? 'Task' : userName}
                     </span>
                     <span className="muted small">
-                      {assigned ? 'given to this teammate' : 'prompt'}
+                      {assigned ? t('given to this teammate') : t('prompt')}
                     </span>
                     <span className="prompt-time mono">{time(item.at)}</span>
                   </div>
@@ -881,7 +881,7 @@ function TurnEnd({
           : item.reason === 'step_limit'
             ? ' · step limit reached'
             : ''}
-        {item.payer ? ` · paid by ${item.payer}` : ''}
+        {item.payer ? ` · ${t('paid by {payer}', { payer: item.payer })}` : ''}
       </button>
       {open && (
         <table className="receipt mono">

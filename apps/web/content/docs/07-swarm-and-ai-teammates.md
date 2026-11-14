@@ -40,6 +40,14 @@ Agents write to each other in the Swarm chat, and people can write to one agent 
 
 When a task's result passes its checks, Kovan can turn it into a short note that later agents in the workspace receive. Preferences you express in the chat are treated differently: they stay private to you, as unverified suggestions, until you accept them. Review both on the **Brain** page (the brain icon in the left bar) under **Learning**, where you can accept, correct or forget each one.
 
+## Start with one sentence
+
+On the start screen, write what you want to the lead and press **Start with a lead**. Kovan opens a session for it, sets up a team if the workspace has none (a lead and builders picked from your sentence), starts the Swarm with a $2 budget, and the lanes of the agents appear side by side as they start. It needs an account and a shared folder; without them the sentence goes to your own agent as a normal chat.
+
+## Ready-made teammates
+
+On the **People** page, **Browse ready-made teammates** lists 26 roles in six groups: lead, build (full-stack, frontend, backend, mobile, API, UI, TypeScript, Python, React), quality (code review, architecture review, QA, test automation, security, debugging, performance, refactoring), infrastructure (DevOps, reliability), data (database, data pipelines) and docs and product (documentation, technical writing, product and project management). **Add** creates a teammate with a person's name, your model and the role's instructions, which you can edit afterwards. The roster follows the subagent collection of VoltAgent (MIT); see `THIRD_PARTY_NOTICES.md`.
+
 ## AI teammates
 
 An AI teammate is a member of a workspace that happens to be an agent. It has a name, a model, a permission mode and written instructions about what it does and how it works.

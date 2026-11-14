@@ -12,6 +12,9 @@ import type { HttpMethod } from '../../../shared/api';
 import { getState, reportError, setState, toast } from '../store';
 import { api } from './api';
 import { openSessionCheckout } from './sessions';
+import { t } from '../i18n';
+import { agentRoleById, suggestRoleIds, TEAMMATE_NAMES } from '@kovan/shared';
+import { JEV_MODEL_ID, parseCustomModelId } from '../../../shared/agent';
 
 function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
   return (
@@ -107,6 +110,67 @@ export async function createAiAgent(workspaceId: string, input: AiAgentInput): P
     reportError(error);
     return false;
   }
+}
+
+/**
+ * Creates AI teammates from catalog roles: a person's name each, the model the person already
+ * chose, editing freely (a swarm's work happens in its own copies), and a monthly limit of $10
+ * each for an owner. Returns the new teammates in the order of `roleIds`.
+ */
+export async function createTeammates(workspaceId: string, roleIds: string[]): Promise<AiAgent[]> {
+  const state = getState();
+  const taken = new Set<string>([
+    ...(state.aiAgents[workspaceId] ?? []).map((a) => a.name.toLowerCase()),
+    ...(state.members[workspaceId]?.members ?? []).map((m) => m.name.toLowerCase()),
+  ]);
+  const names = TEAMMATE_NAMES.filter((n) => !taken.has(n.toLowerCase()));
+  const owner = state.teamWorkspaces.find((w) => w.id === workspaceId)?.role === 'owner';
+  const chosen = state.settings.agentModel;
+  // A model of a provider only this person has would fail for everyone else: JevRouter instead.
+  const model = parseCustomModelId(chosen) ? JEV_MODEL_ID : chosen;
+  const made: AiAgent[] = [];
+  try {
+    for (const id of roleIds) {
+      const role = agentRoleById(id);
+      const name = names.shift();
+      if (!role || !name) continue;
+      const { agent } = await request<{ agent: AiAgent }>(
+        'POST',
+        `/api/workspaces/${workspaceId}/agents`,
+        {
+          name,
+          model,
+          effort: null,
+          mode: 'allow',
+          instructions: role.instructions,
+          monthlyLimit: owner ? 10 : null,
+        },
+      );
+      made.push(agent);
+    }
+    if (made.length)
+      toast(
+        t('{names} joined the workspace as AI teammates.', {
+          names: made.map((a) => a.name).join(', '),
+        }),
+      );
+  } catch (error) {
+    reportError(error);
+  } finally {
+    await loadAiAgents(workspaceId);
+  }
+  return made;
+}
+
+/**
+ * Sets a team up for the person: a lead and two builders. With a goal, the builders are the roles
+ * it points to; without one, a full-stack developer and a code reviewer.
+ */
+export function createDefaultTeam(workspaceId: string, goal?: string): Promise<AiAgent[]> {
+  return createTeammates(
+    workspaceId,
+    goal ? suggestRoleIds(goal) : ['tech-lead', 'fullstack-developer', 'code-reviewer'],
+  );
 }
 
 export async function updateAiAgent(

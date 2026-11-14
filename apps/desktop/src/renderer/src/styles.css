@@ -1590,6 +1590,58 @@ textarea.input {
   min-width: 140px;
 }
 
+.quick-start {
+  display: grid;
+  gap: 14px;
+  width: min(640px, 100%);
+  padding: 0 20px;
+}
+
+.quick-box {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg3);
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+}
+
+.quick-box:focus-within {
+  border-color: var(--fg3);
+}
+
+.quick-input {
+  width: 100%;
+  resize: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--fg);
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.quick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.quick-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg3);
+}
+
+.quick-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  justify-content: center;
+}
+
 .start-title {
   margin: 0 0 4px;
   font-size: 15px;
@@ -7440,4 +7492,34 @@ button.swarm-chat-head:hover .swarm-chat-open {
   height: auto;
   min-height: 46px;
   padding: 4px 0;
+}
+
+/* ready-made teammates */
+.role-catalog {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.role-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg3);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.role-card-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
 }

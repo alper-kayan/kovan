@@ -1,5 +1,5 @@
 import { t } from '../i18n';
-import { ROLES, type AiAgent, type Role } from '@kovan/shared';
+import { AGENT_ROLE_GROUPS, AGENT_ROLES, ROLES, type AiAgent, type Role } from '@kovan/shared';
 import { DialogKeys } from './DialogKeys';
 import { JEV_MODEL_ID, parseCustomModelId } from '../../../shared/agent';
 import { Bot, ChevronDown, Layers, Pencil, Plus, Users, X } from 'lucide-react';
@@ -17,6 +17,7 @@ import {
   loadAiAgents,
   retireAiAgent,
   updateAiAgent,
+  createTeammates,
   type AiAgentInput,
 } from '../services/swarm';
 import { notify, setState, useStore } from '../store';
@@ -146,6 +147,48 @@ function InviteDialog({ defaultWorkspace }: { defaultWorkspace: string | null })
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** The ready-made roles, one click each: a teammate with a person's name and the role's instructions. */
+function RoleCatalog({ workspaceId }: { workspaceId: string | null }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  if (!workspaceId) return null;
+  return (
+    <div className="role-catalog">
+      <button className="link-btn" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {open
+          ? t('Hide ready-made teammates')
+          : t('Browse {n} ready-made teammates', { n: AGENT_ROLES.length })}
+      </button>
+      {open &&
+        AGENT_ROLE_GROUPS.map((group) => (
+          <div key={group}>
+            <div className="group-label">{t(group)}</div>
+            <div className="role-grid">
+              {AGENT_ROLES.filter((r) => r.group === group).map((role) => (
+                <div key={role.id} className="role-card">
+                  <div className="role-card-text">
+                    <b>{t(role.title)}</b>
+                    <span className="small muted">{t(role.blurb)}</span>
+                  </div>
+                  <button
+                    className="btn btn-sm"
+                    disabled={busy !== null}
+                    onClick={() => {
+                      setBusy(role.id);
+                      void createTeammates(workspaceId, [role.id]).then(() => setBusy(null));
+                    }}
+                  >
+                    {busy === role.id ? t('Adding…') : t('Add')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
     </div>
   );
 }
@@ -597,6 +640,14 @@ export function PeoplePage() {
                   </div>
                 ))}
               </div>
+              <RoleCatalog
+                workspaceId={
+                  filter === 'all'
+                    ? (workspaces.find((w) => w.role === 'owner' || w.role === 'editor')?.id ??
+                      null)
+                    : filter
+                }
+              />
             </>
           )}
         </>

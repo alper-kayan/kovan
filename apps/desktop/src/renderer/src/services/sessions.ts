@@ -503,6 +503,8 @@ export interface NewSessionInput {
   title: string;
   /** null: work on the branch checked out now. */
   newBranch: string | null;
+  /** Take the first lane with your own agent (the default). Off: you watch, others do the work. */
+  join?: boolean;
 }
 
 /** Starts a session in a shared workspace and takes the first lane in it. */
@@ -529,7 +531,7 @@ export async function startSession(input: NewSessionInput): Promise<boolean> {
     );
     completeStep('first-session');
     await openSession(session.id);
-    await joinSession(session);
+    if (input.join !== false) await joinSession(session);
     return true;
   } catch (error) {
     reportError(error);

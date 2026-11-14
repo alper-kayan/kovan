@@ -76,6 +76,7 @@ import {
   addAiToSession,
   controlAgent,
   launchSwarm,
+  createDefaultTeam,
   loadAgentSpend,
   loadCatalogPrices,
   saveSwarm,
@@ -248,8 +249,8 @@ function Lane({
         {items.length === 0 ? (
           <div className="lane-empty">
             {mine && live
-              ? 'Prompt your agent below. Everyone in the session sees this lane live.'
-              : `Nothing from ${participant.name}'s agent yet.`}
+              ? t('Prompt your agent below. Everyone in the session sees this lane live.')
+              : t("Nothing from {name}'s agent yet.", { name: participant.name })}
           </div>
         ) : (
           <Chat
@@ -315,7 +316,7 @@ function TaskBox({ session, participant }: { session: Session; participant: Part
             ? `${name} is an AI teammate. Your role can watch.`
             : running
               ? `${name} is working. Guide it…`
-              : `Give ${name} a task…`
+              : t('Give {name} a task…', { name })
         }
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -329,10 +330,10 @@ function TaskBox({ session, participant }: { session: Session; participant: Part
       <div className="steer-bar">
         <span className="muted small">
           {session.machine
-            ? `Runs on ${session.machine.name}`
+            ? t('Runs on {host}', { host: session.machine.name })
             : participant.hostName
-              ? `Runs on ${participant.hostName}'s machine · paid by ${participant.hostName}`
-              : 'Not running on any machine'}
+              ? t("Runs on {host}'s machine · paid by {host}", { host: participant.hostName })
+              : t('Not running on any machine')}
         </span>
         <span className="spacer" />
         {canAsk && (
@@ -996,6 +997,7 @@ function SwarmSetup({ session, swarm }: { session: Session; swarm: Swarm | null 
   const [parallel, setParallel] = useState(reusable?.maxParallel ?? 2);
   const [mode, setMode] = useState<Swarm['mode']>(reusable?.mode ?? 'allow');
   const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [why, setWhy] = useState<string | null>(null);
   const [taskBudget, setTaskBudget] = useState(reusable?.taskBudget?.toString() ?? '');
   const [review, setReview] = useState(reusable?.review ?? true);
@@ -1023,14 +1025,34 @@ function SwarmSetup({ session, swarm }: { session: Session; swarm: Swarm | null 
   const elsewhere = on !== 'here';
   if (agents.length === 0)
     return (
-      <p className="muted small">
-        {t(
-          'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Add AI teammates on the People page first.',
-        )}{' '}
-        <button className="link-btn" onClick={() => showView('people')}>
-          {t('Open People')}
-        </button>
-      </p>
+      <div className="swarm-no-team">
+        <p className="muted small">
+          {t(
+            'A swarm puts several AI teammates on one goal: a lead splits it, the others work in parallel. Kovan can set up a lead and two builders for you, or you can add your own on the People page.',
+          )}
+        </p>
+        <div className="swarm-no-team-actions">
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={creating}
+            onClick={() => {
+              setCreating(true);
+              void createDefaultTeam(session.workspaceId).then((made) => {
+                setCreating(false);
+                if (made[0]) {
+                  setPicked(made.map((a) => a.id));
+                  setLead(made[0].id);
+                }
+              });
+            }}
+          >
+            {creating ? t('Setting up…') : t('Set up a team for me')}
+          </button>
+          <button className="link-btn" onClick={() => showView('people')}>
+            {t('Open People')}
+          </button>
+        </div>
+      </div>
     );
   const chosen = picked.length ? picked : [];
   const leadId = lead && chosen.includes(lead) ? lead : (chosen[0] ?? null);

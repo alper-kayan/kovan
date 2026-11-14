@@ -54,3 +54,11 @@ Onu ekleyen kişi ya da çalışma alanının bir sahibi onu emekliye ayırabili
 ## Ajanlar sayfası
 
 **Ajanlar** (Agents) sayfası çalışan her şeyi bir çizge olarak gösterir: depolar, oturumları ve her birindeki ajanlar. Çalışan ajanların çevresi yeşildir; bir Swarm, son mesajlarıyla birlikte kesik çizgili bir kutudur. Açmak için bir oturuma tıklayın.
+
+## Tek bir cümleyle başlayın
+
+Başlangıç ekranında lidere ne istediğinizi yazın ve **Lidere başlat**'a basın. Kovan sizin için bir oturum açar, çalışma alanında takım yoksa bir tane kurar (cümlenize göre seçilen bir lider ve işçiler), Swarm'ı 2 dolarlık bütçeyle başlatır ve ajanların şeritleri başladıkça yan yana görünür. Bir hesap ve paylaşılmış bir klasör gerekir; yoksa cümle normal bir sohbet olarak kendi ajanınıza gider.
+
+## Hazır ekip arkadaşları
+
+**Kişiler** sayfasında **Hazır ekip arkadaşlarına göz atın** altı grupta 26 rol listeler: lider, geliştirme (full-stack, frontend, backend, mobil, API, arayüz, TypeScript, Python, React), kalite (kod ve mimari inceleme, QA, test otomasyonu, güvenlik, hata ayıklama, performans, yeniden düzenleme), altyapı (DevOps, güvenilirlik), veri (veritabanı, veri hatları) ve doküman ve ürün (dokümantasyon, teknik yazarlık, ürün ve proje yönetimi). **Ekle**, bir insan adı, sizin modeliniz ve rolün yönergeleriyle bir ekip arkadaşı oluşturur; sonradan düzenleyebilirsiniz. Rol listesi VoltAgent'in (MIT) alt ajan koleksiyonunu izler; `THIRD_PARTY_NOTICES.md` dosyasına bakın.
