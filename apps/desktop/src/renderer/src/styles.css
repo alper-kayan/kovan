@@ -4642,6 +4642,11 @@ textarea.input {
   overflow: auto;
 }
 
+/* An empty Brain centers across the page like every other page, not in the narrow notes column. */
+.notes:has(> .empty) {
+  max-width: none;
+}
+
 .note {
   display: flex;
   flex-direction: column;
