@@ -1,3 +1,4 @@
+export * from './agentRoles.js';
 export * from './product.js';
 export * from './protocol.js';
 export * from './roles.js';
