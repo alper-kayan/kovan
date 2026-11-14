@@ -14,6 +14,7 @@ import { api } from './api';
 import { openSessionCheckout } from './sessions';
 import { t } from '../i18n';
 import { agentRoleById, suggestRoleIds, TEAMMATE_NAMES } from '@kovan/shared';
+import { roleInstructions } from './roleInstructions';
 import { JEV_MODEL_ID, parseCustomModelId } from '../../../shared/agent';
 
 function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
@@ -92,6 +93,8 @@ export interface AiAgentInput {
   effort: AiAgent['effort'];
   mode: AiAgent['mode'];
   instructions: string;
+  /** Its job title when it came from a catalog role; null for a custom teammate. */
+  role?: string | null;
   /** USD a month (owners set it); null: no limit of its own. */
   monthlyLimit: number | null;
 }
@@ -142,7 +145,8 @@ export async function createTeammates(workspaceId: string, roleIds: string[]): P
           model,
           effort: null,
           mode: 'allow',
-          instructions: role.instructions,
+          instructions: roleInstructions(id),
+          role: role.title,
           monthlyLimit: owner ? 10 : null,
         },
       );

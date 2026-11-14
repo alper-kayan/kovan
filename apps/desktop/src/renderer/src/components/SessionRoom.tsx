@@ -208,6 +208,8 @@ function Lane({
   const items = useMemo(() => foldEvents(source), [source]);
   const { ref, onScroll } = useStick(items);
   const [commenting, setCommenting] = useState<number | null>(null);
+  const aiTeammates = useStore((st) => st.aiAgents[session.workspaceId]);
+  const roleOf = aiTeammates?.find((a) => a.id === participant.userId)?.role ?? null;
   const live = session.status === 'active';
   const state = live ? participant.state : 'idle';
 
@@ -240,6 +242,7 @@ function Lane({
         <span className="lane-name">
           {participant.name}
           {participant.kind === 'agent' && <span className="ai-badge">AI</span>}
+          {roleOf && <span className="role-chip">{t(roleOf)}</span>}
           {mine && <span className="muted"> (you)</span>}
         </span>
         <span className="lane-agent mono">{agentLine(participant)}</span>
@@ -464,6 +467,8 @@ function SessionTab({ session }: { session: Session }) {
   const user = useStore((s) => s.user);
   const presence = useStore((s) => s.presence[session.workspaceId] ?? NONE_LIST);
   const role = useStore((s) => s.teamWorkspaces.find((w) => w.id === session.workspaceId)?.role);
+  const roster = useStore((st) => st.aiAgents[session.workspaceId]);
+  const roles = new Map((roster ?? []).filter((a) => a.role).map((a) => [a.id, a.role!]));
   const me = session.participants.find((p) => p.userId === user?.id);
   const live = session.status === 'active';
   const online = new Set(presence.map((p) => p.userId));
@@ -502,6 +507,9 @@ function SessionTab({ session }: { session: Session }) {
               <span>
                 {p.name}
                 {p.kind === 'agent' && <span className="ai-badge">AI</span>}
+                {p.kind === 'agent' && roles.get(p.userId) && (
+                  <span className="role-chip">{t(roles.get(p.userId)!)}</span>
+                )}
                 {p.userId === user?.id && <span className="muted"> (you)</span>}
               </span>
               <span className="rail-sub">
@@ -1141,7 +1149,10 @@ function SwarmSetup({ session, swarm }: { session: Session; swarm: Swarm | null 
                 setPicked(e.target.checked ? [...chosen, a.id] : chosen.filter((x) => x !== a.id))
               }
             />
-            <span>{a.name}</span>
+            <span>
+              {a.name}
+              {a.role && <span className="role-chip">{t(a.role)}</span>}
+            </span>
             {chosen.includes(a.id) && (
               <button
                 type="button"

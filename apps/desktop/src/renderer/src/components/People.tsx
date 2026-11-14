@@ -606,13 +606,14 @@ export function PeoplePage() {
                     <div className="person-text">
                       <div>
                         {a.name} <span className="ai-badge">AI</span>
+                        {a.role && <span className="role-chip">{t(a.role)}</span>}
                       </div>
                       <div className="mono small muted">
                         {a.model} · {AI_MODES.find((m) => m.id === a.mode)?.short ?? a.mode} · $
                         {a.monthSpent.toFixed(2)} this month
                         {a.monthlyLimit !== null ? ` of $${a.monthlyLimit.toFixed(2)}` : ''}
                       </div>
-                      {a.instructions && (
+                      {a.instructions && !a.role && (
                         <div className="small muted ai-about">{a.instructions}</div>
                       )}
                     </div>
