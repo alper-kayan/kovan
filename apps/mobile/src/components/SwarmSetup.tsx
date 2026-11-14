@@ -149,7 +149,12 @@ export function SwarmSetup({
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
                   <T>{a.name}</T>
-                  {a.instructions ? (
+                  {a.role ? (
+                    <T muted numberOfLines={1} style={s.small}>
+                      {t(a.role)}
+                    </T>
+                  ) : null}
+                  {a.instructions && !a.role ? (
                     <T muted numberOfLines={1} style={s.small}>
                       {a.instructions}
                     </T>

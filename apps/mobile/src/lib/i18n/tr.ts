@@ -3,6 +3,45 @@
  * shows in English. Product names (Kovan, Swarm, Brain, JevRouter) stay as they are.
  */
 export const tr: Readonly<Record<string, string>> = {
+  // A task for a lead, and the roles of AI teammates
+  'A task for a lead': 'Lider için görev',
+  'New session, by hand': 'Yeni oturum, elle',
+  'What would you like to do?': 'Ne yapmak istersiniz?',
+  'Tell the lead what to build, e.g. Add total, product and mean helpers with tests':
+    'Lidere ne yapılacağını yazın, örn. Testleriyle birlikte toplam, çarpım ve ortalama yardımcıları ekle',
+  'The goal for the lead': 'Lider için hedef',
+  "The lead splits it up and opens its own agents. You'll see their lanes in the session, one after another. Budget ${budget}.":
+    'Lider işi böler ve kendi ajanlarını açar. Onların şeritlerini oturumda sırayla göreceksiniz. Bütçe ${budget}.',
+  "Kovan isn't open on your computer. The team is set up either way; it runs on a machine of the workspace if there is one, or when you open Kovan on your computer.":
+    "Kovan bilgisayarınızda açık değil. Takım yine de kurulur; çalışma alanının bir makinesi varsa orada, yoksa Kovan'ı bilgisayarınızda açtığınızda çalışır.",
+  'Start with a lead': 'Lidere başlat',
+  'Tech lead': 'Teknik lider',
+  'Full-stack developer': 'Full-stack geliştirici',
+  'Frontend developer': 'Frontend geliştirici',
+  'Backend developer': 'Backend geliştirici',
+  'Mobile developer': 'Mobil geliştirici',
+  'API designer': 'API tasarımcısı',
+  'UI designer': 'Arayüz tasarımcısı',
+  'TypeScript developer': 'TypeScript geliştirici',
+  'Python developer': 'Python geliştirici',
+  'React developer': 'React geliştirici',
+  'Code reviewer': 'Kod inceleyici',
+  'Architecture reviewer': 'Mimari inceleyici',
+  'QA engineer': 'Kalite (QA) mühendisi',
+  'Test automation engineer': 'Test otomasyon mühendisi',
+  'Security auditor': 'Güvenlik denetçisi',
+  Debugger: 'Hata ayıklayıcı',
+  'Performance engineer': 'Performans mühendisi',
+  'Refactoring specialist': 'Yeniden düzenleme uzmanı',
+  'DevOps engineer': 'DevOps mühendisi',
+  'Reliability engineer (SRE)': 'Güvenilirlik mühendisi (SRE)',
+  'Database engineer': 'Veritabanı mühendisi',
+  'Data engineer': 'Veri mühendisi',
+  'Documentation engineer': 'Dokümantasyon mühendisi',
+  'Technical writer': 'Teknik yazar',
+  'Product manager': 'Ürün yöneticisi',
+  'Project manager': 'Proje yöneticisi',
+
   // Navigation and account
   Workspaces: 'Çalışma alanları',
   Account: 'Hesap',

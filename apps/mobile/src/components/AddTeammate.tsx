@@ -10,17 +10,37 @@ import { ToastHost } from '../lib/toast';
 import { colors, fonts, radius } from '../lib/theme';
 import { Button, Chip, T } from './ui';
 
+/** Teammates just fetched, for a few seconds: a screen of lanes asks once, not once per lane. */
+const recent = new Map<string, { at: number; agents: Promise<AiAgent[]> }>();
+
 /** The workspace's AI teammates, for a session or a swarm (archived ones left out). */
-export function useTeammates(workspaceId: string) {
+export function useTeammates(workspaceId: string | undefined) {
   const { api } = useSession();
   const [agents, setAgents] = useState<AiAgent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    void api<{ agents: AiAgent[] }>('GET', `/api/workspaces/${workspaceId}/agents`)
-      .then((r) => setAgents(r.agents.filter((a) => !a.archived)))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    if (!workspaceId) return;
+    const hit = recent.get(workspaceId);
+    const request =
+      hit && Date.now() - hit.at < 15_000
+        ? hit.agents
+        : api<{ agents: AiAgent[] }>('GET', `/api/workspaces/${workspaceId}/agents`).then((r) =>
+            r.agents.filter((a) => !a.archived),
+          );
+    if (!hit || request !== hit.agents)
+      recent.set(workspaceId, { at: Date.now(), agents: request });
+    request.then(setAgents).catch((e: unknown) => {
+      recent.delete(workspaceId);
+      setError(e instanceof Error ? e.message : String(e));
+    });
   }, [api, workspaceId]);
   return { agents, error };
+}
+
+/** Each AI teammate's job title by id, for the ones that came from a role. */
+export function useRoles(workspaceId: string | undefined): Map<string, string> {
+  const { agents } = useTeammates(workspaceId);
+  return new Map((agents ?? []).filter((a) => a.role).map((a) => [a.id, a.role!]));
 }
 
 /**
@@ -66,7 +86,12 @@ export function AddTeammate({ session, onClose }: { session: Session; onClose():
               </View>
               <View style={{ flex: 1, gap: 2 }}>
                 <T>{a.name}</T>
-                {a.instructions ? (
+                {a.role ? (
+                  <T muted style={s.small}>
+                    {t(a.role)}
+                  </T>
+                ) : null}
+                {a.instructions && !a.role ? (
                   <T muted numberOfLines={2} style={s.small}>
                     {a.instructions}
                   </T>

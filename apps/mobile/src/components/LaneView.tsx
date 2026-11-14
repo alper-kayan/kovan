@@ -207,6 +207,7 @@ export function LaneView({
   approvals,
   canAnswer,
   machine = null,
+  role = null,
 }: {
   participant: Participant;
   events: LaneEvent[];
@@ -214,6 +215,8 @@ export function LaneView({
   canAnswer: boolean;
   /** The registered machine running the session (agentd), when one does. */
   machine?: string | null;
+  /** The teammate's job title, when it came from a role. */
+  role?: string | null;
 }) {
   // The transcript's notes are written in the app's language: folded again when it changes.
   const language = useLocale();
@@ -235,7 +238,7 @@ export function LaneView({
         <T muted mono numberOfLines={1} style={s.agent}>
           {participant.mode === 'watch'
             ? t('watching')
-            : agentLine(participant) || t('no agent yet')}
+            : `${participant.kind === 'agent' && role ? `${t(role)} · ` : ''}${agentLine(participant) || t('no agent yet')}`}
           {participant.kind === 'agent' && (machine || participant.hostName)
             ? ` · ${
                 machine

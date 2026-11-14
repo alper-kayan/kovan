@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
 import { Alerts } from '../../components/Alerts';
+import { LeadStart } from '../../components/LeadStart';
 import { NewSession } from '../../components/NewSession';
 import { SessionCard } from '../../components/SessionCard';
 import { Button, ConnectionBar, LogoMark, Segmented, T } from '../../components/ui';
@@ -24,6 +25,7 @@ export default function WorkspaceBoard() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [leading, setLeading] = useState(false);
   // The sessions come first: past two waiting things, the rest fold away.
   const [allAlerts, setAllAlerts] = useState(false);
   const workspace = board.workspaces.find((w) => w.id === id);
@@ -102,12 +104,15 @@ export default function WorkspaceBoard() {
               />
             )}
             {tab === 'live' && allowed(board, id, 'session.start') && (
-              <Button
-                small
-                kind="secondary"
-                title={t('New session')}
-                onPress={() => setStarting(true)}
-              />
+              <>
+                <Button small title={t('A task for a lead')} onPress={() => setLeading(true)} />
+                <Button
+                  small
+                  kind="secondary"
+                  title={t('New session, by hand')}
+                  onPress={() => setStarting(true)}
+                />
+              </>
             )}
             {tab === 'history' && historyError && (
               <T style={{ color: colors.danger }}>{historyError}</T>
@@ -128,12 +133,16 @@ export default function WorkspaceBoard() {
                     )
                   : t('Ended sessions land here with their transcript.')}
               </T>
+              {tab === 'live' && allowed(board, id, 'session.start') && (
+                <Button title={t('A task for a lead')} onPress={() => setLeading(true)} />
+              )}
             </View>
           )
         }
         renderItem={({ item }) => <SessionCard session={item} />}
       />
       {starting && <NewSession workspaceId={id} onClose={() => setStarting(false)} />}
+      {leading && <LeadStart workspaceId={id} onClose={() => setLeading(false)} />}
     </>
   );
 }

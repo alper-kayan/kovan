@@ -4,7 +4,7 @@ import { GitBranch, Plus, Radio } from 'lucide-react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { ActivityList } from '../../components/ActivityList';
-import { AddTeammate } from '../../components/AddTeammate';
+import { AddTeammate, useRoles } from '../../components/AddTeammate';
 import { ChangesView } from '../../components/ChangesView';
 import { Composer } from '../../components/Composer';
 import { KeyboardScreen } from '../../components/KeyboardScreen';
@@ -32,6 +32,7 @@ export default function SessionScreen() {
   const room = useRoom(id);
   const act = useActions();
   const session = room.session;
+  const roles = useRoles(session?.workspaceId);
   const [tab, setTab] = useState<Tab>('lanes');
   const [adding, setAdding] = useState(false);
   const lanes = useMemo(
@@ -240,6 +241,7 @@ export default function SessionScreen() {
                 <LaneView
                   machine={session.machine?.name ?? null}
                   participant={lane}
+                  role={roles.get(lane.userId) ?? null}
                   events={room.lanes[lane.userId] ?? []}
                   approvals={approvals.filter((a) => a.laneUserId === lane.userId)}
                   canAnswer={mayLane(lane, 'approval.answer') && session.status === 'active'}
