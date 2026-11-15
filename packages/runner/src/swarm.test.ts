@@ -690,6 +690,21 @@ function setup(
 }
 
 describe('SwarmRunner', () => {
+  it('tells the lead to decide for itself instead of asking the people', async () => {
+    const { runner, brain, runs } = setup(1);
+    await runner.launch('swarm-1', '/repo');
+    await until(() => brain.swarm.status === 'done');
+    const split = runs.find((r) => r.task.includes('call assign_tasks once'))!;
+    expect(split.task).toContain('do not ask the people anything');
+    expect(split.task).toContain('talk to your agents');
+    // The plan tool says the same: questions are the rare exception, assumptions the rule.
+    const plan = split.tools!.find((t) => t.spec.name === 'assign_tasks')!;
+    const props = (plan.spec.parameters as { properties: Record<string, { description?: string }> })
+      .properties;
+    expect(props['questions']!.description).toContain('Almost always leave this empty');
+    expect(props['assumptions']!.description).toContain('You decide; you do not ask');
+  });
+
   it('splits the goal, runs the tasks in parallel, and finishes with a review', async () => {
     const { runner, brain, started, lanes, maxSeen } = setup(1);
     await runner.launch('swarm-1', '/repo');

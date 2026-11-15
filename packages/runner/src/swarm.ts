@@ -1828,7 +1828,7 @@ export class SwarmRunner {
                   needs_answer: {
                     type: 'string',
                     description:
-                      'A question a person must answer before this task can start (it waits for the answer; the others go on)',
+                      "Rarely: a question only a person can answer (a missing secret or access, an irreversible or destructive step, spending money). Otherwise decide, and say so in the plan's assumptions. The task waits for the answer; the others go on",
                   },
                   files: {
                     type: 'array',
@@ -1844,17 +1844,19 @@ export class SwarmRunner {
             assumptions: {
               type: 'array',
               items: { type: 'string' },
-              description: 'What you assumed where the goal or the code left it open',
+              description:
+                'The choices you made where the goal or the code left something open. You decide; you do not ask',
             },
             wait_for_answers: {
               type: 'boolean',
               description:
-                'true only when no task should start before a person answers your questions (the whole swarm waits; for one task, use its needs_answer)',
+                'Almost never true: only when nothing can start until a person answers (the whole swarm waits). Prefer deciding and writing it under assumptions',
             },
             questions: {
               type: 'array',
               items: { type: 'string' },
-              description: 'What you could not tell and a person should answer',
+              description:
+                'Almost always leave this empty: decide, and write the decision under assumptions. Only what blocks everything and cannot be decided from the goal or the code (a missing secret or access, an irreversible or destructive step, spending money)',
             },
           },
           required: ['tasks'],
@@ -2151,7 +2153,7 @@ export class SwarmRunner {
       ...known,
       ...this.inboxFor(state, leadId),
       '',
-      'Read what you need of the code (you cannot edit here), then call assign_tasks once: split the goal into tasks, each small enough for one agent, with what done means. Order dependent work with depends_on; keep independent tasks on different files; keep code and its tests in one task; mark risky tasks needs_approval. If nobody on the team fits a task, you may first add a teammate with add_teammate. Write down what you assumed and what you could not tell. Then reply with one sentence.',
+      'Read what you need of the code (you cannot edit here), then call assign_tasks once: split the goal into tasks, each small enough for one agent, with what done means. Order dependent work with depends_on; keep independent tasks on different files; keep code and its tests in one task; mark risky tasks needs_approval. If nobody on the team fits a task, you may first add a teammate with add_teammate. Decide for yourself and do not ask the people anything: where the goal or the code leaves a choice open, take the most reasonable one, write it under assumptions and go on; talk to your agents (message_agent) for the rest. Ask a person only when nothing at all can move without them: a missing secret or access, an irreversible or destructive step, or spending money. Then reply with one sentence.',
     ]
       .filter((l) => l !== '')
       .join('\n');
