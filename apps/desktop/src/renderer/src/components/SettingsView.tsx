@@ -3781,6 +3781,7 @@ function BackgroundAgentsRow() {
 
 function MachineList({ base }: { base: string }) {
   const orgView = base.startsWith('/api/orgs/');
+  const settings = useStore((st) => st.settings);
   const [list, setList] = useState<Machine[] | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -3820,6 +3821,22 @@ function MachineList({ base }: { base: string }) {
               : t('no agents reported')
           } · ${m.repos.length ? m.repos.map((r) => `${r.remote} → ${r.path}`).join(', ') : t('no checkouts')} · ${m.platform} · ${t('{running} of {slots} running', { running: m.running, slots: m.slots })} · ${m.online ? t('reported just now') : t('last seen {when}', { when: new Date(m.lastSeenAt).toLocaleString() })}${m.keyName ? ` · ${t('key {name}', { name: m.keyName })}` : ''}`}
         >
+          <button
+            className="btn btn-sm"
+            title={t(
+              'Swarms started from one sentence skip this machine. You can still choose it by hand in a swarm.',
+            )}
+            onClick={() => {
+              const off = new Set(settings.swarmMachinesOff);
+              if (off.has(m.name)) off.delete(m.name);
+              else off.add(m.name);
+              void updateSettings({ swarmMachinesOff: [...off] });
+            }}
+          >
+            {settings.swarmMachinesOff.includes(m.name)
+              ? t('Use for swarms again')
+              : t("Don't use for swarms")}
+          </button>
           {/* Removed where it was registered: an organization's machine from the organization. */}
           {(orgView ? m.scope !== 'organization' : m.scope === 'organization') ? (
             <span className="small muted">

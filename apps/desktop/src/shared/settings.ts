@@ -55,6 +55,8 @@ export const SettingsSchema = z.object({
   agentFailoverAskPaid: z.boolean().default(true),
   /** When an agent runs out, ask which ready agent the conversation goes on with (else the next one just does). */
   agentFailoverChoose: z.boolean().default(true),
+  /** Machines (by name) a swarm started from one sentence must not use, whatever they hold or run. */
+  swarmMachinesOff: z.array(z.string().max(80)).max(50).default([]),
   /** Repositories ("owner/name") where agents create GitHub issues without asking first. */
   issueNoAsk: z.array(z.string().max(200)).max(200).default([]),
   /**

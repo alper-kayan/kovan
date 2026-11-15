@@ -572,6 +572,10 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'Swarms started from one sentence skip this machine. You can still choose it by hand in a swarm.':
+    "Tek cümleyle başlatılan Swarm'lar bu makineyi atlar. Bir Swarm'da yine de elle seçebilirsiniz.",
+  'Use for swarms again': 'Swarm için yeniden kullan',
+  "Don't use for swarms": 'Swarm için kullanma',
   online: 'çevrimiçi',
   offline: 'çevrimdışı',
   'whole organization': 'tüm kuruluş',

@@ -34,7 +34,10 @@ async function whereToRun(ws: Workspace): Promise<string> {
     })
     .catch(() => null);
   const ready = readiness !== null && readiness.ready;
-  const machines = await loadMachines(`/api/workspaces/${ws.id}`).catch(() => []);
+  const off = new Set(getState().settings.swarmMachinesOff);
+  const machines = (await loadMachines(`/api/workspaces/${ws.id}`).catch(() => [])).filter(
+    (m) => !off.has(m.name),
+  );
   return placeForSwarm(
     ready,
     machines,

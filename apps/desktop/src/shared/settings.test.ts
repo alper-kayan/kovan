@@ -68,3 +68,10 @@ describe('agent order', () => {
     expect(parseSettings(migrateSettings({ agentOrder })).agentOrder).toEqual(agentOrder);
   });
 });
+
+describe('swarmMachinesOff', () => {
+  it('starts empty and keeps the machine names a person turned off', () => {
+    expect(DEFAULT_SETTINGS.swarmMachinesOff).toEqual([]);
+    expect(parseSettings({ swarmMachinesOff: ['pi'] }).swarmMachinesOff).toEqual(['pi']);
+  });
+});
