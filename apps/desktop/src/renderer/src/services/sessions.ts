@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import {
   can,
   MAX_SESSION_AGENTS,
@@ -162,6 +163,32 @@ function patchRoom(patch: Partial<Room> | ((room: Room) => Partial<Room>)): void
   setState({ room: { ...room, ...(typeof patch === 'function' ? patch(room) : patch) } });
 }
 
+/** A deleted session leaves every list, and the room if it was open. */
+function dropSession(workspaceId: string, sessionId: string): void {
+  setState((s) => ({
+    sessions: {
+      ...s.sessions,
+      [workspaceId]: (s.sessions[workspaceId] ?? []).filter((x) => x.id !== sessionId),
+    },
+    history: s.history[workspaceId]
+      ? { ...s.history, [workspaceId]: s.history[workspaceId]!.filter((x) => x.id !== sessionId) }
+      : s.history,
+    approvals: s.approvals.filter((a) => a.sessionId !== sessionId),
+    ...(s.room?.sessionId === sessionId ? { room: null, view: 'sessions' as const } : {}),
+  }));
+}
+
+/** Deletes an ended session for good: its transcript, plan, comments and changes. */
+export async function deleteSession(session: Session): Promise<void> {
+  try {
+    await request('DELETE', `/api/sessions/${session.id}`);
+    dropSession(session.workspaceId, session.id);
+    toast(t('Session deleted.'));
+  } catch (error) {
+    reportError(error);
+  }
+}
+
 function handleMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'session': {
@@ -188,6 +215,9 @@ function handleMessage(message: ServerMessage): void {
       if (getState().room?.sessionId === session.id) patchRoom({ session });
       return;
     }
+    case 'session.deleted':
+      dropSession(message.workspaceId, message.sessionId);
+      return;
     case 'approval': {
       const a = message.approval;
       const key = (x: SessionApproval) => `${x.sessionId}:${x.laneUserId}:${x.requestId}`;

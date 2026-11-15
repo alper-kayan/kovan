@@ -19,8 +19,11 @@ async function api(person: Person, method: string, url: string, payload?: object
     headers: auth(person.token),
     ...(payload ? { payload } : {}),
   });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose JSON in tests
-  return { status: res.statusCode, body: res.json() as Record<string, any> };
+  return {
+    status: res.statusCode,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- loose JSON in tests
+    body: (res.body ? res.json() : {}) as Record<string, any>,
+  };
 }
 
 beforeAll(async () => {
@@ -329,6 +332,29 @@ describe('sessions', () => {
       githubLogin: 'carol',
       role: 'viewer',
     });
+  });
+
+  it('deletes an ended session for good, for an owner or the person who started it', async () => {
+    const s = await newSession('Gone');
+    // A running session is ended first.
+    expect((await api(alice, 'DELETE', `/api/sessions/${s.id}`)).status).toBe(409);
+    await api(alice, 'POST', `/api/sessions/${s.id}/end`, {});
+    // A viewer, and an editor who did not start it, may not.
+    expect((await api(carol, 'DELETE', `/api/sessions/${s.id}`)).status).toBe(403);
+    expect((await api(bob, 'DELETE', `/api/sessions/${s.id}`)).status).toBe(403);
+    expect((await api(alice, 'DELETE', `/api/sessions/${s.id}`)).status).toBe(204);
+    const history = await api(alice, 'GET', `/api/workspaces/${workspaceId}/sessions?status=ended`);
+    expect(history.body.sessions.map((x: { id: string }) => x.id)).not.toContain(s.id);
+    expect((await api(alice, 'GET', `/api/sessions/${s.id}`)).status).toBe(404);
+    // Whoever started a session may delete it, whatever their role.
+    const mine = (
+      await api(bob, 'POST', `/api/workspaces/${workspaceId}/sessions`, {
+        title: 'Mine',
+        branch: 'kovan/mine',
+      })
+    ).body.session as { id: string };
+    await api(bob, 'POST', `/api/sessions/${mine.id}/end`, {});
+    expect((await api(bob, 'DELETE', `/api/sessions/${mine.id}`)).status).toBe(204);
   });
 
   it('ends a session into history with its transcript and final diff', async () => {

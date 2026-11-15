@@ -572,6 +572,11 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'Session deleted.': 'Oturum silindi.',
+  'Delete for good? Its transcript, plan, comments and changes go with it.':
+    'Kalıcı olarak silinsin mi? Dökümü, planı, yorumları ve değişiklikleri de gider.',
+  'Delete now': 'Şimdi sil',
+  'Delete session': 'Oturumu sil',
   'Swarms started from one sentence skip this machine. You can still choose it by hand in a swarm.':
     "Tek cümleyle başlatılan Swarm'lar bu makineyi atlar. Bir Swarm'da yine de elle seçebilirsiniz.",
   'Use for swarms again': 'Swarm için yeniden kullan',

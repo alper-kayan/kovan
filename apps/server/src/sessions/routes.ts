@@ -84,6 +84,13 @@ export function registerSessionRoutes(app: FastifyInstance, ctx: AppContext): vo
     return { session: await sessions.end(id, user.id, EndSessionSchema.parse(req.body ?? {})) };
   });
 
+  app.delete('/api/sessions/:id', async (req, reply) => {
+    const user = await requireUser(ctx, req);
+    const { id } = SessionParams.parse(req.params);
+    await sessions.remove(id, user.id);
+    return reply.code(204).send();
+  });
+
   app.get('/api/sessions/:id/replay', async (req) => {
     const user = await requireUser(ctx, req);
     const { id } = SessionParams.parse(req.params);

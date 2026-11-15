@@ -26,6 +26,7 @@ import {
   LogIn,
   LogOut,
   Square,
+  Trash2,
   Users,
   Workflow,
   Bot,
@@ -43,6 +44,7 @@ import { answerApproval } from '../services/agent';
 import {
   answerTeamApproval,
   closeSession,
+  deleteSession,
   endSession,
   fixBlocker,
   joinSession,
@@ -476,6 +478,10 @@ function SessionTab({ session }: { session: Session }) {
   const user = useStore((s) => s.user);
   const presence = useStore((s) => s.presence[session.workspaceId] ?? NONE_LIST);
   const role = useStore((s) => s.teamWorkspaces.find((w) => w.id === session.workspaceId)?.role);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const canDelete = Boolean(
+    role && (can(role, 'session.delete') || session.createdBy === user?.id),
+  );
   const roster = useStore((st) => st.aiAgents[session.workspaceId]);
   const roles = new Map((roster ?? []).filter((a) => a.role).map((a) => [a.id, a.role!]));
   const me = session.participants.find((p) => p.userId === user?.id);
@@ -582,6 +588,31 @@ function SessionTab({ session }: { session: Session }) {
               onClick={() => void endSession(session)}
             >
               <Square size={11} /> End session
+            </button>
+          )}
+        </div>
+      )}
+
+      {!live && canDelete && (
+        <div className="rail-actions">
+          {confirmDelete ? (
+            <>
+              <span className="small muted">
+                Delete for good? Its transcript, plan, comments and changes go with it.
+              </span>
+              <button
+                className="btn btn-sm btn-danger-ghost"
+                onClick={() => void deleteSession(session)}
+              >
+                <Trash2 size={12} /> Delete now
+              </button>
+              <button className="btn btn-sm" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button className="btn btn-sm btn-danger-ghost" onClick={() => setConfirmDelete(true)}>
+              <Trash2 size={12} /> Delete session
             </button>
           )}
         </div>

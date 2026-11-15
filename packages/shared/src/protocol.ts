@@ -496,6 +496,8 @@ export type ServerMessage =
   | { type: 'membership'; workspaceId: string; role: z.infer<typeof RoleSchema> | null }
   | { type: 'workspace'; workspace: Workspace }
   | { type: 'members'; workspaceId: string }
+  /** An ended session was deleted for good: it is gone from every list. */
+  | { type: 'session.deleted'; workspaceId: string; sessionId: string }
   | { type: 'user'; user: User }
   /** A session in a subscribed workspace changed (board cards, alerts). */
   | { type: 'session'; session: Session }

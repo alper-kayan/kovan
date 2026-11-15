@@ -51,6 +51,8 @@ export const ACTION_MIN_ROLE = {
   'workspace.manageRoles': 'owner',
   'workspace.manageSettings': 'owner',
   'workspace.delete': 'owner',
+  /** Deleting an ended session for good; the person who started it may too (the server checks). */
+  'session.delete': 'owner',
 } as const satisfies Record<string, Role>;
 
 export type Action = keyof typeof ACTION_MIN_ROLE;

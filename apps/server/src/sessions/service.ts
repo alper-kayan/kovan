@@ -787,6 +787,27 @@ export class SessionService {
   }
 
   /**
+   * Deletes an ended session for good: its lanes, transcript, plan, swarm, comments and final
+   * changes go with it (the foreign keys cascade); what it cost stays in the spend records, which
+   * only lose the link. Only a workspace owner or the person who started it may, and only once it
+   * has ended: a running session is ended first.
+   */
+  async remove(sessionId: string, userId: string): Promise<void> {
+    const row = await this.row(sessionId);
+    const role = await authorize(this.db, row.workspaceId, userId, 'session.join');
+    if (!can(role, 'session.delete') && row.createdBy !== userId)
+      throw forbidden('Only a workspace owner or the person who started the session can delete it');
+    if (row.status !== 'ended') throw conflict('End the session before deleting it');
+    await this.db.delete(sessions).where(eq(sessions.id, sessionId));
+    this.lanes.delete(sessionId);
+    this.out.sendRoom(row.workspaceId, sessionId, {
+      type: 'session.deleted',
+      workspaceId: row.workspaceId,
+      sessionId,
+    });
+  }
+
+  /**
    * Events from the sender's own lane, or from an AI teammate's lane their machine runs. Only a
    * joined editor may stream into a live session.
    */
