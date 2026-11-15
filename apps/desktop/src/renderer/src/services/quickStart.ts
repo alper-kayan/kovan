@@ -24,7 +24,7 @@ export function canStartTeam(): boolean {
  * when their first choice is a subscription or this computer has no model of its own; otherwise
  * this computer, whose agent is billed per use.
  */
-async function whereToRun(ws: Workspace): Promise<'here' | 'auto'> {
+async function whereToRun(ws: Workspace): Promise<string> {
   const first = getState().settings.agentOrder[0]?.harness;
   const readiness = await api
     .invoke('agent:readiness', {
@@ -93,7 +93,7 @@ export async function startFromGoal(goal: string): Promise<'swarm' | 'chat' | nu
   const place = await whereToRun(ws);
   // On a machine it runs on a subscription: nothing is billed per use, so no spending limit. On this
   // computer it is a paid model: a limit, and nothing starts until the person says so.
-  const subscription = place === 'auto';
+  const subscription = place !== 'here';
   const saved = await saveSwarm(session.id, {
     goal: text,
     leadAgentId: leadId,
@@ -106,7 +106,7 @@ export async function startFromGoal(goal: string): Promise<'swarm' | 'chat' | nu
   });
   if (!saved) return null;
   if (subscription) {
-    await launchSwarm(session, saved, 'auto');
+    await launchSwarm(session, saved, place);
     toast(
       t(
         'The lead is splitting your goal on your subscription. Its agents show up as lanes here as they start.',

@@ -572,6 +572,41 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  online: 'çevrimiçi',
+  offline: 'çevrimdışı',
+  'whole organization': 'tüm kuruluş',
+  'not signed in': 'giriş yapılmamış',
+  'no agents reported': 'bildirilen ajan yok',
+  'no checkouts': 'kopya yok',
+  '{running} of {slots} running': '{slots} işten {running} çalışıyor',
+  'reported just now': 'şimdi bildirdi',
+  'last seen {when}': 'son görülme {when}',
+  'key {name}': 'anahtar {name}',
+  'in a workspace’s settings': 'bir çalışma alanının ayarlarında',
+  'in Organization settings': 'Kuruluş ayarlarında',
+  'Now: {mode}.': 'Şu an: {mode}.',
+  'Only owners change it.': 'Yalnız sahipler değiştirir.',
+  'One person with their AI agents: no invites, no hand-offs, small swarms.':
+    "Yapay zekâ ajanlarıyla tek kişi: davet yok, devir yok, küçük Swarm'lar.",
+  'How the workspace shows for everyone in it.':
+    'Çalışma alanının içindeki herkese nasıl göründüğü.',
+  'Its icon in the sidebar.': 'Kenar çubuğundaki simgesi.',
+  "A session's changes are shown against it, and Kovan never pushes to it for you: that takes a pull request.":
+    'Bir oturumun değişiklikleri buna göre gösterilir ve Kovan sizin yerinize ona asla push etmez: bu bir pull request gerektirir.',
+  "While a session runs, everyone's saved work (uncommitted edits too) goes to the team's Git remote every few seconds under hidden refs, and teammates' work comes in; each agent's turn leaves a checkpoint there too. Off: nothing goes out until someone pushes. One switch for everyone in the workspace.":
+    'Bir oturum çalışırken herkesin kaydedilmiş işi (kaydedilmemiş düzenlemeler dahil) birkaç saniyede bir ekibin Git uzak deposuna gizli referanslarla gider ve ekip arkadaşlarının işi gelir; her ajanın turu orada da bir kontrol noktası bırakır. Kapalıyken: biri push edene kadar hiçbir şey dışarı çıkmaz. Çalışma alanındaki herkes için tek anahtar.',
+  "Who may approve a teammate's agent's commands and give it work (which runs, and is paid for, on that teammate's account). Its own person always may.":
+    'Bir ekip arkadaşının ajanının komutlarını kimlerin onaylayıp ona iş verebileceği (iş, o ekip arkadaşının hesabında çalışır ve onun hesabından ödenir). Ajanın kendi sahibi her zaman yapabilir.',
+  "What the swarms in this workspace may spend each month, all sessions together; at it, swarms pause. It is separate from each person's own monthly allowance (Billing & usage).":
+    "Bu çalışma alanındaki Swarm'ların her ay harcayabileceği tutar, tüm oturumlar birlikte; buna ulaşınca Swarm'lar durur. Herkesin kendi aylık payından (Ödeme ve kullanım) ayrıdır.",
+  'Keys and webhooks that reach only {name}. For all your workspaces at once, use':
+    'Yalnızca {name} çalışma alanına ulaşan anahtarlar ve webhook’lar. Tüm çalışma alanlarınız için birden:',
+  'Computers that run agents without anyone at them ({agentd}), each with a key that has the {scope} scope. Work sent here goes to one that holds the repository.':
+    'Başında kimse olmadan ajan çalıştıran bilgisayarlar ({agentd}); her birinin {scope} kapsamlı bir anahtarı vardır. Buraya gönderilen iş, depoyu barındıran bir makineye gider.',
+  'With an access token for the repository (read and write contents; a fine-grained GitHub token for this one repository is enough), machines fetch and push through Kovan with their own key, so none of them needs a GitHub key. Kovan keeps the token encrypted, checks it against the repository first, and never pushes to {branch} for them.':
+    'Depo için bir erişim anahtarıyla (içerik okuma ve yazma; yalnız bu depoya özel ince ayarlı bir GitHub anahtarı yeterli), makineler kendi anahtarlarıyla Kovan üzerinden çeker ve push eder; böylece hiçbirinin GitHub anahtarına ihtiyacı kalmaz. Kovan anahtarı şifreli saklar, önce depoya karşı dener ve onlar adına {branch} dalına asla push etmez.',
+  "Kovan posts what happens here to these addresses, signed with {header}, and retries for a few hours when they don't answer.":
+    'Kovan, burada olan biteni bu adreslere {header} ile imzalayarak gönderir ve yanıt vermezlerse birkaç saat boyunca yeniden dener.',
   'The lead is splitting your goal on your subscription. Its agents show up as lanes here as they start.':
     'Lider hedefinizi aboneliğinizle bölüyor. Ajanları başladıkça burada şerit olarak görünür.',
   'The team is ready, and nothing has started': 'Takım hazır, henüz hiçbir şey başlamadı',

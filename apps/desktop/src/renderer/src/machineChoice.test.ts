@@ -70,26 +70,55 @@ describe('where a swarm can run', () => {
 
 describe('placeForSwarm', () => {
   const repo = 'github.com/acme/shop';
+  const pi = machine('pi');
 
-  it('stays on this computer when its own agent is ready', () => {
-    expect(placeForSwarm(true, [machine('pi')], repo)).toBe('here');
+  it('stays on this computer when its own agent is ready and no subscription is preferred', () => {
+    expect(placeForSwarm(true, [pi], repo)).toBe('here');
   });
 
-  it('moves to a free machine that holds the repository when this computer has no model', () => {
-    expect(placeForSwarm(false, [machine('pi')], repo)).toBe('auto');
+  it('moves to a free subscription machine that holds the repository when this computer has no model', () => {
+    expect(placeForSwarm(false, [pi], repo)).toBe(pi.id);
+  });
+
+  it('prefers a subscription machine over this computer when the first choice is a subscription', () => {
+    expect(placeForSwarm(true, [pi], repo, true)).toBe(pi.id);
+    expect(placeForSwarm(true, [], repo, true)).toBe('here');
   });
 
   it('stays here when no machine can take it: offline, busy, or without the repository', () => {
     expect(placeForSwarm(false, [], repo)).toBe('here');
     expect(placeForSwarm(false, [machine('pi', { online: false })], repo)).toBe('here');
     expect(placeForSwarm(false, [machine('pi', { running: 1 })], repo)).toBe('here');
-    expect(placeForSwarm(false, [machine('pi')], 'github.com/acme/other')).toBe('here');
-    expect(placeForSwarm(false, [machine('pi')], null)).toBe('here');
+    expect(placeForSwarm(false, [pi], 'github.com/acme/other')).toBe('here');
+    expect(placeForSwarm(false, [pi], null)).toBe('here');
   });
 
-  it('prefers a free machine over this computer when the first choice is a subscription', () => {
-    expect(placeForSwarm(true, [machine('pi')], repo, true)).toBe('auto');
-    // …but a subscription first choice with no machine to run it falls back to this computer.
-    expect(placeForSwarm(true, [], repo, true)).toBe('here');
+  it('never sends a swarm to a machine whose worker is billed per use or not signed in', () => {
+    const paid = machine('mac', {
+      agents: [
+        { name: 'kovan', version: null, ready: true, works: true },
+        { name: 'claude', version: '2.1.302', ready: true, works: false },
+      ],
+    });
+    const loggedOut = machine('lap', {
+      agents: [{ name: 'claude', version: '2.1.302', ready: false, works: true }],
+    });
+    expect(placeForSwarm(false, [paid, loggedOut], repo, true)).toBe('here');
+  });
+
+  it('uses a signed-in Claude Code when the machine does not say which agent works', () => {
+    const unsaid = machine('studio', {
+      agents: [
+        { name: 'kovan', version: null, ready: false, works: false },
+        { name: 'claude', version: '2.1.302', ready: true, works: false },
+      ],
+    });
+    expect(placeForSwarm(false, [unsaid], repo)).toBe(unsaid.id);
+  });
+
+  it('picks the machine with the most free slots, then by name', () => {
+    const busy = machine('aaa', { slots: 2, running: 1 });
+    const idle = machine('bbbb', { slots: 2, running: 0 });
+    expect(placeForSwarm(false, [busy, idle], repo)).toBe(idle.id);
   });
 });

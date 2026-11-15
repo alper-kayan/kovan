@@ -62,19 +62,37 @@ export function machineWorker(m: Machine | undefined): string {
     : "Kovan's agent, with that machine's OpenRouter key";
 }
 
+/** Whether a machine's work runs on a Claude Code or Codex subscription, and that agent is signed in. */
+export function runsOnSubscription(m: Machine): boolean {
+  const subscription = (name: string) => name === 'claude' || name === 'codex';
+  const worker = m.agents.find((a) => a.works);
+  // agentd says which agent does the work; when it doesn't, a signed-in Claude Code or Codex does.
+  return worker
+    ? subscription(worker.name) && worker.ready
+    : m.agents.some((a) => subscription(a.name) && a.ready);
+}
+
+/** The free machine that holds the repository and runs on a subscription, the least busy first. */
+export function subscriptionMachine(machines: Machine[], repoUrl: string | null): Machine | null {
+  const url = repoUrl ? (normalizeRepoUrl(repoUrl) ?? repoUrl) : null;
+  const free = machines
+    .filter((m) => runsOnSubscription(m) && blocker(m, url) === null)
+    .sort((a, b) => b.slots - b.running - (a.slots - a.running) || a.name.localeCompare(b.name));
+  return free[0] ?? null;
+}
+
 /**
- * Where a swarm started from one sentence runs. A free machine of the workspace (agentd, on Claude
- * Code or Codex: the person's own subscription) wins when the person's first choice is a
- * subscription or when this computer has no model of its own; Kovan picks the least busy one.
- * Otherwise this computer, whose agent is billed per use.
+ * Where a swarm started from one sentence runs: the id of a free subscription machine of the
+ * workspace (agentd on Claude Code or Codex: nothing is billed per use), or "here", this
+ * computer's own agent, which is billed per use. A machine wins when the person's first choice is
+ * a subscription or when this computer has no model of its own.
  */
 export function placeForSwarm(
   thisComputerReady: boolean,
   machines: Machine[],
   repoUrl: string | null,
   preferSubscription = false,
-): 'here' | 'auto' {
+): 'here' | (string & {}) {
   if (thisComputerReady && !preferSubscription) return 'here';
-  const auto = machineOptions(machines, repoUrl).find((o) => o.value === 'auto');
-  return auto && auto.unavailable === null ? 'auto' : 'here';
+  return subscriptionMachine(machines, repoUrl)?.id ?? 'here';
 }

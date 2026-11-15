@@ -3502,7 +3502,7 @@ function ModeRow({ workspace }: { workspace: Workspace }) {
   return (
     <Row
       title="How it works"
-      desc={`${MODE_HINT[workspace.mode]}${workspace.mode === 'adaptive' ? ` Now: ${!members ? '…' : workspaceMode(workspace) === 'solo' ? 'Solo' : 'Team'}.` : ''}${owner ? '' : ' Only owners change it.'}`}
+      desc={`${t(MODE_HINT[workspace.mode])}${workspace.mode === 'adaptive' ? ` ${t('Now: {mode}.', { mode: !members ? '…' : workspaceMode(workspace) === 'solo' ? t('Solo') : t('Team') })}` : ''}${owner ? '' : ` ${t('Only owners change it.')}`}`}
     >
       <select
         className="select"
@@ -3524,7 +3524,7 @@ function OthersAgentsRow({ workspace }: { workspace: Workspace }) {
   return (
     <Row
       title="Someone else's agent"
-      desc={`Who may approve a teammate's agent's commands and give it work (which runs, and is paid for, on that teammate's account). Its own person always may.${owner ? '' : ' Only owners change it.'}`}
+      desc={`${t("Who may approve a teammate's agent's commands and give it work (which runs, and is paid for, on that teammate's account). Its own person always may.")}${owner ? '' : ` ${t('Only owners change it.')}`}`}
     >
       <select
         className="select"
@@ -3557,7 +3557,7 @@ function AgentLimitRow({ workspace }: { workspace: Workspace }) {
   return (
     <Row
       title="Monthly limit for agent swarms"
-      desc={`What the swarms in this workspace may spend each month, all sessions together; at it, swarms pause. It is separate from each person's own monthly allowance (Billing & usage). ${used}${owner ? '' : ' · Only owners change it.'}`}
+      desc={`${t("What the swarms in this workspace may spend each month, all sessions together; at it, swarms pause. It is separate from each person's own monthly allowance (Billing & usage).")} ${used}${owner ? '' : ` · ${t('Only owners change it.')}`}`}
     >
       <input
         className="input input-narrow mono"
@@ -3610,12 +3610,14 @@ function IntegrationsGroup({ owned }: { owned: Workspace[] }) {
   return (
     <Group title="Integrations: one workspace">
       <p className="setting-desc">
-        Keys and webhooks that reach only {workspace.name}. For all your workspaces at once, use{' '}
+        {t('Keys and webhooks that reach only {name}. For all your workspaces at once, use', {
+          name: workspace.name,
+        })}{' '}
         <button
           className="link-btn"
           onClick={() => setState({ settingsSection: 'organization', settingsQuery: '' })}
         >
-          Organization → Integrations
+          {t('Organization → Integrations')}
         </button>
         .
       </p>
@@ -3642,24 +3644,26 @@ function IntegrationsGroup({ owned }: { owned: Workspace[] }) {
       <ApiKeyList key={`keys-${workspace.id}`} base={base} />
       <h3 className="settings-subhead">Machines</h3>
       <p className="setting-desc">
-        Computers that run agents without anyone at them (<span className="mono">agentd</span>),
-        each with a key that has the <span className="mono">machine</span> scope. Work sent here
-        goes to one that holds the repository.
+        {t(
+          'Computers that run agents without anyone at them ({agentd}), each with a key that has the {scope} scope. Work sent here goes to one that holds the repository.',
+          { agentd: 'agentd', scope: 'machine' },
+        )}
       </p>
       <MachineList key={`machines-${workspace.id}`} base={base} />
       <h3 className="settings-subhead">Git for machines</h3>
       <p className="setting-desc">
-        With an access token for the repository (read and write contents; a fine-grained GitHub
-        token for this one repository is enough), machines fetch and push through Kovan with their
-        own key, so none of them needs a GitHub key. Kovan keeps the token encrypted, checks it
-        against the repository first, and never pushes to {workspace.defaultBranch} for them.
+        {t(
+          'With an access token for the repository (read and write contents; a fine-grained GitHub token for this one repository is enough), machines fetch and push through Kovan with their own key, so none of them needs a GitHub key. Kovan keeps the token encrypted, checks it against the repository first, and never pushes to {branch} for them.',
+          { branch: workspace.defaultBranch },
+        )}
       </p>
       <GitAccess key={`git-${workspace.id}`} workspace={workspace} />
       <h3 className="settings-subhead">Webhooks</h3>
       <p className="setting-desc">
-        Kovan posts what happens here to these addresses, signed with{' '}
-        <span className="mono">X-Kovan-Signature</span>, and retries for a few hours when they
-        don&apos;t answer.
+        {t(
+          "Kovan posts what happens here to these addresses, signed with {header}, and retries for a few hours when they don't answer.",
+          { header: 'X-Kovan-Signature' },
+        )}
       </p>
       <WebhookList key={`hooks-${workspace.id}`} base={base} />
     </Group>
@@ -3804,22 +3808,22 @@ function MachineList({ base }: { base: string }) {
       {list?.map((m) => (
         <Row
           key={m.id}
-          title={`${m.name} · ${m.online ? 'online' : 'offline'}${m.scope === 'organization' ? ' · whole organization' : ''}`}
+          title={`${m.name} · ${m.online ? t('online') : t('offline')}${m.scope === 'organization' ? ` · ${t('whole organization')}` : ''}`}
           desc={`${
             m.agents.length
               ? m.agents
                   .map(
                     (a) =>
-                      `${a.name}${a.version ? ` ${a.version}` : ''}${a.ready ? '' : ' (not signed in)'}`,
+                      `${a.name}${a.version ? ` ${a.version}` : ''}${a.ready ? '' : ` (${t('not signed in')})`}`,
                   )
                   .join(', ')
-              : 'no agents reported'
-          } · ${m.repos.length ? m.repos.map((r) => `${r.remote} → ${r.path}`).join(', ') : 'no checkouts'} · ${m.platform} · ${m.running} of ${m.slots} running · ${m.online ? 'reported just now' : `last seen ${new Date(m.lastSeenAt).toLocaleString()}`}${m.keyName ? ` · key ${m.keyName}` : ''}`}
+              : t('no agents reported')
+          } · ${m.repos.length ? m.repos.map((r) => `${r.remote} → ${r.path}`).join(', ') : t('no checkouts')} · ${m.platform} · ${t('{running} of {slots} running', { running: m.running, slots: m.slots })} · ${m.online ? t('reported just now') : t('last seen {when}', { when: new Date(m.lastSeenAt).toLocaleString() })}${m.keyName ? ` · ${t('key {name}', { name: m.keyName })}` : ''}`}
         >
           {/* Removed where it was registered: an organization's machine from the organization. */}
           {(orgView ? m.scope !== 'organization' : m.scope === 'organization') ? (
             <span className="small muted">
-              {orgView ? 'in a workspace’s settings' : 'in Organization settings'}
+              {orgView ? t('in a workspace’s settings') : t('in Organization settings')}
             </span>
           ) : confirm === m.id ? (
             <>
