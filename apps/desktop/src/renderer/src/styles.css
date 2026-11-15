@@ -7544,3 +7544,24 @@ button.swarm-chat-head:hover .swarm-chat-open {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* what a lane runs on and who pays: green for your own subscription, amber for paid per use */
+.route-chip {
+  flex: none;
+  padding: 1px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  color: var(--fg2);
+}
+
+.route-chip.subscription {
+  color: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 50%, transparent);
+}
+
+.route-chip.paid {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}

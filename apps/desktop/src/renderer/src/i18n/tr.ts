@@ -572,6 +572,21 @@ export const TR: Readonly<Record<string, string>> = {
   'New organization…': 'Yeni kuruluş…',
   'New session': 'Yeni oturum',
   'New chat': 'Yeni sohbet',
+  'The lead is splitting your goal on your subscription. Its agents show up as lanes here as they start.':
+    'Lider hedefinizi aboneliğinizle bölüyor. Ajanları başladıkça burada şerit olarak görünür.',
+  'The team is ready, and nothing has started': 'Takım hazır, henüz hiçbir şey başlamadı',
+  "No free machine of this workspace can run it on your Claude Code account, so it would use a paid model (your model key or Kovan's billing) from this computer, up to ${budget}. Nothing is spent until you start it.":
+    'Bu çalışma alanının, Claude Code hesabınızla çalıştırabilecek boş bir makinesi yok. Bu yüzden bu bilgisayardan ücretli bir model (model anahtarınız ya da Kovan faturalaması) kullanır, en çok ${budget}. Siz başlatana kadar hiçbir şey harcanmaz.',
+  'Start on a paid model (up to ${budget})': 'Ücretli modelle başlat (en çok ${budget})',
+  'Claude Code · your subscription': 'Claude Code · aboneliğiniz',
+  'Codex · your subscription': 'Codex · aboneliğiniz',
+  '{provider} · your key': '{provider} · sizin anahtarınız',
+  'JevRouter · paid models': 'JevRouter · ücretli modeller',
+  'OpenRouter · {model}': 'OpenRouter · {model}',
+  'Runs on your own subscription: nothing is billed per use.':
+    'Kendi aboneliğinizde çalışır: kullanım başına ücret yok.',
+  "Billed per use: by OpenRouter to the key on the machine that runs it, or by Kovan if you use Kovan's billing.":
+    'Kullandıkça ödenir: onu çalıştıran makinedeki anahtara OpenRouter tarafından, ya da Kovan faturalamasını kullanıyorsanız Kovan tarafından faturalanır.',
   'A task for a lead': 'Lider için görev',
   'Write the goal; a team opens': 'Hedefi yazın, bir takım açılır',
   'New session, by hand': 'Yeni oturum, elle',

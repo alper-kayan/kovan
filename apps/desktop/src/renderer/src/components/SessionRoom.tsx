@@ -66,6 +66,7 @@ import { TaskGraph } from './TaskGraph';
 import { loadMachines, workspaceMode } from '../services/team';
 import { machineOptions, machineWorker } from '../machineChoice';
 import {
+  laneRoute,
   taskCostAt,
   type AgentSpendStats,
   type Machine,
@@ -210,6 +211,7 @@ function Lane({
   const [commenting, setCommenting] = useState<number | null>(null);
   const aiTeammates = useStore((st) => st.aiAgents[session.workspaceId]);
   const roleOf = aiTeammates?.find((a) => a.id === participant.userId)?.role ?? null;
+  const route = laneRoute(participant);
   const live = session.status === 'active';
   const state = live ? participant.state : 'idle';
 
@@ -245,7 +247,14 @@ function Lane({
           {roleOf && <span className="role-chip">{t(roleOf)}</span>}
           {mine && <span className="muted"> (you)</span>}
         </span>
-        <span className="lane-agent mono">{agentLine(participant)}</span>
+        <span className="lane-agent mono" title={agentLine(participant)}>
+          {agentLine(participant)}
+        </span>
+        {route.kind !== 'unknown' && (
+          <span className={`route-chip ${route.kind}`} title={t(route.detail)}>
+            {t(route.key, route.values)}
+          </span>
+        )}
         <span className={`state-chip state-${state}`}>{STATE_LABEL[state]}</span>
       </header>
       <div className="lane-scroll" ref={ref} onScroll={onScroll}>
@@ -1023,6 +1032,10 @@ function SwarmSetup({ session, swarm }: { session: Session; swarm: Swarm | null 
   // Where it runs: here, or on one of the workspace's machines (agentd).
   const [machines, setMachines] = useState<Machine[]>([]);
   const [on, setOn] = useState<string>(session.machine?.id ?? 'here');
+  // A machine runs on a Claude Code or Codex subscription: nothing is billed per use, so no spending limit.
+  useEffect(() => {
+    if (!reusable && on !== 'here') setUnlimited(true);
+  }, [on, reusable]);
   useEffect(() => {
     void loadMachines(`/api/workspaces/${session.workspaceId}`)
       .then(setMachines)

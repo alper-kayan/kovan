@@ -4,6 +4,11 @@
  */
 export const tr: Readonly<Record<string, string>> = {
   // A task for a lead, and the roles of AI teammates
+  'The team and the swarm are set up. Open the Swarm tab and press Start: it may use a paid model, up to ${budget}.':
+    "Takım ve Swarm hazır. Swarm sekmesini açıp Başlat'a basın: ücretli bir model kullanabilir, en çok ${budget}.",
+  'A team is set up and the session opens with the swarm ready. Nothing starts until you press Start in its Swarm tab: it may use a paid model, up to ${budget}.':
+    "Bir takım kurulur ve oturum Swarm hazır olarak açılır. Swarm sekmesinde Başlat'a basana kadar hiçbir şey başlamaz: ücretli bir model kullanabilir, en çok ${budget}.",
+  'Set the team up': 'Takımı kur',
   'A task for a lead': 'Lider için görev',
   'New session, by hand': 'Yeni oturum, elle',
   'What would you like to do?': 'Ne yapmak istersiniz?',

@@ -1,4 +1,5 @@
 export * from './agentRoles.js';
+export * from './laneRoute.js';
 export * from './product.js';
 export * from './protocol.js';
 export * from './roles.js';

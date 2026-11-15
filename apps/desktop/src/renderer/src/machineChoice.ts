@@ -63,16 +63,18 @@ export function machineWorker(m: Machine | undefined): string {
 }
 
 /**
- * Where a swarm started from one sentence runs. This computer's own agent needs a model key or
- * Kovan billing; when it has neither, a free machine of the workspace (agentd, on Claude Code or
- * Codex) can take the work, and Kovan picks the least busy one.
+ * Where a swarm started from one sentence runs. A free machine of the workspace (agentd, on Claude
+ * Code or Codex: the person's own subscription) wins when the person's first choice is a
+ * subscription or when this computer has no model of its own; Kovan picks the least busy one.
+ * Otherwise this computer, whose agent is billed per use.
  */
 export function placeForSwarm(
   thisComputerReady: boolean,
   machines: Machine[],
   repoUrl: string | null,
+  preferSubscription = false,
 ): 'here' | 'auto' {
-  if (thisComputerReady) return 'here';
+  if (thisComputerReady && !preferSubscription) return 'here';
   const auto = machineOptions(machines, repoUrl).find((o) => o.value === 'auto');
   return auto && auto.unavailable === null ? 'auto' : 'here';
 }

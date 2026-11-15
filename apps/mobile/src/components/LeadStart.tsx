@@ -2,8 +2,6 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useActions } from '../lib/actions';
-import { useDesktopOnline } from '../lib/desktop';
 import { t, useLocale } from '../lib/i18n';
 import { QUICK_BUDGET, startWithLead } from '../lib/leadStart';
 import { useLive } from '../lib/live';
@@ -21,10 +19,8 @@ export function LeadStart({ workspaceId, onClose }: { workspaceId: string; onClo
   useLocale();
   const { api } = useSession();
   const { show } = useToast();
-  const act = useActions();
   const insets = useSafeAreaInsets();
   const { board } = useLive();
-  const desktop = useDesktopOnline();
   const [goal, setGoal] = useState('');
   const [busy, setBusy] = useState(false);
   const owner = board.workspaces.find((w) => w.id === workspaceId)?.role === 'owner';
@@ -40,7 +36,12 @@ export function LeadStart({ workspaceId, onClose }: { workspaceId: string; onClo
       });
       onClose();
       router.push({ pathname: '/session/[id]', params: { id: made.session.id } });
-      await act.desk({ kind: 'launch', swarmId: made.swarm.id, sessionId: made.session.id });
+      show(
+        t(
+          'The team and the swarm are set up. Open the Swarm tab and press Start: it may use a paid model, up to ${budget}.',
+          { budget: QUICK_BUDGET },
+        ),
+      );
     } catch (e) {
       show(e instanceof Error ? e.message : String(e), 'error');
     } finally {
@@ -73,19 +74,12 @@ export function LeadStart({ workspaceId, onClose }: { workspaceId: string; onClo
           />
           <T muted style={s.small}>
             {t(
-              "The lead splits it up and opens its own agents. You'll see their lanes in the session, one after another. Budget ${budget}.",
+              'A team is set up and the session opens with the swarm ready. Nothing starts until you press Start in its Swarm tab: it may use a paid model, up to ${budget}.',
               { budget: QUICK_BUDGET },
             )}
           </T>
-          {desktop === false && (
-            <T style={[s.small, s.warn]}>
-              {t(
-                "Kovan isn't open on your computer. The team is set up either way; it runs on a machine of the workspace if there is one, or when you open Kovan on your computer.",
-              )}
-            </T>
-          )}
           <Button
-            title={t('Start with a lead')}
+            title={t('Set the team up')}
             busy={busy}
             disabled={!goal.trim()}
             onPress={start}

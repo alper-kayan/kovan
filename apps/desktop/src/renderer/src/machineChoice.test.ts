@@ -86,4 +86,10 @@ describe('placeForSwarm', () => {
     expect(placeForSwarm(false, [machine('pi')], 'github.com/acme/other')).toBe('here');
     expect(placeForSwarm(false, [machine('pi')], null)).toBe('here');
   });
+
+  it('prefers a free machine over this computer when the first choice is a subscription', () => {
+    expect(placeForSwarm(true, [machine('pi')], repo, true)).toBe('auto');
+    // …but a subscription first choice with no machine to run it falls back to this computer.
+    expect(placeForSwarm(true, [], repo, true)).toBe('here');
+  });
 });
