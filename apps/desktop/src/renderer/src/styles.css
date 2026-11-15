@@ -3937,18 +3937,21 @@ textarea.input {
 
 .lane-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  height: 38px;
+  gap: 4px 8px;
+  min-height: 38px;
+  min-width: 0;
   flex: none;
-  padding: 0 14px;
+  padding: 6px 14px;
+  overflow: hidden;
   border-bottom: 1px solid var(--line);
   font-size: 12.5px;
 }
 
 .lane-name {
+  min-width: 0;
   font-weight: 500;
-  white-space: nowrap;
 }
 
 .lane-agent {
@@ -7547,7 +7550,11 @@ button.swarm-chat-head:hover .swarm-chat-open {
 
 /* what a lane runs on and who pays: green for your own subscription, amber for paid per use */
 .route-chip {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 1px 7px;
   font-size: 11px;
   white-space: nowrap;
@@ -7564,4 +7571,9 @@ button.swarm-chat-head:hover .swarm-chat-open {
 .route-chip.paid {
   color: var(--warn);
   border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+
+/* a lane header that does not fit wraps its chips onto a second line instead of running into the next lane */
+.lane-head .state-chip {
+  margin-left: auto;
 }

@@ -249,11 +249,15 @@ function Lane({
           {roleOf && <span className="role-chip">{t(roleOf)}</span>}
           {mine && <span className="muted"> (you)</span>}
         </span>
-        <span className="lane-agent mono" title={agentLine(participant)}>
-          {agentLine(participant)}
-        </span>
-        {route.kind !== 'unknown' && (
-          <span className={`route-chip ${route.kind}`} title={t(route.detail)}>
+        {route.kind === 'unknown' ? (
+          <span className="lane-agent mono" title={agentLine(participant)}>
+            {agentLine(participant)}
+          </span>
+        ) : (
+          <span
+            className={`route-chip ${route.kind}`}
+            title={`${t(route.detail)} (${agentLine(participant)})`}
+          >
             {t(route.key, route.values)}
           </span>
         )}
