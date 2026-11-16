@@ -1694,6 +1694,9 @@ export function SessionRoom() {
   // Another session opens on its lanes.
   const sessionId = session?.id;
   useEffect(() => setState({ roomTab: 'lanes' }), [sessionId]);
+  // Hooks stay above the early return: the room loads after the first render.
+  const [laneWidths, setLaneWidths] = useState<Record<string, number>>({});
+  const [railWidth, setRailWidth] = useState(() => readLocal('kovan.roomRailWidth', RAIL_WIDTH));
 
   if (!room || !session)
     return (
@@ -1737,8 +1740,6 @@ export function SessionRoom() {
     }));
   const state = sessionState(session);
   const joined = lanes.some((p) => p.userId === user?.id);
-  const [laneWidths, setLaneWidths] = useState<Record<string, number>>({});
-  const [railWidth, setRailWidth] = useState(() => readLocal('kovan.roomRailWidth', RAIL_WIDTH));
   const laneHere = conversation?.session?.id === session.id;
 
   return (
